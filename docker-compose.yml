@@ -1,0 +1,17 @@
+services:
+  spese:
+    build: .
+    image: spese:dev
+    container_name: spese
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - PORT=8080
+      - GOOGLE_SPREADSHEET_ID=${GOOGLE_SPREADSHEET_ID}
+      - GOOGLE_SHEET_NAME=${GOOGLE_SHEET_NAME:-Spese}
+      - GOOGLE_CREDENTIALS_JSON=${GOOGLE_CREDENTIALS_JSON}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}
+    env_file:
+      - .env
+    restart: unless-stopped
+

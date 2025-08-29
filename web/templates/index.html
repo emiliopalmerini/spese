@@ -1,0 +1,40 @@
+{{ define "content" }}
+<h1>Registra Spesa</h1>
+
+<form id="expense-form" hx-post="/expenses" hx-swap="none">
+  <div class="row">
+    <label>Giorno</label>
+    <input type="number" name="day" min="1" max="31" value="{{ .Day }}" required />
+  </div>
+  <div class="row">
+    <label>Mese</label>
+    <input type="number" name="month" min="1" max="12" value="{{ .Month }}" required />
+  </div>
+  <div class="row">
+    <label>Descrizione</label>
+    <input type="text" name="description" maxlength="200" placeholder="es. Supermercato" required />
+  </div>
+  <div class="row">
+    <label>Importo (€)</label>
+    <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required />
+  </div>
+  <div class="row">
+    <label>Categoria</label>
+    <select name="category" required>
+      {{ range .Categories }}<option>{{ . }}</option>{{ end }}
+    </select>
+  </div>
+  <div class="row">
+    <label>Sottocategoria</label>
+    <select name="subcategory" required>
+      {{ range .Subcats }}<option>{{ . }}</option>{{ end }}
+    </select>
+  </div>
+  <div class="row actions">
+    <button type="submit">Aggiungi</button>
+  </div>
+</form>
+{{ end }}
+
+{{ template "base.html" . }}
+
