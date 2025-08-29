@@ -2,9 +2,9 @@ package google
 
 import (
     "context"
+    "encoding/json"
     "errors"
     "fmt"
-    "encoding/json"
     "os"
     "strings"
 
@@ -74,58 +74,53 @@ func NewFromEnv(ctx context.Context) (*Client, error) {
 //    GOOGLE_OAUTH_TOKEN_JSON or GOOGLE_OAUTH_TOKEN_FILE.
 // 2) Service Account: GOOGLE_CREDENTIALS_JSON or GOOGLE_APPLICATION_CREDENTIALS.
 func newSheetsService(ctx context.Context) (*gsheet.Service, error) {
-    // Try OAuth first
+    // OAuth only: require client + token
     clientJSON := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_CLIENT_JSON"))
     clientFile := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_CLIENT_FILE"))
     tokenJSON := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_TOKEN_JSON"))
     tokenFile := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_TOKEN_FILE"))
 
-    if clientJSON != "" || clientFile != "" {
-        var b []byte
-        var err error
-        if clientJSON != "" {
-            b = []byte(clientJSON)
-        } else {
-            b, err = os.ReadFile(clientFile)
-            if err != nil {
-                return nil, fmt.Errorf("read oauth client file: %w", err)
-            }
-        }
-        cfg, err := google.ConfigFromJSON(b, gsheet.SpreadsheetsScope)
+    var b []byte
+    var err error
+    switch {
+    case clientJSON != "":
+        b = []byte(clientJSON)
+    case clientFile != "":
+        b, err = os.ReadFile(clientFile)
         if err != nil {
-            return nil, fmt.Errorf("oauth config: %w", err)
+            return nil, fmt.Errorf("read oauth client file: %w", err)
         }
-        var tok *oauth2.Token
-        if tokenJSON != "" {
-            tok = &oauth2.Token{}
-            if err := jsonUnmarshal([]byte(tokenJSON), tok); err != nil {
-                return nil, fmt.Errorf("oauth token json: %w", err)
-            }
-        } else if tokenFile != "" {
-            data, err := os.ReadFile(tokenFile)
-            if err != nil {
-                return nil, fmt.Errorf("read oauth token file: %w", err)
-            }
-            tok = &oauth2.Token{}
-            if err := jsonUnmarshal(data, tok); err != nil {
-                return nil, fmt.Errorf("oauth token file: %w", err)
-            }
-        } else {
-            return nil, errors.New("missing oauth token (set GOOGLE_OAUTH_TOKEN_JSON or GOOGLE_OAUTH_TOKEN_FILE)")
-        }
-        httpClient := cfg.Client(ctx, tok)
-        return gsheet.NewService(ctx, goption.WithHTTPClient(httpClient))
+    default:
+        return nil, errors.New("missing oauth client (set GOOGLE_OAUTH_CLIENT_JSON or GOOGLE_OAUTH_CLIENT_FILE)")
     }
 
-    // Fallback to Service Account
-    var opts []goption.ClientOption
-    if credJSON := strings.TrimSpace(os.Getenv("GOOGLE_CREDENTIALS_JSON")); credJSON != "" {
-        opts = append(opts, goption.WithCredentialsJSON([]byte(credJSON)))
-    } else if credFile := strings.TrimSpace(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")); credFile != "" {
-        opts = append(opts, goption.WithCredentialsFile(credFile))
+    cfg, err := google.ConfigFromJSON(b, gsheet.SpreadsheetsScope)
+    if err != nil {
+        return nil, fmt.Errorf("oauth config: %w", err)
     }
-    opts = append(opts, goption.WithScopes(gsheet.SpreadsheetsScope))
-    return gsheet.NewService(ctx, opts...)
+
+    var tok *oauth2.Token
+    switch {
+    case tokenJSON != "":
+        tok = &oauth2.Token{}
+        if err := jsonUnmarshal([]byte(tokenJSON), tok); err != nil {
+            return nil, fmt.Errorf("oauth token json: %w", err)
+        }
+    case tokenFile != "":
+        data, err := os.ReadFile(tokenFile)
+        if err != nil {
+            return nil, fmt.Errorf("read oauth token file: %w", err)
+        }
+        tok = &oauth2.Token{}
+        if err := jsonUnmarshal(data, tok); err != nil {
+            return nil, fmt.Errorf("oauth token file: %w", err)
+        }
+    default:
+        return nil, errors.New("missing oauth token (set GOOGLE_OAUTH_TOKEN_JSON or GOOGLE_OAUTH_TOKEN_FILE)")
+    }
+
+    httpClient := cfg.Client(ctx, tok)
+    return gsheet.NewService(ctx, goption.WithHTTPClient(httpClient))
 }
 
 // jsonUnmarshal is a tiny indirection to allow testing if needed.
