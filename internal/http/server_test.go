@@ -114,19 +114,7 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
     if rr.Code != http.StatusInternalServerError { t.Fatalf("expected 500, got %d", rr.Code) }
 }
 
-func TestTemplateParseErrorPath(t *testing.T) {
-    // Chdir to a temp dir with no templates to force parse error
-    dir := t.TempDir()
-    if err := os.Chdir(dir); err != nil { t.Fatalf("chdir temp: %v", err) }
-    srv := NewServer(":0", fakeExp{}, fakeTax{cats: []string{"A"}, subs: []string{"X"}})
-    // Index should fail with 500 due to missing templates
-    rr := httptest.NewRecorder()
-    req := httptest.NewRequest(http.MethodGet, "/", nil)
-    srv.Handler.ServeHTTP(rr, req)
-    if rr.Code != http.StatusInternalServerError {
-        t.Fatalf("expected 500 for missing templates, got %d", rr.Code)
-    }
-}
+// With embedded templates we no longer expect template parse errors at runtime.
 
 func TestTaxonomyErrorStillRenders(t *testing.T) {
     chdirRepoRoot(t)

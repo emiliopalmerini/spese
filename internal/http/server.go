@@ -4,48 +4,45 @@ import (
     "html/template"
     "log"
     "net/http"
-    "path/filepath"
     "strconv"
     "strings"
     "time"
 
+    "spese/assets"
     "spese/internal/core"
     "spese/internal/sheets"
 )
 
 type Server struct {
-    http.Server
-    templates *template.Template
-    expWriter sheets.ExpenseWriter
-    taxReader sheets.TaxonomyReader
+	http.Server
+	templates *template.Template
+	expWriter sheets.ExpenseWriter
+	taxReader sheets.TaxonomyReader
 }
 
 // NewServer configures routes and templates, returning a ready-to-run http.Server.
 func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader) *Server {
-    mux := http.NewServeMux()
+	mux := http.NewServeMux()
 
-    s := &Server{
-        Server: http.Server{
-            Addr:    addr,
-            Handler: mux,
-        },
-        expWriter: ew,
-        taxReader: tr,
+	s := &Server{
+		Server: http.Server{
+			Addr:    addr,
+			Handler: mux,
+		},
+		expWriter: ew,
+		taxReader: tr,
+	}
+
+    // Parse embedded templates at startup.
+    t, err := template.ParseFS(assets.TemplatesFS, "web/templates/*.html")
+    if err != nil {
+        log.Printf("warning: failed parsing templates: %v", err)
     }
+    s.templates = t
 
-	// Parse templates at startup. We keep it simple for now.
-	patterns := []string{
-		filepath.Join("web", "templates", "*.html"),
-	}
-	t, err := template.ParseGlob(patterns[0])
-	if err != nil {
-		log.Printf("warning: failed parsing templates: %v", err)
-	}
-	s.templates = t
-
-	// Static assets
-	fs := http.FileServer(http.Dir("web/static"))
-	mux.Handle("/static/", http.StripPrefix("/static/", fs))
+    // Static assets (served from filesystem for now)
+    fs := http.FileServer(http.Dir("web/static"))
+    mux.Handle("/static/", http.StripPrefix("/static/", fs))
 
 	// Routes
 	mux.HandleFunc("/", s.handleIndex)
@@ -73,22 +70,22 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    now := time.Now()
-    cats, subs, err := s.taxReader.List(r.Context())
-    if err != nil {
-        log.Printf("taxonomy list error: %v", err)
-    }
-    data := struct {
-        Day        int
-        Month      int
-        Categories []string
-        Subcats    []string
-    }{
-        Day:   now.Day(),
-        Month: int(now.Month()),
-        Categories: cats,
-        Subcats:    subs,
-    }
+	now := time.Now()
+	cats, subs, err := s.taxReader.List(r.Context())
+	if err != nil {
+		log.Printf("taxonomy list error: %v", err)
+	}
+	data := struct {
+		Day        int
+		Month      int
+		Categories []string
+		Subcats    []string
+	}{
+		Day:        now.Day(),
+		Month:      int(now.Month()),
+		Categories: cats,
+		Subcats:    subs,
+	}
 
 	if err := s.templates.ExecuteTemplate(w, "index.html", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -145,16 +142,16 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    ref, err := s.expWriter.Append(r.Context(), exp)
-    if err != nil {
-        log.Printf("append error: %v", err)
-        w.WriteHeader(http.StatusInternalServerError)
-        _, _ = w.Write([]byte(`<div class="error">Errore nel salvataggio</div>`))
-        return
-    }
-    w.WriteHeader(http.StatusOK)
-    _, _ = w.Write([]byte(`<div class="success">Spesa registrata (#` + template.HTMLEscapeString(ref) + `): ` +
-        template.HTMLEscapeString(exp.Description) +
-        ` — €` + template.HTMLEscapeString(amountStr) +
-        ` (` + template.HTMLEscapeString(exp.Category) + ` / ` + template.HTMLEscapeString(exp.Subcategory) + `)</div>`))
+	ref, err := s.expWriter.Append(r.Context(), exp)
+	if err != nil {
+		log.Printf("append error: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`<div class="error">Errore nel salvataggio</div>`))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`<div class="success">Spesa registrata (#` + template.HTMLEscapeString(ref) + `): ` +
+		template.HTMLEscapeString(exp.Description) +
+		` — €` + template.HTMLEscapeString(amountStr) +
+		` (` + template.HTMLEscapeString(exp.Category) + ` / ` + template.HTMLEscapeString(exp.Subcategory) + `)</div>`))
 }
