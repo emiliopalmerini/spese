@@ -2,6 +2,7 @@ package http
 
 import (
     "html/template"
+    "io/fs"
     "log"
     "net/http"
     "strconv"
@@ -40,9 +41,12 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader) *
     }
     s.templates = t
 
-    // Static assets (served from filesystem for now)
-    fs := http.FileServer(http.Dir("web/static"))
-    mux.Handle("/static/", http.StripPrefix("/static/", fs))
+    // Static assets (served from embedded FS)
+    if sub, err := fs.Sub(appweb.StaticFS, "static"); err == nil {
+        mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(sub))))
+    } else {
+        log.Printf("warning: failed to mount embedded static FS: %v", err)
+    }
 
 	// Routes
 	mux.HandleFunc("/", s.handleIndex)
