@@ -11,7 +11,7 @@ Stack: Go, HTMX, Google Sheets API, Docker (multistage), Docker Compose, Makefil
 
 - Go 1.22+
 - Docker + Docker Compose (per container)
-- Accesso a Google Sheets API via Service Account o OAuth credenziali
+- Accesso a Google Sheets API via OAuth (client + token)
 
 ## Esecuzione locale
 
@@ -24,10 +24,9 @@ GOOGLE_CATEGORIES_SHEET_NAME=Categories
 GOOGLE_SUBCATEGORIES_SHEET_NAME=Subcategories
 DATA_BACKEND=memory # usa 'sheets' per integrare Google Sheets
 PORT=8080
-# Uno tra i due metodi seguenti:
-# GOOGLE_CREDENTIALS_JSON='{"type":"service_account",...}'
-# oppure
-# GOOGLE_APPLICATION_CREDENTIALS=/percorso/creds.json
+# OAuth
+# GOOGLE_OAUTH_CLIENT_FILE=/percorso/client.json
+# GOOGLE_OAUTH_TOKEN_FILE=token.json
 ```
 
 2) Avvia l’app:
@@ -46,11 +45,9 @@ Vedi `.env.example` per i default. Principali:
 - `GOOGLE_SHEET_NAME`: foglio (tab) spese, default `Spese`
 - `GOOGLE_CATEGORIES_SHEET_NAME`: foglio categorie, default `Categories`
 - `GOOGLE_SUBCATEGORIES_SHEET_NAME`: foglio sottocategorie, default `Subcategories`
-- `GOOGLE_CREDENTIALS_JSON`: credenziali Service Account inlined JSON
-- `GOOGLE_APPLICATION_CREDENTIALS`: path file credenziali (alternativa a JSON inline)
 - `DATA_BACKEND`: `memory` (default) o `sheets`
 
-OAuth (alternativa al Service Account):
+OAuth:
 - `GOOGLE_OAUTH_CLIENT_JSON` oppure `GOOGLE_OAUTH_CLIENT_FILE`: credenziali client OAuth (JSON)
 - `GOOGLE_OAUTH_TOKEN_JSON` oppure `GOOGLE_OAUTH_TOKEN_FILE`: token utente generato via consenso
 
@@ -80,18 +77,7 @@ OAuth (alternativa al Service Account):
 - Foglio categorie (default `Categories`) con intestazione riga 1: `Category`, poi una categoria per riga nella colonna A.
 - Foglio sottocategorie (default `Subcategories`) con intestazione riga 1: `Subcategory`, poi una sottocategoria per riga nella colonna A.
 
-2) Service Account e permessi:
-- Abilita "Google Sheets API" nel tuo progetto Google Cloud.
-- Crea un Service Account e genera una chiave JSON.
-- Condividi il documento con l'email del Service Account come "Editor".
-
-3) Variabili d'ambiente (scegli un metodo):
-- `GOOGLE_CREDENTIALS_JSON='{"type":"service_account",...}'` (inline)
-- oppure `GOOGLE_APPLICATION_CREDENTIALS=/percorso/sa.json` (file)
-- Imposta `GOOGLE_SPREADSHEET_ID` e, se vuoi, i nomi dei fogli se diversi dai default.
-- Imposta `DATA_BACKEND=sheets` per usare l'integrazione reale.
-
-In alternativa, OAuth user consent:
+2) OAuth user consent:
 - Crea un OAuth Client (Tipo: App per desktop o Web con redirect `http://localhost:8085/callback`).
 - Esporta `GOOGLE_OAUTH_CLIENT_FILE=/percorso/client.json` (o `GOOGLE_OAUTH_CLIENT_JSON`).
 - Esegui `make oauth-init` e completa il consenso nel browser; genera `token.json` (configura `GOOGLE_OAUTH_TOKEN_FILE` se vuoi un path diverso).
