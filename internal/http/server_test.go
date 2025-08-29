@@ -20,6 +20,8 @@ type fakeTaxErr struct{}
 func (fakeTaxErr) List(ctx context.Context) ([]string, []string, error) { return nil, nil, context.DeadlineExceeded }
 type fakeExp struct{}
 func (fakeExp) Append(ctx context.Context, e core.Expense) (string, error) { return "mem:1", nil }
+type badReader struct{}
+func (badReader) Read(p []byte) (int, error) { return 0, context.DeadlineExceeded }
 
 // chdirRepoRoot attempts to set CWD to repo root so template glob works.
 func chdirRepoRoot(t *testing.T) {
@@ -78,9 +80,6 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
     if rr.Code != 422 { t.Fatalf("expected 422, got %d", rr.Code) }
 
     // ParseForm error via broken body
-    type badReader struct{}
-    func (badReader) Read(p []byte) (int, error) { return 0, context.DeadlineExceeded }
-    func (badReader) Close() error { return nil }
     rr = httptest.NewRecorder()
     req = httptest.NewRequest(http.MethodPost, "/expenses", nil)
     req.Body = io.NopCloser(badReader{})
