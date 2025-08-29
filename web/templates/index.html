@@ -1,8 +1,6 @@
 {{ define "content" }}
 <h1>Registra Spesa</h1>
 
-<div id="flash"></div>
-
 <form id="expense-form" hx-post="/expenses" hx-target="#flash" hx-swap="innerHTML">
   <div class="row">
     <label>Giorno</label>
@@ -34,6 +32,7 @@
   </div>
   <div class="row actions">
     <button type="submit">Aggiungi</button>
+    <div id="flash"></div>
   </div>
 </form>
 {{ end }}
