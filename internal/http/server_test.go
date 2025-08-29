@@ -15,6 +15,8 @@ import (
 
 type fakeTax struct{ cats, subs []string }
 func (f fakeTax) List(ctx context.Context) ([]string, []string, error) { return f.cats, f.subs, nil }
+type fakeTaxErr struct{}
+func (fakeTaxErr) List(ctx context.Context) ([]string, []string, error) { return nil, nil, context.DeadlineExceeded }
 type fakeExp struct{}
 func (fakeExp) Append(ctx context.Context, e core.Expense) (string, error) { return "mem:1", nil }
 
@@ -102,4 +104,15 @@ func TestTemplateParseErrorPath(t *testing.T) {
     if rr.Code != http.StatusInternalServerError {
         t.Fatalf("expected 500 for missing templates, got %d", rr.Code)
     }
+}
+
+func TestTaxonomyErrorStillRenders(t *testing.T) {
+    chdirRepoRoot(t)
+    var ew ports.ExpenseWriter = fakeExp{}
+    var tr ports.TaxonomyReader = fakeTaxErr{}
+    srv := NewServer(":0", ew, tr)
+    rr := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/", nil)
+    srv.Handler.ServeHTTP(rr, req)
+    if rr.Code != 200 { t.Fatalf("expected 200 even if taxonomy errors, got %d", rr.Code) }
 }
