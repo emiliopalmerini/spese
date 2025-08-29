@@ -83,9 +83,9 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
     srv.Handler.ServeHTTP(rr, req)
     if rr.Code != 422 { t.Fatalf("expected 422, got %d", rr.Code) }
 
-    // Success
+    // Success (explicit day/month)
     rr = httptest.NewRecorder()
-    req = httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("description=ok&amount=1.23&category=A&subcategory=X"))
+    req = httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("day=2&month=3&description=ok&amount=1.23&category=A&subcategory=X"))
     req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
     srv.Handler.ServeHTTP(rr, req)
     if rr.Code != 200 { t.Fatalf("expected 200, got %d", rr.Code) }
