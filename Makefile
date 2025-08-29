@@ -2,7 +2,7 @@ APP_NAME := spese
 PKG := ./...
 BIN := bin/$(APP_NAME)
 
-.PHONY: all setup tidy fmt vet lint test build run clean docker-build docker-up docker-logs docker-down up smoke
+.PHONY: all setup tidy fmt vet lint test build run clean docker-build docker-up docker-logs docker-down up smoke cover
 
 all: build
 
@@ -51,3 +51,8 @@ up: fmt build vet test docker-up
 
 smoke:
 	bash scripts/smoke.sh
+
+cover:
+	@echo "Running coverage for selected packages..."
+	go test -coverprofile=coverage.out ./internal/core ./internal/http ./internal/sheets/memory
+	go tool cover -func=coverage.out | tail -n1 | awk '{print $$3}' | grep -qx '100.0%' && echo "Coverage 100%" || (echo "Coverage below 100%" && go tool cover -func=coverage.out && exit 1)
