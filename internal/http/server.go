@@ -43,7 +43,12 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader) *
 
     // Static assets (served from embedded FS)
     if sub, err := fs.Sub(appweb.StaticFS, "static"); err == nil {
-        mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(sub))))
+        static := http.StripPrefix("/static/", http.FileServer(http.FS(sub)))
+        mux.Handle("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            // Tiny cache for static assets
+            w.Header().Set("Cache-Control", "public, max-age=3600, immutable")
+            static.ServeHTTP(w, r)
+        }))
     } else {
         log.Printf("warning: failed to mount embedded static FS: %v", err)
     }

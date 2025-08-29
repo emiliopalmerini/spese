@@ -126,3 +126,23 @@ func TestTaxonomyErrorStillRenders(t *testing.T) {
     srv.Handler.ServeHTTP(rr, req)
     if rr.Code != 200 { t.Fatalf("expected 200 even if taxonomy errors, got %d", rr.Code) }
 }
+
+func TestStaticServesWithCacheHeader(t *testing.T) {
+    chdirRepoRoot(t)
+    var ew ports.ExpenseWriter = fakeExp{}
+    var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
+    srv := NewServer(":0", ew, tr)
+
+    rr := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/static/style.css", nil)
+    srv.Handler.ServeHTTP(rr, req)
+    if rr.Code != http.StatusOK {
+        t.Fatalf("static status=%d", rr.Code)
+    }
+    if got := rr.Header().Get("Cache-Control"); got == "" {
+        t.Fatalf("expected Cache-Control header")
+    }
+    if !strings.Contains(rr.Body.String(), ":root") {
+        t.Fatalf("unexpected static body: %s", rr.Body.String())
+    }
+}
