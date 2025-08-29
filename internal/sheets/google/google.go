@@ -1,20 +1,20 @@
 package google
 
 import (
-    "context"
-    "encoding/json"
-    "errors"
-    "fmt"
-    "os"
-    "strings"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"strings"
 
-    "spese/internal/core"
-    ports "spese/internal/sheets"
+	"spese/internal/core"
+	ports "spese/internal/sheets"
 
-    goption "google.golang.org/api/option"
-    gsheet "google.golang.org/api/sheets/v4"
-    "golang.org/x/oauth2"
-    "golang.org/x/oauth2/google"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	goption "google.golang.org/api/option"
+	gsheet "google.golang.org/api/sheets/v4"
 )
 
 type Client struct {
@@ -54,10 +54,10 @@ func NewFromEnv(ctx context.Context) (*Client, error) {
 		subs = "Subcategories"
 	}
 
-    svc, err := newSheetsService(ctx)
-    if err != nil {
-        return nil, fmt.Errorf("sheets service: %w", err)
-    }
+	svc, err := newSheetsService(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("sheets service: %w", err)
+	}
 
 	return &Client{
 		svc:                svc,
@@ -70,57 +70,57 @@ func NewFromEnv(ctx context.Context) (*Client, error) {
 
 // newSheetsService initializes a Sheets Service using either OAuth (user credentials)
 // or Service Account credentials. Preference order:
-// 1) OAuth: GOOGLE_OAUTH_CLIENT_JSON or GOOGLE_OAUTH_CLIENT_FILE combined with
-//    GOOGLE_OAUTH_TOKEN_JSON or GOOGLE_OAUTH_TOKEN_FILE.
-// 2) Service Account: GOOGLE_CREDENTIALS_JSON or GOOGLE_APPLICATION_CREDENTIALS.
+//  1. OAuth: GOOGLE_OAUTH_CLIENT_JSON or GOOGLE_OAUTH_CLIENT_FILE combined with
+//     GOOGLE_OAUTH_TOKEN_JSON or GOOGLE_OAUTH_TOKEN_FILE.
+//  2. Service Account: GOOGLE_CREDENTIALS_JSON or GOOGLE_APPLICATION_CREDENTIALS.
 func newSheetsService(ctx context.Context) (*gsheet.Service, error) {
-    // OAuth only: require client + token
-    clientJSON := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_CLIENT_JSON"))
-    clientFile := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_CLIENT_FILE"))
-    tokenJSON := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_TOKEN_JSON"))
-    tokenFile := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_TOKEN_FILE"))
+	// OAuth only: require client + token
+	clientJSON := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_CLIENT_JSON"))
+	clientFile := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_CLIENT_FILE"))
+	tokenJSON := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_TOKEN_JSON"))
+	tokenFile := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_TOKEN_FILE"))
 
-    var b []byte
-    var err error
-    switch {
-    case clientJSON != "":
-        b = []byte(clientJSON)
-    case clientFile != "":
-        b, err = os.ReadFile(clientFile)
-        if err != nil {
-            return nil, fmt.Errorf("read oauth client file: %w", err)
-        }
-    default:
-        return nil, errors.New("missing oauth client (set GOOGLE_OAUTH_CLIENT_JSON or GOOGLE_OAUTH_CLIENT_FILE)")
-    }
+	var b []byte
+	var err error
+	switch {
+	case clientJSON != "":
+		b = []byte(clientJSON)
+	case clientFile != "":
+		b, err = os.ReadFile(clientFile)
+		if err != nil {
+			return nil, fmt.Errorf("read oauth client file: %w", err)
+		}
+	default:
+		return nil, errors.New("missing oauth client (set GOOGLE_OAUTH_CLIENT_JSON or GOOGLE_OAUTH_CLIENT_FILE)")
+	}
 
-    cfg, err := google.ConfigFromJSON(b, gsheet.SpreadsheetsScope)
-    if err != nil {
-        return nil, fmt.Errorf("oauth config: %w", err)
-    }
+	cfg, err := google.ConfigFromJSON(b, gsheet.SpreadsheetsScope)
+	if err != nil {
+		return nil, fmt.Errorf("oauth config: %w", err)
+	}
 
-    var tok *oauth2.Token
-    switch {
-    case tokenJSON != "":
-        tok = &oauth2.Token{}
-        if err := jsonUnmarshal([]byte(tokenJSON), tok); err != nil {
-            return nil, fmt.Errorf("oauth token json: %w", err)
-        }
-    case tokenFile != "":
-        data, err := os.ReadFile(tokenFile)
-        if err != nil {
-            return nil, fmt.Errorf("read oauth token file: %w", err)
-        }
-        tok = &oauth2.Token{}
-        if err := jsonUnmarshal(data, tok); err != nil {
-            return nil, fmt.Errorf("oauth token file: %w", err)
-        }
-    default:
-        return nil, errors.New("missing oauth token (set GOOGLE_OAUTH_TOKEN_JSON or GOOGLE_OAUTH_TOKEN_FILE)")
-    }
+	var tok *oauth2.Token
+	switch {
+	case tokenJSON != "":
+		tok = &oauth2.Token{}
+		if err := jsonUnmarshal([]byte(tokenJSON), tok); err != nil {
+			return nil, fmt.Errorf("oauth token json: %w", err)
+		}
+	case tokenFile != "":
+		data, err := os.ReadFile(tokenFile)
+		if err != nil {
+			return nil, fmt.Errorf("read oauth token file: %w", err)
+		}
+		tok = &oauth2.Token{}
+		if err := jsonUnmarshal(data, tok); err != nil {
+			return nil, fmt.Errorf("oauth token file: %w", err)
+		}
+	default:
+		return nil, errors.New("missing oauth token (set GOOGLE_OAUTH_TOKEN_JSON or GOOGLE_OAUTH_TOKEN_FILE)")
+	}
 
-    httpClient := cfg.Client(ctx, tok)
-    return gsheet.NewService(ctx, goption.WithHTTPClient(httpClient))
+	httpClient := cfg.Client(ctx, tok)
+	return gsheet.NewService(ctx, goption.WithHTTPClient(httpClient))
 }
 
 // jsonUnmarshal is a tiny indirection to allow testing if needed.
