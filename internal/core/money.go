@@ -56,8 +56,7 @@ func ParseDecimalToCents(s string) (int64, error) {
             d2 := int64(fracPart[1]-'0')
             fracCents += d2
             if len(fracPart) > 2 {
-                d3 := fracPart[2] - '0'
-                if d3 >= '5' {
+                if fracPart[2] >= '5' {
                     fracCents++
                 }
             }
