@@ -2,9 +2,9 @@ package core
 
 import (
     "errors"
-    "math"
     "strconv"
     "strings"
+    "unicode"
 )
 
 // ParseDecimalToCents converts a decimal string (e.g., "12.34" or "12,34") to cents with half-up rounding.
@@ -13,24 +13,57 @@ func ParseDecimalToCents(s string) (int64, error) {
     if s == "" {
         return 0, ErrInvalidAmount
     }
-    // Accept comma as decimal separator by normalizing to dot.
+    // Normalize decimal comma to dot
     s = strings.ReplaceAll(s, ",", ".")
-    // Split integral and fractional parts to control rounding.
-    parts := strings.SplitN(s, ".", 3)
+    if strings.HasPrefix(s, "+") || strings.HasPrefix(s, "-") {
+        // Only positive values allowed
+        return 0, ErrInvalidAmount
+    }
+    // Split into integer and fractional part
+    parts := strings.Split(s, ".")
     if len(parts) > 2 {
         return 0, ErrInvalidAmount
     }
-    // Use ParseFloat then round half-up to 2 decimals to keep behavior consistent.
-    f, err := strconv.ParseFloat(s, 64)
+    intPart := parts[0]
+    fracPart := ""
+    if len(parts) == 2 {
+        fracPart = parts[1]
+    }
+    if intPart == "" {
+        intPart = "0"
+    }
+    for _, r := range intPart {
+        if !unicode.IsDigit(r) {
+            return 0, ErrInvalidAmount
+        }
+    }
+    for _, r := range fracPart {
+        if !unicode.IsDigit(r) {
+            return 0, ErrInvalidAmount
+        }
+    }
+    // Convert integer part
+    iv, err := strconv.ParseInt(intPart, 10, 64)
     if err != nil {
         return 0, ErrInvalidAmount
     }
-    if f <= 0 {
-        return 0, ErrInvalidAmount
+    // Take first two fractional digits; then half-up rounding on third
+    var fracCents int64 = 0
+    if len(fracPart) > 0 {
+        d1 := int64(fracPart[0]-'0')
+        fracCents = d1 * 10
+        if len(fracPart) > 1 {
+            d2 := int64(fracPart[1]-'0')
+            fracCents += d2
+            if len(fracPart) > 2 {
+                d3 := fracPart[2] - '0'
+                if d3 >= '5' {
+                    fracCents++
+                }
+            }
+        }
     }
-    // Half-up rounding to 2 decimals
-    scaled := f * 100.0
-    cents := int64(math.Floor(scaled + 0.5))
+    cents := iv*100 + fracCents
     if cents <= 0 {
         return 0, ErrInvalidAmount
     }
@@ -38,4 +71,3 @@ func ParseDecimalToCents(s string) (int64, error) {
 }
 
 var _ = errors.Is // keep errors imported if unused yet
-
