@@ -2,7 +2,7 @@ APP_NAME := spese
 PKG := ./...
 BIN := bin/$(APP_NAME)
 
-.PHONY: all setup tidy fmt vet lint test build run clean docker-build docker-up docker-logs docker-down
+.PHONY: all setup tidy fmt vet lint test build run clean docker-build docker-up docker-logs docker-down up
 
 all: build
 
@@ -46,3 +46,5 @@ docker-logs:
 docker-down:
 	docker compose down
 
+up: fmt build vet test docker-up
+ 	@echo "Formatted, built, vetted, tested, and started containers."
