@@ -20,6 +20,8 @@ type fakeTaxErr struct{}
 func (fakeTaxErr) List(ctx context.Context) ([]string, []string, error) { return nil, nil, context.DeadlineExceeded }
 type fakeExp struct{}
 func (fakeExp) Append(ctx context.Context, e core.Expense) (string, error) { return "mem:1", nil }
+type fakeExpErr struct{}
+func (fakeExpErr) Append(ctx context.Context, e core.Expense) (string, error) { return "", context.DeadlineExceeded }
 type badReader struct{}
 func (badReader) Read(p []byte) (int, error) { return 0, context.DeadlineExceeded }
 
@@ -101,6 +103,15 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
     srv.Handler.ServeHTTP(rr, req)
     if rr.Code != 200 { t.Fatalf("expected 200, got %d", rr.Code) }
     if !strings.Contains(rr.Body.String(), "success") { t.Fatalf("expected success in body: %s", rr.Body.String()) }
+
+    // Append error -> 500
+    var ewErr ports.ExpenseWriter = fakeExpErr{}
+    srv = NewServer(":0", ewErr, tr)
+    rr = httptest.NewRecorder()
+    req = httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("description=ok&amount=1.23&category=A&subcategory=X"))
+    req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+    srv.Handler.ServeHTTP(rr, req)
+    if rr.Code != http.StatusInternalServerError { t.Fatalf("expected 500, got %d", rr.Code) }
 }
 
 func TestTemplateParseErrorPath(t *testing.T) {
