@@ -42,6 +42,7 @@ func NewServer(addr string) *Server {
     mux.HandleFunc("/", s.handleIndex)
     mux.HandleFunc("/healthz", handleHealth)
     mux.HandleFunc("/readyz", handleReady)
+    mux.HandleFunc("/expenses", s.handleCreateExpense)
 
     return s
 }
@@ -82,3 +83,11 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
     }
 }
 
+func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        w.WriteHeader(http.StatusMethodNotAllowed)
+        return
+    }
+    // Parsing and validation will be implemented in the next step.
+    w.WriteHeader(http.StatusNotImplemented)
+}
