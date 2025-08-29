@@ -6,6 +6,10 @@ import (
     "net/http"
     "path/filepath"
     "time"
+    "strconv"
+    "strings"
+
+    "spese/internal/core"
 )
 
 type Server struct {
@@ -88,6 +92,55 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
         w.WriteHeader(http.StatusMethodNotAllowed)
         return
     }
-    // Parsing and validation will be implemented in the next step.
-    w.WriteHeader(http.StatusNotImplemented)
+    if err := r.ParseForm(); err != nil {
+        w.WriteHeader(http.StatusBadRequest)
+        _, _ = w.Write([]byte(`<div class="error">Formato richiesta non valido</div>`))
+        return
+    }
+
+    now := time.Now()
+    day := now.Day()
+    month := int(now.Month())
+    if v := strings.TrimSpace(r.Form.Get("day")); v != "" {
+        if d, err := strconv.Atoi(v); err == nil {
+            day = d
+        }
+    }
+    if v := strings.TrimSpace(r.Form.Get("month")); v != "" {
+        if m, err := strconv.Atoi(v); err == nil {
+            month = m
+        }
+    }
+
+    desc := strings.TrimSpace(r.Form.Get("description"))
+    amountStr := strings.TrimSpace(r.Form.Get("amount"))
+    category := strings.TrimSpace(r.Form.Get("category"))
+    subcategory := strings.TrimSpace(r.Form.Get("subcategory"))
+
+    cents, err := core.ParseDecimalToCents(amountStr)
+    if err != nil {
+        w.WriteHeader(http.StatusUnprocessableEntity)
+        _, _ = w.Write([]byte(`<div class="error">Importo non valido</div>`))
+        return
+    }
+
+    exp := core.Expense{
+        Date:        core.DateParts{Day: day, Month: month},
+        Description: desc,
+        Amount:      core.Money{Cents: cents},
+        Category:    category,
+        Subcategory: subcategory,
+    }
+    if err := exp.Validate(); err != nil {
+        w.WriteHeader(http.StatusUnprocessableEntity)
+        _, _ = w.Write([]byte(`<div class="error">Dati non validi: ` + template.HTMLEscapeString(err.Error()) + `</div>`))
+        return
+    }
+
+    // TODO: integrate with sheets. For now, echo success.
+    w.WriteHeader(http.StatusOK)
+    _, _ = w.Write([]byte(`<div class="success">Spesa registrata: ` +
+        template.HTMLEscapeString(exp.Description) +
+        ` — €` + template.HTMLEscapeString(amountStr) +
+        ` (` + template.HTMLEscapeString(exp.Category) + ` / ` + template.HTMLEscapeString(exp.Subcategory) + `)</div>`))
 }
