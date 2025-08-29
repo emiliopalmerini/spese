@@ -1,0 +1,28 @@
+# OS / Editors
+.DS_Store
+.idea/
+.vscode/
+
+# Env / Secrets
+.env
+.env.local
+.env.*.local
+
+# Build Artifacts
+bin/
+dist/
+out/
+coverage/
+tmp/
+
+# Go
+*.test
+*.exe
+*.out
+
+# Node (if ever used for static tooling)
+node_modules/
+
+# Docker
+.docker/
+
