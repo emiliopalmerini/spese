@@ -6,6 +6,11 @@ repos:
         entry: bash -lc 'gofmt -s -w .'
         language: system
         types: [go]
+      - id: go-build
+        name: go build
+        entry: bash -lc 'go build ./...'
+        language: system
+        pass_filenames: false
       - id: go-vet
         name: go vet
         entry: bash -lc 'go vet ./...'
@@ -16,4 +21,3 @@ repos:
         entry: bash -lc 'go test ./...'
         language: system
         pass_filenames: false
-
