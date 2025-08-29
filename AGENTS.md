@@ -60,8 +60,8 @@ Le interfacce dei comandi restano stabili anche se cambiano gli strumenti sottos
 ## Security & Configuration Tips
 
 - Segreti: mai committare credenziali; usa `.env` in locale e secret manager in CI/CD.
-- Google Sheets: Service Account con least-privilege; condividi solo lo spreadsheet target.
-- Config: env-first — `GOOGLE_SPREADSHEET_ID`, `GOOGLE_SHEET_NAME`, `GOOGLE_CREDENTIALS_JSON` (inline) o `GOOGLE_APPLICATION_CREDENTIALS` (path), `PORT`, `BASE_URL`.
+- Google Sheets (OAuth): usa client OAuth e token utente; conserva `token.json` in modo sicuro; non committarlo.
+- Config: env-first — `GOOGLE_SPREADSHEET_ID`, `GOOGLE_SHEET_NAME`, `GOOGLE_OAUTH_CLIENT_FILE/JSON`, `GOOGLE_OAUTH_TOKEN_FILE/JSON`, `PORT`, `BASE_URL`.
 - Validazione input: lato server per importo, categoria e data (gg/mm).
 - CSRF: ok per form same-origin; se apri a JSON/cross-origin, aggiungi protezione CSRF.
 - HTTPS: TLS terminato a proxy in prod; cookie `Secure`/`HttpOnly` se usati.
