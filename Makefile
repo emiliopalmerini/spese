@@ -2,7 +2,7 @@ APP_NAME := spese
 PKG := ./...
 BIN := bin/$(APP_NAME)
 
-.PHONY: all setup tidy fmt vet lint test build run clean docker-build docker-up docker-logs docker-down up
+.PHONY: all setup tidy fmt vet lint test build run clean docker-build docker-up docker-logs docker-down up smoke
 
 all: build
 
@@ -48,3 +48,6 @@ docker-down:
 
 up: fmt build vet test docker-up
 	@echo "Formatted, built, vetted, tested, and started containers."
+
+smoke:
+	bash scripts/smoke.sh
