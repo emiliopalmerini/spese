@@ -14,10 +14,8 @@ RUN CGO_ENABLED=0 go build -ldflags='-s -w' -o /out/spese ./cmd/spese
 FROM scratch AS runner
 WORKDIR /app
 COPY --from=builder /out/spese /app/spese
-COPY web /app/web
 
 ENV PORT=8080
 EXPOSE 8080
 
 ENTRYPOINT ["/app/spese"]
-
