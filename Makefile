@@ -2,7 +2,7 @@ APP_NAME := spese
 PKG := ./...
 BIN := bin/$(APP_NAME)
 
-.PHONY: all setup tidy fmt vet lint test build run clean docker-build docker-up docker-logs docker-down up smoke cover
+.PHONY: all setup tidy fmt vet lint test build run clean docker-build docker-up docker-logs docker-down up smoke cover oauth-init
 
 all: build
 
@@ -56,3 +56,8 @@ cover:
 	@echo "Running coverage for selected packages..."
 	go test -coverprofile=coverage.out ./internal/core ./internal/http ./internal/sheets/memory
 	go tool cover -func=coverage.out | tail -n1 | awk '{print $$3}' | grep -qx '100.0%' && echo "Coverage 100%" || (echo "Coverage below 100%" && go tool cover -func=coverage.out && exit 1)
+
+oauth-init:
+	GOOGLE_OAUTH_TOKEN_FILE?=token.json
+	@echo "Starting OAuth flow (redirect to http://localhost:$${OAUTH_REDIRECT_PORT:-8085}/callback)"
+	go run ./cmd/oauth-init
