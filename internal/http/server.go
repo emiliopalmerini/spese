@@ -8,7 +8,7 @@ import (
     "strings"
     "time"
 
-    "spese/assets"
+    appweb "spese/web"
     "spese/internal/core"
     "spese/internal/sheets"
 )
@@ -34,7 +34,7 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader) *
 	}
 
     // Parse embedded templates at startup.
-    t, err := template.ParseFS(assets.TemplatesFS, "web/templates/*.html")
+    t, err := template.ParseFS(appweb.TemplatesFS, "templates/*.html")
     if err != nil {
         log.Printf("warning: failed parsing templates: %v", err)
     }
