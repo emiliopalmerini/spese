@@ -1,0 +1,8 @@
+# One subcategory per line
+Generale
+Supermercato
+Ristorante
+Abbonamenti
+Carburante
+Farmacia
+
