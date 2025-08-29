@@ -9,6 +9,7 @@ import (
     "testing"
 
     "context"
+    "io"
     "spese/internal/core"
     ports "spese/internal/sheets"
 )
@@ -75,6 +76,17 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
     req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
     srv.Handler.ServeHTTP(rr, req)
     if rr.Code != 422 { t.Fatalf("expected 422, got %d", rr.Code) }
+
+    // ParseForm error via broken body
+    type badReader struct{}
+    func (badReader) Read(p []byte) (int, error) { return 0, context.DeadlineExceeded }
+    func (badReader) Close() error { return nil }
+    rr = httptest.NewRecorder()
+    req = httptest.NewRequest(http.MethodPost, "/expenses", nil)
+    req.Body = io.NopCloser(badReader{})
+    req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+    srv.Handler.ServeHTTP(rr, req)
+    if rr.Code != http.StatusBadRequest { t.Fatalf("expected 400, got %d", rr.Code) }
 
     // Missing description
     rr = httptest.NewRecorder()
