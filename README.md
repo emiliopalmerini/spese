@@ -20,6 +20,9 @@ Stack: Go, HTMX, Google Sheets API, Docker (multistage), Docker Compose, Makefil
 ```
 GOOGLE_SPREADSHEET_ID=...
 GOOGLE_SHEET_NAME=Spese
+GOOGLE_CATEGORIES_SHEET_NAME=Categories
+GOOGLE_SUBCATEGORIES_SHEET_NAME=Subcategories
+DATA_BACKEND=memory # usa 'sheets' per integrare Google Sheets
 PORT=8080
 # Uno tra i due metodi seguenti:
 # GOOGLE_CREDENTIALS_JSON='{"type":"service_account",...}'
@@ -40,9 +43,12 @@ Vedi `.env.example` per i default. Principali:
 - `PORT`: porta HTTP (default: 8080)
 - `BASE_URL`: base URL pubblico (per link assoluti)
 - `GOOGLE_SPREADSHEET_ID`: ID del documento Google Sheets
-- `GOOGLE_SHEET_NAME`: nome del foglio (tab) dove scrivere/leggere
+- `GOOGLE_SHEET_NAME`: foglio (tab) spese, default `Spese`
+- `GOOGLE_CATEGORIES_SHEET_NAME`: foglio categorie, default `Categories`
+- `GOOGLE_SUBCATEGORIES_SHEET_NAME`: foglio sottocategorie, default `Subcategories`
 - `GOOGLE_CREDENTIALS_JSON`: credenziali Service Account inlined JSON
 - `GOOGLE_APPLICATION_CREDENTIALS`: path file credenziali (alternativa a JSON inline)
+- `DATA_BACKEND`: `memory` (default) o `sheets`
 
 ## Comandi Makefile utili
 
@@ -61,6 +67,25 @@ Vedi `.env.example` per i default. Principali:
 
 - Dockerfile multistage per immagini piccole (builder + runner distroless/alpine).
 - `docker compose up -d` per esecuzione locale; la configurazione legge `.env`.
+
+## Setup Google Sheets (rapido)
+
+1) Crea il documento e i fogli:
+- Foglio spese (default `Spese`) con intestazioni in riga 1:
+  - A: Day, B: Month, C: Description, D: Amount, E: Category, F: Subcategory
+- Foglio categorie (default `Categories`) con intestazione riga 1: `Category`, poi una categoria per riga nella colonna A.
+- Foglio sottocategorie (default `Subcategories`) con intestazione riga 1: `Subcategory`, poi una sottocategoria per riga nella colonna A.
+
+2) Service Account e permessi:
+- Abilita "Google Sheets API" nel tuo progetto Google Cloud.
+- Crea un Service Account e genera una chiave JSON.
+- Condividi il documento con l'email del Service Account come "Editor".
+
+3) Variabili d'ambiente (scegli un metodo):
+- `GOOGLE_CREDENTIALS_JSON='{"type":"service_account",...}'` (inline)
+- oppure `GOOGLE_APPLICATION_CREDENTIALS=/percorso/sa.json` (file)
+- Imposta `GOOGLE_SPREADSHEET_ID` e, se vuoi, i nomi dei fogli se diversi dai default.
+- Imposta `DATA_BACKEND=sheets` per usare l'integrazione reale.
 
 ## Health & Readiness
 
