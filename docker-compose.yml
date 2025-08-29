@@ -4,7 +4,7 @@ services:
     image: spese:dev
     container_name: spese
     ports:
-      - "${PORT:-8080}:8080"
+      - "${PORT:-8081}:8080"
     environment:
       - PORT=${PORT:-8080}
       - BASE_URL=${BASE_URL:-http://localhost:${PORT:-8080}}
