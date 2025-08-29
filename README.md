@@ -50,6 +50,10 @@ Vedi `.env.example` per i default. Principali:
 - `GOOGLE_APPLICATION_CREDENTIALS`: path file credenziali (alternativa a JSON inline)
 - `DATA_BACKEND`: `memory` (default) o `sheets`
 
+OAuth (alternativa al Service Account):
+- `GOOGLE_OAUTH_CLIENT_JSON` oppure `GOOGLE_OAUTH_CLIENT_FILE`: credenziali client OAuth (JSON)
+- `GOOGLE_OAUTH_TOKEN_JSON` oppure `GOOGLE_OAUTH_TOKEN_FILE`: token utente generato via consenso
+
 ## Comandi Makefile utili
 
 - `make setup`: setup strumenti dev (pre-commit, linters)
@@ -86,6 +90,12 @@ Vedi `.env.example` per i default. Principali:
 - oppure `GOOGLE_APPLICATION_CREDENTIALS=/percorso/sa.json` (file)
 - Imposta `GOOGLE_SPREADSHEET_ID` e, se vuoi, i nomi dei fogli se diversi dai default.
 - Imposta `DATA_BACKEND=sheets` per usare l'integrazione reale.
+
+In alternativa, OAuth user consent:
+- Crea un OAuth Client (Tipo: App per desktop o Web con redirect `http://localhost:8085/callback`).
+- Esporta `GOOGLE_OAUTH_CLIENT_FILE=/percorso/client.json` (o `GOOGLE_OAUTH_CLIENT_JSON`).
+- Esegui `make oauth-init` e completa il consenso nel browser; genera `token.json` (configura `GOOGLE_OAUTH_TOKEN_FILE` se vuoi un path diverso).
+- Avvia l'app con `DATA_BACKEND=sheets` e le variabili OAuth impostate.
 
 ## Health & Readiness
 
