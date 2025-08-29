@@ -47,4 +47,4 @@ docker-down:
 	docker compose down
 
 up: fmt build vet test docker-up
- 	@echo "Formatted, built, vetted, tested, and started containers."
+	@echo "Formatted, built, vetted, tested, and started containers."
