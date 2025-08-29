@@ -1,25 +1,76 @@
-# Name 
+# Spese (Go + HTMX)
 
-Descrizione
+Semplice app per registrare spese su un Google Spreadsheet.
+- Data automatica (giorno e mese) precompilata nel form.
+- Inserimento descrizione e valore spesa.
+- Categorie e sottocategorie lette dallo Spreadsheet.
 
-Stack: 
+Stack: Go, HTMX, Google Sheets API, Docker (multistage), Docker Compose, Makefile, pre-commit.
 
 ## Requisiti
 
+- Go 1.22+
+- Docker + Docker Compose (per container)
+- Accesso a Google Sheets API via Service Account o OAuth credenziali
+
 ## Esecuzione locale
 
+1) Configura le variabili d’ambiente (vedi sotto). Esempio con `.env`:
+
+```
+GOOGLE_SPREADSHEET_ID=...
+GOOGLE_SHEET_NAME=Spese
+PORT=8080
+# Uno tra i due metodi seguenti:
+# GOOGLE_CREDENTIALS_JSON='{"type":"service_account",...}'
+# oppure
+# GOOGLE_APPLICATION_CREDENTIALS=/percorso/creds.json
+```
+
+2) Avvia l’app:
+
+- `make run` per sviluppo locale
+- `make docker-up` per esecuzione via Docker Compose
+
+App disponibile su `http://localhost:8080` (variabile `PORT`).
 
 ## Variabili d'ambiente supportate
 
 Vedi `.env.example` per i default. Principali:
+- `PORT`: porta HTTP (default: 8080)
+- `BASE_URL`: base URL pubblico (per link assoluti)
+- `GOOGLE_SPREADSHEET_ID`: ID del documento Google Sheets
+- `GOOGLE_SHEET_NAME`: nome del foglio (tab) dove scrivere/leggere
+- `GOOGLE_CREDENTIALS_JSON`: credenziali Service Account inlined JSON
+- `GOOGLE_APPLICATION_CREDENTIALS`: path file credenziali (alternativa a JSON inline)
 
 ## Comandi Makefile utili
 
+- `make setup`: setup strumenti dev (pre-commit, linters)
+- `make tidy`: gestisce mod Go
+- `make build`: compila binario
+- `make run`: esegue in locale
+- `make test`: unit test con race/coverage
+- `make lint`: lints e vet
+- `make fmt`: formatta codice
+- `make docker-build`: build immagine Docker
+- `make docker-up`: avvia stack con Compose
+- `make docker-logs`: segue i log
+
 ## Docker
+
+- Dockerfile multistage per immagini piccole (builder + runner distroless/alpine).
+- `docker compose up -d` per esecuzione locale; la configurazione legge `.env`.
 
 ## Health & Readiness
 
+- `GET /healthz`: quick health (sempre 200 se processo vivo)
+- `GET /readyz`: readiness (opzionale: include check Google API/rate limits)
+
 ## Deploy
+
+- Container-first: build e push immagine su registry; run su container runtime (Fly.io, Render, k8s, ECS, ecc.).
+- Variabili d’ambiente fornite dal platform secret manager.
 
 ## Commit message template (Conventional Commits)
 
@@ -57,8 +108,17 @@ Note:
 
 ## Pre-commit hook
 
+Pre-commit per mantenere qualità e coerenza:
+- gofmt/goimports
+- golangci-lint (se configurato)
+- yamllint/hadolint (per YAML/Dockerfile)
+- prettier (solo per static/ o templates opzionalmente)
+
+Installa ed attiva:
+- `pipx install pre-commit` (o `pip install pre-commit`)
+- `pre-commit install`
+
 ## ADR (Architectural Decision Records)
 
-La documentazione delle decisioni architetturali è disponibile in `docs/adr`.
+La documentazione delle decisioni architetturali è disponibile in `docs/adrs`.
 Indice ADR: [docs/adrs/README.md](./docs/adrs/README.md)
-
