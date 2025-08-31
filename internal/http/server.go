@@ -339,14 +339,29 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Pass data to template
+	// Compute max category for progress scaling
+	var maxCents int64
+	for _, r := range ov.ByCategory {
+		if r.Amount.Cents > maxCents {
+			maxCents = r.Amount.Cents
+		}
+	}
+	type row struct {
+		Name, Amount string
+		Width        int
+	}
 	data := struct {
 		Year  int
 		Month int
 		Total string
-		Rows  []struct{ Name, Amount string }
+		Rows  []row
 	}{Year: ov.Year, Month: ov.Month, Total: formatEuros(ov.Total.Cents)}
 	for _, r := range ov.ByCategory {
-		data.Rows = append(data.Rows, struct{ Name, Amount string }{Name: r.Name, Amount: formatEuros(r.Amount.Cents)})
+		width := 0
+		if maxCents > 0 && r.Amount.Cents > 0 {
+			width = int((r.Amount.Cents*100 + maxCents/2) / maxCents) // rounded percent
+		}
+		data.Rows = append(data.Rows, row{Name: r.Name, Amount: formatEuros(r.Amount.Cents), Width: width})
 	}
 	if err := s.templates.ExecuteTemplate(w, "month_overview.html", data); err != nil {
 		log.Printf("template error: %v", err)

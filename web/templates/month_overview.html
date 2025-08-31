@@ -9,6 +9,9 @@
         <div class="row">
           <div class="name">{{ .Name }}</div>
           <div class="amount">{{ .Amount }}</div>
+          <div class="bar" aria-hidden="true">
+            <div class="bar__fill" style="width: {{ .Width }}%"></div>
+          </div>
         </div>
         {{ end }}
       {{ else }}

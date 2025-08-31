@@ -134,3 +134,5 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 60%, transparent); }
 .month-overview .row .name { color: var(--text); }
 .month-overview .row .amount { color: var(--text); font-variant-numeric: tabular-nums; }
 .month-overview .row.placeholder { color: var(--muted); }
+.month-overview .row .bar { grid-column: 1 / -1; height: 4px; background: color-mix(in srgb, var(--muted) 22%, transparent); margin-top: 6px; }
+.month-overview .row .bar__fill { height: 100%; background: var(--accent-600); }
