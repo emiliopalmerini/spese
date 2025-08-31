@@ -97,7 +97,7 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
 
 	// Invalid amount
 	rr = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("description=x&amount=abc&category=A&subcategory=X"))
+	req = httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("description=x&amount=abc&primary=A&secondary=X"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	srv.Handler.ServeHTTP(rr, req)
 	if rr.Code != 422 {
@@ -116,7 +116,7 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
 
 	// Missing description
 	rr = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("description=&amount=1.23&category=A&subcategory=X"))
+	req = httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("description=&amount=1.23&primary=A&secondary=X"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	srv.Handler.ServeHTTP(rr, req)
 	if rr.Code != 422 {
@@ -125,7 +125,7 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
 
 	// Success (explicit day/month)
 	rr = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("day=2&month=3&description=ok&amount=1.23&category=A&subcategory=X"))
+	req = httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("day=2&month=3&description=ok&amount=1.23&primary=A&secondary=X"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	srv.Handler.ServeHTTP(rr, req)
 	if rr.Code != 200 {
@@ -139,7 +139,7 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
 	var ewErr ports.ExpenseWriter = fakeExpErr{}
 	srv = NewServer(":0", ewErr, tr)
 	rr = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("description=ok&amount=1.23&category=A&subcategory=X"))
+	req = httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("description=ok&amount=1.23&primary=A&secondary=X"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	srv.Handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusInternalServerError {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"spese/internal/core"
@@ -19,6 +20,53 @@ type Server struct {
 	templates *template.Template
 	expWriter sheets.ExpenseWriter
 	taxReader sheets.TaxonomyReader
+	rateLimiter *rateLimiter
+}
+
+// Simple in-memory rate limiter
+type rateLimiter struct {
+	mu      sync.Mutex
+	clients map[string]*clientInfo
+}
+
+type clientInfo struct {
+	lastRequest time.Time
+	requests    int
+}
+
+func newRateLimiter() *rateLimiter {
+	return &rateLimiter{
+		clients: make(map[string]*clientInfo),
+	}
+}
+
+func (rl *rateLimiter) allow(clientIP string) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	
+	now := time.Now()
+	client, exists := rl.clients[clientIP]
+	
+	if !exists {
+		rl.clients[clientIP] = &clientInfo{
+			lastRequest: now,
+			requests:    1,
+		}
+		return true
+	}
+	
+	// Reset counter if more than 1 minute has passed
+	if now.Sub(client.lastRequest) > time.Minute {
+		client.requests = 1
+		client.lastRequest = now
+		return true
+	}
+	
+	// Allow up to 60 requests per minute
+	client.requests++
+	client.lastRequest = now
+	
+	return client.requests <= 60
 }
 
 // NewServer configures routes and templates, returning a ready-to-run http.Server.
@@ -30,8 +78,9 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader) *
 			Addr:    addr,
 			Handler: mux,
 		},
-		expWriter: ew,
-		taxReader: tr,
+		expWriter:   ew,
+		taxReader:   tr,
+		rateLimiter: newRateLimiter(),
 	}
 
 	// Parse embedded templates at startup.
@@ -53,13 +102,41 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader) *
 		log.Printf("warning: failed to mount embedded static FS: %v", err)
 	}
 
-	// Routes
-	mux.HandleFunc("/", s.handleIndex)
+	// Add security middleware
+	mux.HandleFunc("/", s.withSecurityHeaders(s.handleIndex))
 	mux.HandleFunc("/healthz", handleHealth)
 	mux.HandleFunc("/readyz", handleReady)
-	mux.HandleFunc("/expenses", s.handleCreateExpense)
+	mux.HandleFunc("/expenses", s.withSecurityHeaders(s.handleCreateExpense))
 
 	return s
+}
+
+// withSecurityHeaders adds security headers and rate limiting to responses
+func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Extract client IP (considering proxies)
+		clientIP := r.Header.Get("X-Forwarded-For")
+		if clientIP == "" {
+			clientIP = r.Header.Get("X-Real-IP")
+		}
+		if clientIP == "" {
+			clientIP = r.RemoteAddr
+		}
+		
+		// Apply rate limiting to POST requests (expense creation)
+		if r.Method == http.MethodPost && !s.rateLimiter.allow(clientIP) {
+			w.Header().Set("Retry-After", "60")
+			http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+			return
+		}
+		
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		next(w, r)
+	}
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -103,10 +180,12 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 	if err := r.ParseForm(); err != nil {
+		log.Printf("parse form error: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`<div class="error">Formato richiesta non valido</div>`))
 		return
@@ -126,10 +205,10 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	desc := strings.TrimSpace(r.Form.Get("description"))
+	desc := sanitizeInput(r.Form.Get("description"))
 	amountStr := strings.TrimSpace(r.Form.Get("amount"))
-	category := strings.TrimSpace(r.Form.Get("category"))
-	subcategory := strings.TrimSpace(r.Form.Get("subcategory"))
+	primary := sanitizeInput(r.Form.Get("primary"))
+	secondary := sanitizeInput(r.Form.Get("secondary"))
 
 	cents, err := core.ParseDecimalToCents(amountStr)
 	if err != nil {
@@ -142,8 +221,8 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		Date:        core.DateParts{Day: day, Month: month},
 		Description: desc,
 		Amount:      core.Money{Cents: cents},
-		Category:    category,
-		Subcategory: subcategory,
+		Primary:     primary,
+		Secondary:   secondary,
 	}
 	if err := exp.Validate(); err != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
@@ -162,5 +241,18 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(`<div class="success">Spesa registrata (#` + template.HTMLEscapeString(ref) + `): ` +
 		template.HTMLEscapeString(exp.Description) +
 		` — €` + template.HTMLEscapeString(amountStr) +
-		` (` + template.HTMLEscapeString(exp.Category) + ` / ` + template.HTMLEscapeString(exp.Subcategory) + `)</div>`))
+		` (` + template.HTMLEscapeString(exp.Primary) + ` / ` + template.HTMLEscapeString(exp.Secondary) + `)</div>`))
+}
+
+// sanitizeInput removes potentially dangerous characters and trims whitespace
+func sanitizeInput(s string) string {
+	s = strings.TrimSpace(s)
+	// Remove control characters except tab, newline, carriage return
+	result := strings.Map(func(r rune) rune {
+		if r < 32 && r != 9 && r != 10 && r != 13 {
+			return -1 // remove character
+		}
+		return r
+	}, s)
+	return result
 }

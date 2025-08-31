@@ -1,5 +1,6 @@
 {{ define "content" }}
   <section class="page__section">
+    <h1>Registra Spesa</h1>
     <form id="expense-form"
           class="form"
           hx-post="/expenses"
@@ -28,15 +29,15 @@
       </div>
 
       <div class="field">
-        <label for="category">Categoria</label>
-        <select id="category" name="category" required>
+        <label for="primary">Categoria Primaria</label>
+        <select id="primary" name="primary" required>
           {{ range .Categories }}<option>{{ . }}</option>{{ end }}
         </select>
       </div>
 
       <div class="field">
-        <label for="subcategory">Sottocategoria</label>
-        <select id="subcategory" name="subcategory" required>
+        <label for="secondary">Categoria Secondaria</label>
+        <select id="secondary" name="secondary" required>
           {{ range .Subcats }}<option>{{ . }}</option>{{ end }}
         </select>
       </div>
