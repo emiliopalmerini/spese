@@ -364,6 +364,12 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 		width := 0
 		if maxCents > 0 && r.Amount.Cents > 0 {
 			width = int((r.Amount.Cents*100 + maxCents/2) / maxCents) // rounded percent
+			if width > 0 && width < 2 {                               // ensure visibility for very small values
+				width = 2
+			}
+			if width > 100 {
+				width = 100
+			}
 		}
 		data.Rows = append(data.Rows, row{Name: r.Name, Amount: formatEuros(r.Amount.Cents), Width: width})
 	}

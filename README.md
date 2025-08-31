@@ -15,7 +15,11 @@ Stack: Go, HTMX, Google Sheets API, Docker (multistage), Docker Compose, Makefil
 
 ## Esecuzione locale
 
-1) Configura le variabili d'ambiente (vedi sotto). Esempio con `.env`:
+1) Configura le variabili d'ambiente (vedi sotto).
+   - Copia l'esempio: `cp .env.example .env`
+   - Modifica `.env` con i tuoi valori. Docker Compose carica `.env` e lo inietta nei container.
+
+Esempio di `.env`:
 
 ```bash
 GOOGLE_SPREADSHEET_ID=...
@@ -83,7 +87,7 @@ OAuth:
 ## Docker
 
 - Dockerfile multistage per immagini piccole (builder + runner distroless/alpine).
-- `docker compose up -d` per esecuzione locale; la configurazione legge `.env`.
+- `docker compose up -d` per esecuzione locale; la configurazione legge `.env` e lo inietta nei container (`env_file`).
 
 ## Setup Google Sheets (rapido)
 
