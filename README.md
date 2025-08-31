@@ -15,9 +15,9 @@ Stack: Go, HTMX, Google Sheets API, Docker (multistage), Docker Compose, Makefil
 
 ## Esecuzione locale
 
-1) Configura le variabili d’ambiente (vedi sotto). Esempio con `.env`:
+1) Configura le variabili d'ambiente (vedi sotto). Esempio con `.env`:
 
-```
+```bash
 GOOGLE_SPREADSHEET_ID=...
 GOOGLE_SHEET_NAME=Spese
 GOOGLE_CATEGORIES_SHEET_NAME=Categories
@@ -29,12 +29,18 @@ PORT=8080
 # GOOGLE_OAUTH_TOKEN_FILE=token.json
 ```
 
-2) Avvia l’app:
+2) Avvia l'app:
 
-- `make run` per sviluppo locale
+- `make run` per sviluppo locale (con graceful shutdown)
 - `make docker-up` per esecuzione via Docker Compose
 
 App disponibile su `http://localhost:8080` (variabile `PORT`).
+
+**Sicurezza e Performance:**
+- Rate limiting: 60 richieste per minuto per IP
+- Timeout: 10s read/write, 60s idle
+- Headers di sicurezza: CSP, XSS protection, CSRF mitigation
+- Input sanitization e validazione completa
 
 ## Variabili d'ambiente supportate
 
@@ -72,16 +78,23 @@ OAuth:
 ## Setup Google Sheets (rapido)
 
 1) Crea il documento e i fogli:
-- Foglio spese (default `Spese`) con intestazioni in riga 1:
-  - A: Day, B: Month, C: Description, D: Amount, E: Category, F: Subcategory
-- Foglio categorie (default `Categories`) con intestazione riga 1: `Category`, poi una categoria per riga nella colonna A.
-- Foglio sottocategorie (default `Subcategories`) con intestazione riga 1: `Subcategory`, poi una sottocategoria per riga nella colonna A.
+- Foglio spese (default `2025 Expenses`) con intestazioni in riga 1:
+  - A: Month, B: Day, C: Expense, D: Amount, E: Currency, F: EUR, G: Primary, H: Secondary
+- Foglio categorie (default `2025 Dashboard A2:A65`) 
+- Foglio sottocategorie (default `2025 Dashboard B2:B65`)
 
 2) OAuth user consent:
 - Crea un OAuth Client (Tipo: App per desktop o Web con redirect `http://localhost:8085/callback`).
 - Esporta `GOOGLE_OAUTH_CLIENT_FILE=/percorso/client.json` (o `GOOGLE_OAUTH_CLIENT_JSON`).
-- Esegui `make oauth-init` e completa il consenso nel browser; genera `token.json` (configura `GOOGLE_OAUTH_TOKEN_FILE` se vuoi un path diverso).
+- **Opzione A** - Locale: Esegui `make oauth-init` e completa il consenso nel browser
+- **Opzione B** - Docker: Esegui `make oauth-init-docker` per containerized OAuth flow
+- Genera `token.json` (configura `GOOGLE_OAUTH_TOKEN_FILE` se vuoi un path diverso).
 - Avvia l'app con `DATA_BACKEND=sheets` e le variabili OAuth impostate.
+
+**Sicurezza OAuth:**
+- Token salvati con permessi 0600 (solo proprietario)
+- Auto-refresh dei token scaduti
+- Nessun Service Account key committato nel repo
 
 ## Health & Readiness
 

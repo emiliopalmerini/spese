@@ -47,29 +47,31 @@ Note: niente ID interni persistiti; su Sheets l'identità è implicita (es. nume
 
 ### Schema Google Sheets
 
-- Foglio Spese (es. `Spese`):
+- Foglio Spese (es. `2025 Expenses`):
   - Colonne (header riga 1):
-    - A: Day (numero)
-    - B: Month (numero)
-    - C: Description (testo)
+    - A: Month (numero, 1-12)
+    - B: Day (numero, 1-31)
+    - C: Expense (testo, descrizione)
     - D: Amount (decimale, es. 12.34)
-    - E: Category (testo)
-    - F: Subcategory (testo)
-  - Range principale: `Spese!A:F` (append in coda, inclusi header).
+    - E: Currency (testo, sempre "EUR")
+    - F: EUR (decimale, uguale a Amount)
+    - G: Primary (testo, categoria principale)
+    - H: Secondary (testo, sottocategoria)
+  - Range principale: `2025 Expenses!A:H` (append in coda, inclusi header).
   - Nota: internamente trattiamo l'importo in cents; su Sheets salviamo il valore decimale per leggibilità.
 
 - Liste tassonomiche (indipendenti):
-  - Foglio `Categories`: colonna A = Category; range `Categories!A:A` (prima riga header).
-  - Foglio `Subcategories`: colonna A = Subcategory; range `Subcategories!A:A` (prima riga header).
-  - In alternativa si possono definire due Named Ranges equivalenti.
+  - Foglio `2025 Dashboard`: colonna A = Category (da A2:A65), colonna B = Subcategory (da B2:B65).
+  - Range specifici: `2025 Dashboard!A2:A65` per categorie, `2025 Dashboard!B2:B65` per sottocategorie.
+  - Non include header rows nei range (salta automaticamente riga 1).
 
 ### Regole di Validazione
 
 - day ∈ [1,31], month ∈ [1,12]. Se assenti nell'input, derivati dalla data corrente (timezone configurabile).
 - description non vuota, ≤ 200 caratteri, trimmed.
 - amount_decimal > 0; conversione a cents con arrotondamento half-up a 2 decimali.
-- category deve esistere in `Categories` (match case-insensitive, nome canonico salvato).
-- subcategory deve esistere in `Subcategories` (match case-insensitive, nome canonico salvato).
+- category deve esistere in `2025 Dashboard A2:A65` (match case-insensitive, nome canonico salvato).
+- subcategory deve esistere in `2025 Dashboard B2:B65` (match case-insensitive, nome canonico salvato).
 - nessun vincolo di accoppiamento categoria↔sottocategoria; qualsiasi combinazione è valida.
 
 ### Interfacce (Ports) principali

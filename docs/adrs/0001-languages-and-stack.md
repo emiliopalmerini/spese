@@ -13,7 +13,7 @@ Costruiamo una piccola applicazione per registrare spese su un Google Spreadshee
 - Frontend JS: nessun framework; solo HTMX e JS minimo ove strettamente necessario.
 - Styling: CSS leggero (senza framework obbligatorio; eventuale utility CSS minimale opzionale).
 - Persistenza: Google Sheets come System of Record (append riga per spese, lettura categorie/sottocategorie).
-- Autenticazione verso Google: Service Account con condivisione mirata dello spreadsheet.
+- Autenticazione verso Google: OAuth user credentials per sicurezza e semplicità.
 - Packaging: Dockerfile multistage (builder + runner snello) e Docker Compose per locale.
 - Automazione: Makefile per dev/build/test; pre-commit per formattazione e lint.
 - CI: fmt, vet/lint, test con `-race` e build immagine.
