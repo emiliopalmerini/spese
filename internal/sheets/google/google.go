@@ -233,67 +233,7 @@ func (c *Client) ReadMonthOverview(ctx context.Context, year int, month int) (co
 	if len(resp.Values) == 0 {
 		return core.MonthOverview{Year: year, Month: month}, nil
 	}
-	headers := toStrings(resp.Values[0])
-	colPrimary := indexOf(headers, "Primary")
-	colSecondary := indexOf(headers, "Secondary")
-	// Default month headers in English abbreviations
-	monthHeaders := []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
-	colMonth := indexOf(headers, monthHeaders[month-1])
-	if colPrimary == -1 || colSecondary == -1 || colMonth == -1 {
-		return core.MonthOverview{}, fmt.Errorf("unexpected dashboard header in %s", sheetName)
-	}
-
-	var totalCents int64
-	byCat := map[string]int64{}
-	for i := 1; i < len(resp.Values); i++ {
-		row := toStrings(resp.Values[i])
-		if len(row) == 0 {
-			continue
-		}
-		primary := safeGet(row, colPrimary)
-		secondary := safeGet(row, colSecondary)
-		valStr := safeGet(row, colMonth)
-		if strings.EqualFold(strings.TrimSpace(primary), "total") {
-			if cents, ok := parseEurosToCents(valStr); ok {
-				totalCents = cents
-			}
-			continue
-		}
-		if strings.TrimSpace(primary) != "" && strings.TrimSpace(secondary) == "" {
-			if cents, ok := parseEurosToCents(valStr); ok {
-				byCat[strings.TrimSpace(primary)] += cents
-			}
-		}
-	}
-	// If total missing, sum categories
-	if totalCents == 0 {
-		for _, v := range byCat {
-			totalCents += v
-		}
-	}
-	// Build deterministic list in sheet order based on first appearance in rows
-	var list []core.CategoryAmount
-	seen := map[string]bool{}
-	for i := 1; i < len(resp.Values); i++ {
-		row := toStrings(resp.Values[i])
-		primary := strings.TrimSpace(safeGet(row, colPrimary))
-		secondary := strings.TrimSpace(safeGet(row, colSecondary))
-		if primary == "" || secondary != "" || seen[primary] {
-			continue
-		}
-		if amt, ok := byCat[primary]; ok {
-			list = append(list, core.CategoryAmount{Name: primary, Amount: core.Money{Cents: amt}})
-			seen[primary] = true
-		}
-	}
-	// Append any leftover categories not in sheet order map (unlikely)
-	for k, v := range byCat {
-		if seen[k] {
-			continue
-		}
-		list = append(list, core.CategoryAmount{Name: k, Amount: core.Money{Cents: v}})
-	}
-	return core.MonthOverview{Year: year, Month: month, Total: core.Money{Cents: totalCents}, ByCategory: list}, nil
+	return parseDashboard(resp.Values, year, month)
 }
 
 func (c *Client) dashboardSheetName(year int) string {
