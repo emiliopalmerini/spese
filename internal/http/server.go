@@ -106,7 +106,9 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader) *
 	mux.HandleFunc("/", s.withSecurityHeaders(s.handleIndex))
 	mux.HandleFunc("/healthz", handleHealth)
 	mux.HandleFunc("/readyz", handleReady)
-	mux.HandleFunc("/expenses", s.withSecurityHeaders(s.handleCreateExpense))
+    mux.HandleFunc("/expenses", s.withSecurityHeaders(s.handleCreateExpense))
+    // UI partials
+    mux.HandleFunc("/ui/month-overview", s.withSecurityHeaders(s.handleMonthOverview))
 
 	return s
 }
@@ -255,4 +257,24 @@ func sanitizeInput(s string) string {
 		return r
 	}, s)
 	return result
+}
+
+// handleMonthOverview renders the monthly overview partial (scaffold).
+func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
+    // For now, just render the template shell; data wiring will come next.
+    w.Header().Set("Content-Type", "text/html; charset=utf-8")
+    if s.templates == nil {
+        w.WriteHeader(http.StatusOK)
+        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Monthly overview</div></section>`))
+        return
+    }
+
+    // Minimal data context; template can render placeholders.
+    data := struct{}{}
+    if err := s.templates.ExecuteTemplate(w, "month_overview.html", data); err != nil {
+        // Fall back to simple placeholder on error.
+        w.WriteHeader(http.StatusOK)
+        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Monthly overview</div></section>`))
+        return
+    }
 }
