@@ -19,9 +19,13 @@ Stack: Go, HTMX, Google Sheets API, Docker (multistage), Docker Compose, Makefil
 
 ```bash
 GOOGLE_SPREADSHEET_ID=...
-GOOGLE_SHEET_NAME=Spese
-GOOGLE_CATEGORIES_SHEET_NAME=Categories
-GOOGLE_SUBCATEGORIES_SHEET_NAME=Subcategories
+GOOGLE_SHEET_NAME=2025 Expenses
+GOOGLE_CATEGORIES_SHEET_NAME=2025 Dashboard
+GOOGLE_SUBCATEGORIES_SHEET_NAME=2025 Dashboard
+# Prefisso/pattern foglio dashboard annuale usato per il riepilogo mensile
+# Usa %d per l'anno, es: "%d Dashboard" -> "2025 Dashboard"
+DASHBOARD_SHEET_PREFIX="%d Dashboard"
+
 DATA_BACKEND=memory # usa 'sheets' per integrare Google Sheets
 PORT=8080
 # OAuth
@@ -52,6 +56,7 @@ Vedi `.env.example` per i default. Principali:
 - `GOOGLE_CATEGORIES_SHEET_NAME`: foglio categorie, default `Categories`
 - `GOOGLE_SUBCATEGORIES_SHEET_NAME`: foglio sottocategorie, default `Subcategories`
 - `DATA_BACKEND`: `memory` (default) o `sheets`
+- `DASHBOARD_SHEET_PREFIX`: pattern del foglio dashboard annuale da cui leggere i totali mensili (default: `%d Dashboard`, es. `2025 Dashboard`). Usato per mostrare la panoramica del mese sotto il form.
 
 OAuth:
 - `GOOGLE_OAUTH_CLIENT_JSON` oppure `GOOGLE_OAUTH_CLIENT_FILE`: credenziali client OAuth (JSON)
