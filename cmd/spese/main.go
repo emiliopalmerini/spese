@@ -5,6 +5,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 	apphttp "spese/internal/http"
 	ports "spese/internal/sheets"
 	gsheet "spese/internal/sheets/google"
@@ -41,9 +44,37 @@ func main() {
 	}
 
 	srv := apphttp.NewServer(":"+port, expWriter, taxReader)
+	
+	// Configure server timeouts and limits
+	srv.ReadTimeout = 10 * time.Second
+	srv.WriteTimeout = 10 * time.Second
+	srv.IdleTimeout = 60 * time.Second
+	srv.MaxHeaderBytes = 1 << 16 // 64KB
+
+	// Graceful shutdown handling
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		<-sigChan
+		log.Printf("shutdown signal received")
+
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer shutdownCancel()
+
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			log.Printf("server shutdown error: %v", err)
+		}
+		cancel()
+	}()
 
 	log.Printf("starting spese on :%s", port)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server error: %v", err)
 	}
+
+	<-ctx.Done()
+	log.Printf("server stopped")
 }
