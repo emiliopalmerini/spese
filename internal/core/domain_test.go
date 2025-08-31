@@ -39,19 +39,19 @@ func TestExpenseValidate(t *testing.T) {
 		Date:        DateParts{Day: 1, Month: 1},
 		Description: "ok",
 		Amount:      Money{Cents: 100},
-		Category:    "Cat",
-		Subcategory: "Sub",
+		Primary:     "Cat",
+		Secondary:   "Sub",
 	}
 	if err := good.Validate(); err != nil {
 		t.Fatalf("expected ok, got %v", err)
 	}
 
 	bads := []Expense{
-		{Date: DateParts{Day: 0, Month: 1}, Description: "a", Amount: Money{Cents: 1}, Category: "c", Subcategory: "s"},
-		{Date: DateParts{Day: 1, Month: 1}, Description: "", Amount: Money{Cents: 1}, Category: "c", Subcategory: "s"},
-		{Date: DateParts{Day: 1, Month: 1}, Description: "a", Amount: Money{Cents: 0}, Category: "c", Subcategory: "s"},
-		{Date: DateParts{Day: 1, Month: 1}, Description: "a", Amount: Money{Cents: 1}, Category: "", Subcategory: "s"},
-		{Date: DateParts{Day: 1, Month: 1}, Description: "a", Amount: Money{Cents: 1}, Category: "c", Subcategory: ""},
+		{Date: DateParts{Day: 0, Month: 1}, Description: "a", Amount: Money{Cents: 1}, Primary: "c", Secondary: "s"},
+		{Date: DateParts{Day: 1, Month: 1}, Description: "", Amount: Money{Cents: 1}, Primary: "c", Secondary: "s"},
+		{Date: DateParts{Day: 1, Month: 1}, Description: "a", Amount: Money{Cents: 0}, Primary: "c", Secondary: "s"},
+		{Date: DateParts{Day: 1, Month: 1}, Description: "a", Amount: Money{Cents: 1}, Primary: "", Secondary: "s"},
+		{Date: DateParts{Day: 1, Month: 1}, Description: "a", Amount: Money{Cents: 1}, Primary: "c", Secondary: ""},
 	}
 	for i, e := range bads {
 		if err := e.Validate(); err == nil {

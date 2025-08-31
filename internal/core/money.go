@@ -42,9 +42,14 @@ func ParseDecimalToCents(s string) (int64, error) {
 			return 0, ErrInvalidAmount
 		}
 	}
-	// Convert integer part
+	// Convert integer part - check for overflow
 	iv, err := strconv.ParseInt(intPart, 10, 64)
 	if err != nil {
+		return 0, ErrInvalidAmount
+	}
+	// Prevent overflow when multiplying by 100
+	const maxSafeInt64 = (1<<63 - 1) / 100
+	if iv > maxSafeInt64 {
 		return 0, ErrInvalidAmount
 	}
 	// Take first two fractional digits; then half-up rounding on third

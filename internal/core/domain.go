@@ -1,6 +1,9 @@
 package core
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 type (
 	DateParts struct {
@@ -16,8 +19,8 @@ type (
 		Date        DateParts
 		Description string
 		Amount      Money
-		Category    string
-		Subcategory string
+		Primary     string // Primary category
+		Secondary   string // Secondary category  
 	}
 )
 
@@ -26,8 +29,8 @@ var (
 	ErrInvalidMonth     = errors.New("invalid month")
 	ErrInvalidAmount    = errors.New("invalid amount")
 	ErrEmptyDescription = errors.New("empty description")
-	ErrEmptyCategory    = errors.New("empty category")
-	ErrEmptySubcategory = errors.New("empty subcategory")
+	ErrEmptyPrimary   = errors.New("empty primary category")
+	ErrEmptySecondary = errors.New("empty secondary category")
 )
 
 func (d DateParts) Validate() error {
@@ -51,17 +54,20 @@ func (e Expense) Validate() error {
 	if err := e.Date.Validate(); err != nil {
 		return err
 	}
-	if len(e.Description) == 0 {
+	if len(strings.TrimSpace(e.Description)) == 0 {
 		return ErrEmptyDescription
+	}
+	if len(e.Description) > 200 {
+		return errors.New("description too long (max 200 characters)")
 	}
 	if err := e.Amount.Validate(); err != nil {
 		return err
 	}
-	if e.Category == "" {
-		return ErrEmptyCategory
+	if strings.TrimSpace(e.Primary) == "" {
+		return ErrEmptyPrimary
 	}
-	if e.Subcategory == "" {
-		return ErrEmptySubcategory
+	if strings.TrimSpace(e.Secondary) == "" {
+		return ErrEmptySecondary
 	}
 	return nil
 }
