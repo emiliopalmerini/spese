@@ -1,5 +1,9 @@
 {{/* Partial rendered by /ui/month-overview. Expects .Year, .Month, .Total, .Rows */}}
-<section id="month-overview" class="month-overview">
+<section id="month-overview"
+         class="month-overview"
+         hx-get="/ui/month-overview"
+         hx-trigger="load, expense:created from:body"
+         hx-swap="outerHTML">
   <h2>Panoramica mese</h2>
   <div class="overview-body">
     <div class="total">Totale mese: <strong>{{ .Total }}</strong></div>
