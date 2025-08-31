@@ -16,3 +16,4 @@ ADR esistenti:
 - [0001-languages-and-stack.md](./0001-languages-and-stack.md) — Linguaggi e stack scelti
 - [0002-ddd-hexagonal-architecture.md](./0002-ddd-hexagonal-architecture.md) — DDD e architettura esagonale
 - [0003-domain-and-data-models.md](./0003-domain-and-data-models.md) — Modelli di dominio e dati
+- [0004-visualize-month-expenses-under-form.md](./0004-visualize-month-expenses-under-form.md) — Riepilogo spese mensili sotto il form
