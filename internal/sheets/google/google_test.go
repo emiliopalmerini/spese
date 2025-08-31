@@ -54,7 +54,7 @@ func TestNewFromEnv_WithValidCredentials(t *testing.T) {
 
 func TestClient_validateExpense(t *testing.T) {
 	c := &Client{spreadsheetID: "test"} // svc is nil, which will cause append to fail
-	
+
 	// Test with invalid expense
 	invalidExp := core.Expense{
 		Date:        core.DateParts{Day: 0, Month: 1}, // invalid day
@@ -63,7 +63,7 @@ func TestClient_validateExpense(t *testing.T) {
 		Primary:     "test",
 		Secondary:   "test",
 	}
-	
+
 	_, err := c.Append(context.Background(), invalidExp)
 	if err == nil {
 		t.Fatal("expected validation error")
@@ -75,20 +75,20 @@ func TestClient_validateExpense(t *testing.T) {
 
 func TestClient_readColParsing(t *testing.T) {
 	// Test the deduplication and filtering logic for specific ranges (no header skipping)
-	
+
 	// Mock the sheet response data (A2:A65 or B2:B65 range - no headers)
 	testData := [][]interface{}{
 		{"Food"},
 		{"Transport"},
-		{""},           // empty
-		{"#Comment"},   // comment
-		{"Food"},       // duplicate
+		{""},         // empty
+		{"#Comment"}, // comment
+		{"Food"},     // duplicate
 		{"Shopping"},
 	}
-	
+
 	// We can't easily test the actual readCol method without mocking the entire
 	// Google Sheets service, so let's test the core logic separately
-	
+
 	var out []string
 	for _, row := range testData {
 		if len(row) == 0 {
@@ -100,7 +100,7 @@ func TestClient_readColParsing(t *testing.T) {
 		}
 		out = append(out, v)
 	}
-	
+
 	// Dedup logic
 	seen := map[string]struct{}{}
 	uniq := make([]string, 0, len(out))
@@ -111,7 +111,7 @@ func TestClient_readColParsing(t *testing.T) {
 		seen[v] = struct{}{}
 		uniq = append(uniq, v)
 	}
-	
+
 	expected := []string{"Food", "Transport", "Shopping"}
 	if len(uniq) != len(expected) {
 		t.Errorf("expected %d items, got %d", len(expected), len(uniq))
@@ -127,12 +127,12 @@ func TestJsonUnmarshalIndirection(t *testing.T) {
 	// Test that our indirection works
 	data := []byte(`{"access_token":"test","token_type":"Bearer"}`)
 	var token oauth2.Token
-	
+
 	err := jsonUnmarshal(data, &token)
 	if err != nil {
 		t.Fatalf("jsonUnmarshal failed: %v", err)
 	}
-	
+
 	if token.AccessToken != "test" {
 		t.Errorf("expected access token 'test', got %s", token.AccessToken)
 	}
@@ -151,11 +151,11 @@ func TestNewSheetsService_MissingOAuthClient(t *testing.T) {
 			os.Setenv(k, v)
 		}
 	}()
-	
+
 	for k := range oldVars {
 		os.Unsetenv(k)
 	}
-	
+
 	_, err := newSheetsService(context.Background())
 	if err == nil {
 		t.Fatal("expected error for missing oauth client")
@@ -177,12 +177,12 @@ func TestNewSheetsService_MissingOAuthToken(t *testing.T) {
 			os.Setenv(k, v)
 		}
 	}()
-	
+
 	// Set client but not token
 	os.Setenv("GOOGLE_OAUTH_CLIENT_JSON", `{"installed":{"client_id":"test","client_secret":"test","redirect_uris":["http://localhost"],"auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token"}}`)
 	os.Unsetenv("GOOGLE_OAUTH_TOKEN_JSON")
 	os.Unsetenv("GOOGLE_OAUTH_TOKEN_FILE")
-	
+
 	_, err := newSheetsService(context.Background())
 	if err == nil {
 		t.Fatal("expected error for missing oauth token")

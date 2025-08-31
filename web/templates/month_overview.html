@@ -1,15 +1,19 @@
-{{ define "content" }}{{ end }}
-{{/*
-  This is a partial template rendered via GET /ui/month-overview
-  It is intentionally minimal during scaffolding.
-*/}}
+{{/* Partial rendered by /ui/month-overview. Expects .Year, .Month, .Total, .Rows */}}
 <section id="month-overview" class="month-overview">
   <h2>Panoramica mese</h2>
   <div class="overview-body">
-    <div class="total">Totale mese: <strong>—</strong></div>
+    <div class="total">Totale mese: <strong>{{ .Total }}</strong></div>
     <div class="categories">
-      <div class="row placeholder">Nessun dato (scaffold)</div>
+      {{ if .Rows }}
+        {{ range .Rows }}
+        <div class="row">
+          <div class="name">{{ .Name }}</div>
+          <div class="amount">{{ .Amount }}</div>
+        </div>
+        {{ end }}
+      {{ else }}
+        <div class="row placeholder">Nessun dato</div>
+      {{ end }}
     </div>
   </div>
 </section>
-

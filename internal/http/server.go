@@ -1,6 +1,8 @@
 package http
 
 import (
+	"context"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"log"
@@ -17,10 +19,16 @@ import (
 
 type Server struct {
 	http.Server
-	templates *template.Template
-	expWriter sheets.ExpenseWriter
-	taxReader sheets.TaxonomyReader
+	templates   *template.Template
+	expWriter   sheets.ExpenseWriter
+	taxReader   sheets.TaxonomyReader
+	dashReader  sheets.DashboardReader
 	rateLimiter *rateLimiter
+
+	// cache for month overviews
+	cacheMu       sync.Mutex
+	overviewCache map[string]cachedOverview
+	cacheTTL      time.Duration
 }
 
 // Simple in-memory rate limiter
@@ -43,10 +51,10 @@ func newRateLimiter() *rateLimiter {
 func (rl *rateLimiter) allow(clientIP string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	
+
 	now := time.Now()
 	client, exists := rl.clients[clientIP]
-	
+
 	if !exists {
 		rl.clients[clientIP] = &clientInfo{
 			lastRequest: now,
@@ -54,23 +62,23 @@ func (rl *rateLimiter) allow(clientIP string) bool {
 		}
 		return true
 	}
-	
+
 	// Reset counter if more than 1 minute has passed
 	if now.Sub(client.lastRequest) > time.Minute {
 		client.requests = 1
 		client.lastRequest = now
 		return true
 	}
-	
+
 	// Allow up to 60 requests per minute
 	client.requests++
 	client.lastRequest = now
-	
+
 	return client.requests <= 60
 }
 
 // NewServer configures routes and templates, returning a ready-to-run http.Server.
-func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader) *Server {
+func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, dr sheets.DashboardReader) *Server {
 	mux := http.NewServeMux()
 
 	s := &Server{
@@ -78,9 +86,12 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader) *
 			Addr:    addr,
 			Handler: mux,
 		},
-		expWriter:   ew,
-		taxReader:   tr,
-		rateLimiter: newRateLimiter(),
+		expWriter:     ew,
+		taxReader:     tr,
+		dashReader:    dr,
+		rateLimiter:   newRateLimiter(),
+		overviewCache: make(map[string]cachedOverview),
+		cacheTTL:      5 * time.Minute,
 	}
 
 	// Parse embedded templates at startup.
@@ -106,9 +117,9 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader) *
 	mux.HandleFunc("/", s.withSecurityHeaders(s.handleIndex))
 	mux.HandleFunc("/healthz", handleHealth)
 	mux.HandleFunc("/readyz", handleReady)
-    mux.HandleFunc("/expenses", s.withSecurityHeaders(s.handleCreateExpense))
-    // UI partials
-    mux.HandleFunc("/ui/month-overview", s.withSecurityHeaders(s.handleMonthOverview))
+	mux.HandleFunc("/expenses", s.withSecurityHeaders(s.handleCreateExpense))
+	// UI partials
+	mux.HandleFunc("/ui/month-overview", s.withSecurityHeaders(s.handleMonthOverview))
 
 	return s
 }
@@ -124,14 +135,14 @@ func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 		if clientIP == "" {
 			clientIP = r.RemoteAddr
 		}
-		
+
 		// Apply rate limiting to POST requests (expense creation)
 		if r.Method == http.MethodPost && !s.rateLimiter.allow(clientIP) {
 			w.Header().Set("Retry-After", "60")
 			http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
 			return
 		}
-		
+
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
@@ -239,6 +250,10 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`<div class="error">Errore nel salvataggio</div>`))
 		return
 	}
+	// Invalidate cache for current year+month and trigger client refresh
+	year := time.Now().Year()
+	s.invalidateOverview(year, month)
+	w.Header().Set("HX-Trigger", `{"expense:created": {"year": `+strconv.Itoa(year)+`, "month": `+strconv.Itoa(month)+`}}`)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`<div class="success">Spesa registrata (#` + template.HTMLEscapeString(ref) + `): ` +
 		template.HTMLEscapeString(exp.Description) +
@@ -259,22 +274,97 @@ func sanitizeInput(s string) string {
 	return result
 }
 
-// handleMonthOverview renders the monthly overview partial (scaffold).
-func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
-    // For now, just render the template shell; data wiring will come next.
-    w.Header().Set("Content-Type", "text/html; charset=utf-8")
-    if s.templates == nil {
-        w.WriteHeader(http.StatusOK)
-        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Monthly overview</div></section>`))
-        return
-    }
+type cachedOverview struct {
+	at   time.Time
+	data core.MonthOverview
+}
 
-    // Minimal data context; template can render placeholders.
-    data := struct{}{}
-    if err := s.templates.ExecuteTemplate(w, "month_overview.html", data); err != nil {
-        // Fall back to simple placeholder on error.
-        w.WriteHeader(http.StatusOK)
-        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Monthly overview</div></section>`))
-        return
-    }
+func (s *Server) cacheKey(year, month int) string {
+	return strconv.Itoa(year) + "-" + strconv.Itoa(month)
+}
+
+func (s *Server) invalidateOverview(year, month int) {
+	s.cacheMu.Lock()
+	delete(s.overviewCache, s.cacheKey(year, month))
+	s.cacheMu.Unlock()
+}
+
+func (s *Server) getOverview(ctx context.Context, year, month int) (core.MonthOverview, error) {
+	key := s.cacheKey(year, month)
+	now := time.Now()
+	s.cacheMu.Lock()
+	if c, ok := s.overviewCache[key]; ok && now.Sub(c.at) < s.cacheTTL {
+		data := c.data
+		s.cacheMu.Unlock()
+		return data, nil
+	}
+	s.cacheMu.Unlock()
+	if s.dashReader == nil {
+		return core.MonthOverview{Year: year, Month: month}, nil
+	}
+	data, err := s.dashReader.ReadMonthOverview(ctx, year, month)
+	if err != nil {
+		return core.MonthOverview{}, err
+	}
+	s.cacheMu.Lock()
+	s.overviewCache[key] = cachedOverview{at: now, data: data}
+	s.cacheMu.Unlock()
+	return data, nil
+}
+
+// handleMonthOverview renders the monthly overview partial.
+func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	now := time.Now()
+	year := now.Year()
+	month := int(now.Month())
+	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
+		if y, err := strconv.Atoi(v); err == nil {
+			year = y
+		}
+	}
+	if v := strings.TrimSpace(r.URL.Query().Get("month")); v != "" {
+		if m, err := strconv.Atoi(v); err == nil {
+			month = m
+		}
+	}
+	ov, err := s.getOverview(r.Context(), year, month)
+	if err != nil {
+		log.Printf("month overview error: %v", err)
+		_, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Errore caricando panoramica</div></section>`))
+		return
+	}
+	if s.templates == nil {
+		_, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Totale: ` + formatEuros(ov.Total.Cents) + `</div></section>`))
+		return
+	}
+	// Pass data to template
+	data := struct {
+		Year  int
+		Month int
+		Total string
+		Rows  []struct{ Name, Amount string }
+	}{Year: ov.Year, Month: ov.Month, Total: formatEuros(ov.Total.Cents)}
+	for _, r := range ov.ByCategory {
+		data.Rows = append(data.Rows, struct{ Name, Amount string }{Name: r.Name, Amount: formatEuros(r.Amount.Cents)})
+	}
+	if err := s.templates.ExecuteTemplate(w, "month_overview.html", data); err != nil {
+		log.Printf("template error: %v", err)
+		_, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Errore rendering panoramica</div></section>`))
+		return
+	}
+}
+
+func formatEuros(cents int64) string {
+	neg := cents < 0
+	if neg {
+		cents = -cents
+	}
+	euros := cents / 100
+	rem := cents % 100
+	s := strconv.FormatInt(euros, 10) + "," + fmt.Sprintf("%02d", rem)
+	if neg {
+		return "-€" + s
+	}
+	return "€" + s
 }

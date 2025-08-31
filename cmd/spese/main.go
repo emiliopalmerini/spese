@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"syscall"
-	"time"
 	apphttp "spese/internal/http"
 	ports "spese/internal/sheets"
 	gsheet "spese/internal/sheets/google"
 	mem "spese/internal/sheets/memory"
+	"syscall"
+	"time"
 )
 
 func main() {
@@ -27,8 +27,9 @@ func main() {
 	}
 
 	var (
-		expWriter ports.ExpenseWriter
-		taxReader ports.TaxonomyReader
+		expWriter  ports.ExpenseWriter
+		taxReader  ports.TaxonomyReader
+		dashReader ports.DashboardReader
 	)
 
 	switch backend {
@@ -37,14 +38,14 @@ func main() {
 		if err != nil {
 			log.Fatalf("google sheets init: %v", err)
 		}
-		expWriter, taxReader = cli, cli
+		expWriter, taxReader, dashReader = cli, cli, cli
 	default:
 		store := mem.NewFromFiles("data")
-		expWriter, taxReader = store, store
+		expWriter, taxReader, dashReader = store, store, store
 	}
 
-	srv := apphttp.NewServer(":"+port, expWriter, taxReader)
-	
+	srv := apphttp.NewServer(":"+port, expWriter, taxReader, dashReader)
+
 	// Configure server timeouts and limits
 	srv.ReadTimeout = 10 * time.Second
 	srv.WriteTimeout = 10 * time.Second

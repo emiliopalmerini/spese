@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"spese/internal/core"
+	"strconv"
 	"strings"
 
 	ports "spese/internal/sheets"
@@ -23,12 +24,14 @@ type Client struct {
 	expensesSheet      string
 	categoriesSheet    string
 	subcategoriesSheet string
+	dashboardPrefix    string
 }
 
 // Ensure interface conformance
 var (
-	_ ports.ExpenseWriter  = (*Client)(nil)
-	_ ports.TaxonomyReader = (*Client)(nil)
+	_ ports.ExpenseWriter   = (*Client)(nil)
+	_ ports.TaxonomyReader  = (*Client)(nil)
+	_ ports.DashboardReader = (*Client)(nil)
 )
 
 // NewFromEnv creates a Sheets client using environment variables and ADC.
@@ -61,12 +64,18 @@ func NewFromEnv(ctx context.Context) (*Client, error) {
 		return nil, fmt.Errorf("sheets service: %w", err)
 	}
 
+	dashPrefix := os.Getenv("DASHBOARD_SHEET_PREFIX")
+	if strings.TrimSpace(dashPrefix) == "" {
+		dashPrefix = "%d Dashboard"
+	}
+
 	return &Client{
 		svc:                svc,
 		spreadsheetID:      spreadsheetID,
 		expensesSheet:      expenses,
 		categoriesSheet:    cats,
 		subcategoriesSheet: subs,
+		dashboardPrefix:    dashPrefix,
 	}, nil
 }
 
@@ -135,24 +144,24 @@ func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
 	if c.svc == nil {
 		return "", errors.New("sheets service not initialized")
 	}
-	
-    // Convert cents to decimal string
-    euros := float64(e.Amount.Cents) / 100.0
-    // Structure: Month, Day, Expense, Amount, [E blank], [F blank], Primary, Secondary
-    // Leave E and F empty to allow sheet formulas/autofill to manage them.
-    row := []any{e.Date.Month, e.Date.Day, e.Description, euros, "", "", e.Primary, e.Secondary}
+
+	// Convert cents to decimal string
+	euros := float64(e.Amount.Cents) / 100.0
+	// Structure: Month, Day, Expense, Amount, [E blank], [F blank], Primary, Secondary
+	// Leave E and F empty to allow sheet formulas/autofill to manage them.
+	row := []any{e.Date.Month, e.Date.Day, e.Description, euros, "", "", e.Primary, e.Secondary}
 	vr := &gsheet.ValueRange{Values: [][]any{row}}
 	rng := fmt.Sprintf("%s!A:H", c.expensesSheet)
-	
+
 	call := c.svc.Spreadsheets.Values.Append(c.spreadsheetID, rng, vr).
 		ValueInputOption("USER_ENTERED").
 		InsertDataOption("INSERT_ROWS")
-	
+
 	resp, err := call.Context(ctx).Do()
 	if err != nil {
 		return "", fmt.Errorf("failed to append to sheet %s: %w", c.expensesSheet, err)
 	}
-	
+
 	ref := ""
 	if resp.Updates != nil && resp.Updates.UpdatedRange != "" {
 		ref = resp.Updates.UpdatedRange
@@ -164,7 +173,7 @@ func (c *Client) List(ctx context.Context) ([]string, []string, error) {
 	if c.svc == nil {
 		return nil, nil, errors.New("sheets service not initialized")
 	}
-	
+
 	cats, err := c.readCol(ctx, c.categoriesSheet, "A2:A65")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read categories: %w", err)
@@ -204,4 +213,132 @@ func (c *Client) readCol(ctx context.Context, sheetName, col string) ([]string, 
 		uniq = append(uniq, v)
 	}
 	return uniq, nil
+}
+
+// ReadMonthOverview reads the dashboard sheet for the given year and month
+// and extracts totals by primary category and the grand total for that month.
+func (c *Client) ReadMonthOverview(ctx context.Context, year int, month int) (core.MonthOverview, error) {
+	if c.svc == nil {
+		return core.MonthOverview{}, errors.New("sheets service not initialized")
+	}
+	if month < 1 || month > 12 {
+		return core.MonthOverview{}, fmt.Errorf("invalid month: %d", month)
+	}
+	sheetName := c.dashboardSheetName(year)
+	rng := fmt.Sprintf("%s!A1:Q300", sheetName)
+	resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rng).Context(ctx).Do()
+	if err != nil {
+		return core.MonthOverview{}, fmt.Errorf("read %s: %w", rng, err)
+	}
+	if len(resp.Values) == 0 {
+		return core.MonthOverview{Year: year, Month: month}, nil
+	}
+	headers := toStrings(resp.Values[0])
+	colPrimary := indexOf(headers, "Primary")
+	colSecondary := indexOf(headers, "Secondary")
+	// Default month headers in English abbreviations
+	monthHeaders := []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
+	colMonth := indexOf(headers, monthHeaders[month-1])
+	if colPrimary == -1 || colSecondary == -1 || colMonth == -1 {
+		return core.MonthOverview{}, fmt.Errorf("unexpected dashboard header in %s", sheetName)
+	}
+
+	var totalCents int64
+	byCat := map[string]int64{}
+	for i := 1; i < len(resp.Values); i++ {
+		row := toStrings(resp.Values[i])
+		if len(row) == 0 {
+			continue
+		}
+		primary := safeGet(row, colPrimary)
+		secondary := safeGet(row, colSecondary)
+		valStr := safeGet(row, colMonth)
+		if strings.EqualFold(strings.TrimSpace(primary), "total") {
+			if cents, ok := parseEurosToCents(valStr); ok {
+				totalCents = cents
+			}
+			continue
+		}
+		if strings.TrimSpace(primary) != "" && strings.TrimSpace(secondary) == "" {
+			if cents, ok := parseEurosToCents(valStr); ok {
+				byCat[strings.TrimSpace(primary)] += cents
+			}
+		}
+	}
+	// If total missing, sum categories
+	if totalCents == 0 {
+		for _, v := range byCat {
+			totalCents += v
+		}
+	}
+	// Build deterministic list in sheet order based on first appearance in rows
+	var list []core.CategoryAmount
+	seen := map[string]bool{}
+	for i := 1; i < len(resp.Values); i++ {
+		row := toStrings(resp.Values[i])
+		primary := strings.TrimSpace(safeGet(row, colPrimary))
+		secondary := strings.TrimSpace(safeGet(row, colSecondary))
+		if primary == "" || secondary != "" || seen[primary] {
+			continue
+		}
+		if amt, ok := byCat[primary]; ok {
+			list = append(list, core.CategoryAmount{Name: primary, Amount: core.Money{Cents: amt}})
+			seen[primary] = true
+		}
+	}
+	// Append any leftover categories not in sheet order map (unlikely)
+	for k, v := range byCat {
+		if seen[k] {
+			continue
+		}
+		list = append(list, core.CategoryAmount{Name: k, Amount: core.Money{Cents: v}})
+	}
+	return core.MonthOverview{Year: year, Month: month, Total: core.Money{Cents: totalCents}, ByCategory: list}, nil
+}
+
+func (c *Client) dashboardSheetName(year int) string {
+	if strings.Contains(c.dashboardPrefix, "%d") {
+		return fmt.Sprintf(c.dashboardPrefix, year)
+	}
+	// If prefix doesn’t contain %d, append year at the end with a space
+	return strings.TrimSpace(fmt.Sprintf("%s %d", c.dashboardPrefix, year))
+}
+
+func toStrings(in []interface{}) []string {
+	out := make([]string, len(in))
+	for i, v := range in {
+		out[i] = strings.TrimSpace(fmt.Sprint(v))
+	}
+	return out
+}
+
+func indexOf(arr []string, target string) int {
+	for i, v := range arr {
+		if strings.EqualFold(strings.TrimSpace(v), strings.TrimSpace(target)) {
+			return i
+		}
+	}
+	return -1
+}
+
+func safeGet(arr []string, idx int) string {
+	if idx < 0 || idx >= len(arr) {
+		return ""
+	}
+	return arr[idx]
+}
+
+func parseEurosToCents(s string) (int64, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, false
+	}
+	// Normalize decimal comma
+	s = strings.ReplaceAll(s, ",", ".")
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, false
+	}
+	cents := int64((f * 100.0) + 0.5)
+	return cents, true
 }

@@ -19,6 +19,13 @@ type Store struct {
 	items []core.Expense
 }
 
+// Interface conformance
+var _ interface {
+	Append(context.Context, core.Expense) (string, error)
+	List(context.Context) ([]string, []string, error)
+	ReadMonthOverview(context.Context, int, int) (core.MonthOverview, error)
+} = (*Store)(nil)
+
 func New(cats, subs []string) *Store {
 	return &Store{cats: dedupeSorted(cats), subs: dedupeSorted(subs)}
 }
@@ -53,6 +60,47 @@ func (s *Store) List(_ context.Context) ([]string, []string, error) {
 	cats := append([]string(nil), s.cats...)
 	subs := append([]string(nil), s.subs...)
 	return cats, subs, nil
+}
+
+// ReadMonthOverview aggregates stored items for the given month.
+// Year is currently ignored in memory backend.
+func (s *Store) ReadMonthOverview(_ context.Context, year int, month int) (core.MonthOverview, error) { //nolint:revive // year unused in memory
+	_ = year
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if month < 1 || month > 12 {
+		month = 1
+	}
+	byCat := map[string]int64{}
+	var total int64
+	for _, e := range s.items {
+		if e.Date.Month != month {
+			continue
+		}
+		byCat[e.Primary] += e.Amount.Cents
+		total += e.Amount.Cents
+	}
+	// Build deterministic order preserving insertion by iterating cats list first
+	var list []core.CategoryAmount
+	seen := map[string]bool{}
+	for _, c := range s.cats {
+		if amt, ok := byCat[c]; ok {
+			list = append(list, core.CategoryAmount{Name: c, Amount: core.Money{Cents: amt}})
+			seen[c] = true
+		}
+	}
+	for c, amt := range byCat {
+		if seen[c] {
+			continue
+		}
+		list = append(list, core.CategoryAmount{Name: c, Amount: core.Money{Cents: amt}})
+	}
+	return core.MonthOverview{
+		Year:       year,
+		Month:      month,
+		Total:      core.Money{Cents: total},
+		ByCategory: list,
+	}, nil
 }
 
 func readLines(path string) []string {
