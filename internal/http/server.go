@@ -339,11 +339,13 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Pass data to template
-	// Compute max category for progress scaling
+	// Compute max category for progress scaling and legend
 	var maxCents int64
+	var maxName string
 	for _, r := range ov.ByCategory {
 		if r.Amount.Cents > maxCents {
 			maxCents = r.Amount.Cents
+			maxName = r.Name
 		}
 	}
 	type row struct {
@@ -351,11 +353,13 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 		Width        int
 	}
 	data := struct {
-		Year  int
-		Month int
-		Total string
-		Rows  []row
-	}{Year: ov.Year, Month: ov.Month, Total: formatEuros(ov.Total.Cents)}
+		Year    int
+		Month   int
+		Total   string
+		MaxName string
+		Max     string
+		Rows    []row
+	}{Year: ov.Year, Month: ov.Month, Total: formatEuros(ov.Total.Cents), MaxName: maxName, Max: formatEuros(maxCents)}
 	for _, r := range ov.ByCategory {
 		width := 0
 		if maxCents > 0 && r.Amount.Cents > 0 {

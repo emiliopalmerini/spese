@@ -128,6 +128,7 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 60%, transparent); }
 .month-overview h2 { margin: 0; padding: var(--space-2); border-bottom: 1px solid var(--border); font-size: 1rem; }
 .month-overview .overview-body { padding: 0 var(--space-2) var(--space-2); }
 .month-overview .total { padding: var(--space-2) 0; font-weight: 600; }
+.month-overview .legend { color: var(--muted); font-size: .9rem; margin: -6px 0 var(--space-2); }
 .month-overview .categories { border-top: 1px solid var(--border); }
 .month-overview .row { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 10px 0; }
 .month-overview .row + .row { border-top: 1px solid var(--line); }

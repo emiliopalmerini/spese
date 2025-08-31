@@ -3,6 +3,9 @@
   <h2>Panoramica mese</h2>
   <div class="overview-body">
     <div class="total">Totale mese: <strong>{{ .Total }}</strong></div>
+    {{ if .MaxName }}
+    <div class="legend">Scala rispetto a: <em>{{ .MaxName }}</em> ({{ .Max }})</div>
+    {{ end }}
     <div class="categories">
       {{ if .Rows }}
         {{ range .Rows }}
