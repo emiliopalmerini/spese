@@ -9,6 +9,7 @@ import (
 	"spese/internal/core"
 	"strconv"
 	"strings"
+	"time"
 
 	ports "spese/internal/sheets"
 
@@ -130,6 +131,12 @@ func newSheetsService(ctx context.Context) (*gsheet.Service, error) {
 		return nil, errors.New("missing oauth token (set GOOGLE_OAUTH_TOKEN_JSON or GOOGLE_OAUTH_TOKEN_FILE)")
 	}
 
+	// Fail fast with a helpful error if the token is already expired and
+	// there is no refresh token available to auto-refresh.
+	if !tok.Expiry.IsZero() && tok.Expiry.Before(time.Now()) && strings.TrimSpace(tok.RefreshToken) == "" {
+		return nil, fmt.Errorf("oauth token expired and missing refresh_token; re-run 'make oauth-init' to generate a new token (with offline access)")
+	}
+
 	httpClient := cfg.Client(ctx, tok)
 	return gsheet.NewService(ctx, goption.WithHTTPClient(httpClient))
 }
@@ -225,7 +232,7 @@ func (c *Client) ReadMonthOverview(ctx context.Context, year int, month int) (co
 		return core.MonthOverview{}, fmt.Errorf("invalid month: %d", month)
 	}
 	sheetName := c.dashboardSheetName(year)
-	rng := fmt.Sprintf("%s!A1:Q300", sheetName)
+	rng := fmt.Sprintf("%s!A2:Q300", sheetName)
 	resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rng).Context(ctx).Do()
 	if err != nil {
 		return core.MonthOverview{}, fmt.Errorf("read %s: %w", rng, err)
@@ -233,7 +240,17 @@ func (c *Client) ReadMonthOverview(ctx context.Context, year int, month int) (co
 	if len(resp.Values) == 0 {
 		return core.MonthOverview{Year: year, Month: month}, nil
 	}
-	return parseDashboard(resp.Values, year, month)
+	ov, err := parseDashboard(resp.Values, year, month)
+	if err == nil {
+		return ov, nil
+	}
+	// Fallback: if the dashboard header/layout is unexpected, compute the
+	// month overview directly by scanning the expenses sheet. This aligns
+	// with ADR-0004 for robustness to header changes.
+	if strings.Contains(strings.ToLower(err.Error()), "unexpected dashboard header") {
+		return c.readMonthOverviewFromExpenses(ctx, year, month)
+	}
+	return core.MonthOverview{}, err
 }
 
 func (c *Client) dashboardSheetName(year int) string {
@@ -250,6 +267,72 @@ func toStrings(in []interface{}) []string {
 		out[i] = strings.TrimSpace(fmt.Sprint(v))
 	}
 	return out
+}
+
+// readMonthOverviewFromExpenses scans the expenses sheet for the given month and
+// aggregates totals by primary category. Year is inferred by the sheet name and
+// only used for the returned struct.
+func (c *Client) readMonthOverviewFromExpenses(ctx context.Context, year int, month int) (core.MonthOverview, error) {
+	rng := fmt.Sprintf("%s!A:H", c.expensesSheet)
+	resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rng).Context(ctx).Do()
+	if err != nil {
+		return core.MonthOverview{}, fmt.Errorf("read %s: %w", rng, err)
+	}
+	byCat := map[string]int64{}
+	order := make([]string, 0)
+	var total int64
+	for _, row := range resp.Values {
+		cols := toStrings(row)
+		if len(cols) < 7 {
+			// Need at least Month, Day, Desc, Amount, E, F, Primary
+			continue
+		}
+		// Parse month in col A (index 0). Skip header/non-numeric rows.
+		m, err := strconv.Atoi(strings.TrimSpace(cols[0]))
+		if err != nil || m != month {
+			continue
+		}
+		// Amount in col D (index 3) can come as number or string
+		cents, ok := parseEurosToCents(cols[3])
+		if !ok {
+			// Try fallback for numbers formatted without decimal separator
+			if f, ferr := strconv.ParseFloat(strings.TrimSpace(cols[3]), 64); ferr == nil {
+				cents = int64((f * 100.0) + 0.5)
+				ok = true
+			}
+		}
+		if !ok {
+			continue
+		}
+		primary := strings.TrimSpace(cols[6])
+		if primary == "" {
+			primary = "(Senza categoria)"
+		}
+		if _, seen := byCat[primary]; !seen {
+			order = append(order, primary)
+		}
+		byCat[primary] += cents
+		total += cents
+	}
+	// Build list preserving first-seen order
+	list := make([]core.CategoryAmount, 0, len(byCat))
+	for _, name := range order {
+		list = append(list, core.CategoryAmount{Name: name, Amount: core.Money{Cents: byCat[name]}})
+	}
+	// Append any remaining categories (shouldn't happen unless order tracking missed)
+	for name, amt := range byCat {
+		found := false
+		for _, n := range order {
+			if n == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			list = append(list, core.CategoryAmount{Name: name, Amount: core.Money{Cents: amt}})
+		}
+	}
+	return core.MonthOverview{Year: year, Month: month, Total: core.Money{Cents: total}, ByCategory: list}, nil
 }
 
 func indexOf(arr []string, target string) int {

@@ -110,6 +110,11 @@ OAuth:
 - Auto-refresh dei token scaduti
 - Nessun Service Account key committato nel repo
 
+Troubleshooting OAuth (Docker):
+- Place your OAuth client file at `./configs/client.json` or set `GOOGLE_OAUTH_CLIENT_FILE` to a path inside the container and bind-mount it.
+- The compose profile `oauth-init` binds `./configs/client.json` to `${GOOGLE_OAUTH_CLIENT_FILE:-/client.json}` so the default works out-of-the-box.
+- If the token lacks `refresh_token`, revoke previous consent in your Google Account and rerun `make oauth-init-docker` (the flow forces `prompt=consent`).
+
 ## Health & Readiness
 
 - `GET /healthz`: quick health (sempre 200 se processo vivo)

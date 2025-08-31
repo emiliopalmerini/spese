@@ -7,13 +7,15 @@ services:
     env_file:
       - .env
     ports:
-      - "${OAUTH_REDIRECT_PORT:-8085}:${OAUTH_REDIRECT_PORT:-8085}"
+      - "${OAUTH_REDIRECT_PORT:-8084}:${OAUTH_REDIRECT_PORT:-8085}"
     environment:
       - OAUTH_REDIRECT_PORT=${OAUTH_REDIRECT_PORT:-8085}
       # Ensure a sensible default path inside the container for token.json
       - GOOGLE_OAUTH_TOKEN_FILE=${GOOGLE_OAUTH_TOKEN_FILE:-/secrets/token.json}
     volumes:
+      # Mount full configs dir for flexibility and also bind the specific client.json
       - ./configs:/configs:ro
+      - ./configs/client.json:${GOOGLE_OAUTH_CLIENT_FILE:-/client.json}:ro
       - ./.secrets:/secrets
     command: go run ./cmd/oauth-init
     profiles: ["oauth"] # Only run when explicitly requested
