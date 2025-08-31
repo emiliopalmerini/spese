@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"spese/internal/core"
 	"strings"
 
-	"spese/internal/core"
 	ports "spese/internal/sheets"
 
 	"golang.org/x/oauth2"
@@ -26,8 +26,10 @@ type Client struct {
 }
 
 // Ensure interface conformance
-var _ ports.ExpenseWriter = (*Client)(nil)
-var _ ports.TaxonomyReader = (*Client)(nil)
+var (
+	_ ports.ExpenseWriter  = (*Client)(nil)
+	_ ports.TaxonomyReader = (*Client)(nil)
+)
 
 // NewFromEnv creates a Sheets client using environment variables and ADC.
 // Required: GOOGLE_SPREADSHEET_ID
@@ -43,15 +45,15 @@ func NewFromEnv(ctx context.Context) (*Client, error) {
 
 	expenses := os.Getenv("GOOGLE_SHEET_NAME")
 	if expenses == "" {
-		expenses = "Spese"
+		expenses = "2025 Expenses"
 	}
 	cats := os.Getenv("GOOGLE_CATEGORIES_SHEET_NAME")
 	if cats == "" {
-		cats = "Categories"
+		cats = "2025 Dashboard"
 	}
 	subs := os.Getenv("GOOGLE_SUBCATEGORIES_SHEET_NAME")
 	if subs == "" {
-		subs = "Subcategories"
+		subs = "2025 Dashboard"
 	}
 
 	svc, err := newSheetsService(ctx)
@@ -128,20 +130,29 @@ var jsonUnmarshal = func(b []byte, v any) error { return json.Unmarshal(b, v) }
 
 func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
 	if err := e.Validate(); err != nil {
-		return "", err
+		return "", fmt.Errorf("validation failed: %w", err)
 	}
-	// Convert cents to decimal string
-	euros := float64(e.Amount.Cents) / 100.0
-	row := []interface{}{e.Date.Day, e.Date.Month, e.Description, euros, e.Category, e.Subcategory}
-	vr := &gsheet.ValueRange{Values: [][]interface{}{row}}
-	rng := fmt.Sprintf("%s!A:F", c.expensesSheet)
+	if c.svc == nil {
+		return "", errors.New("sheets service not initialized")
+	}
+	
+    // Convert cents to decimal string
+    euros := float64(e.Amount.Cents) / 100.0
+    // Structure: Month, Day, Expense, Amount, [E blank], [F blank], Primary, Secondary
+    // Leave E and F empty to allow sheet formulas/autofill to manage them.
+    row := []any{e.Date.Month, e.Date.Day, e.Description, euros, "", "", e.Primary, e.Secondary}
+	vr := &gsheet.ValueRange{Values: [][]any{row}}
+	rng := fmt.Sprintf("%s!A:H", c.expensesSheet)
+	
 	call := c.svc.Spreadsheets.Values.Append(c.spreadsheetID, rng, vr).
 		ValueInputOption("USER_ENTERED").
 		InsertDataOption("INSERT_ROWS")
+	
 	resp, err := call.Context(ctx).Do()
 	if err != nil {
-		return "", fmt.Errorf("append: %w", err)
+		return "", fmt.Errorf("failed to append to sheet %s: %w", c.expensesSheet, err)
 	}
+	
 	ref := ""
 	if resp.Updates != nil && resp.Updates.UpdatedRange != "" {
 		ref = resp.Updates.UpdatedRange
@@ -150,13 +161,17 @@ func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
 }
 
 func (c *Client) List(ctx context.Context) ([]string, []string, error) {
-	cats, err := c.readCol(ctx, c.categoriesSheet, "A:A")
-	if err != nil {
-		return nil, nil, err
+	if c.svc == nil {
+		return nil, nil, errors.New("sheets service not initialized")
 	}
-	subs, err := c.readCol(ctx, c.subcategoriesSheet, "A:A")
+	
+	cats, err := c.readCol(ctx, c.categoriesSheet, "A2:A65")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to read categories: %w", err)
+	}
+	subs, err := c.readCol(ctx, c.subcategoriesSheet, "B2:B65")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read subcategories: %w", err)
 	}
 	return cats, subs, nil
 }
@@ -168,10 +183,7 @@ func (c *Client) readCol(ctx context.Context, sheetName, col string) ([]string, 
 		return nil, fmt.Errorf("read %s: %w", rng, err)
 	}
 	var out []string
-	for i, row := range resp.Values {
-		if i == 0 { // skip header
-			continue
-		}
+	for _, row := range resp.Values {
 		if len(row) == 0 {
 			continue
 		}
