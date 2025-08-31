@@ -22,10 +22,10 @@ services:
     image: spese:dev
     container_name: spese
     ports:
-      - "${PORT:-8081}:8080"
+      - "${PORT:-8081}:8081"
     environment:
-      - PORT=${PORT:-8080}
-      - BASE_URL=${BASE_URL:-http://localhost:${PORT:-8080}}
+      - PORT=${PORT:-8081}
+      - BASE_URL=${BASE_URL:-http://localhost:${PORT:-8081}}
       - DATA_BACKEND=${DATA_BACKEND:-memory}
       - GOOGLE_SPREADSHEET_ID=${GOOGLE_SPREADSHEET_ID}
       - GOOGLE_SHEET_NAME=${GOOGLE_SHEET_NAME:-2025 Expenses}

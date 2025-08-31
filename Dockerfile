@@ -22,7 +22,7 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 # Hint Go where to find the CA bundle in this image
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
-ENV PORT=8080
-EXPOSE 8080
+ENV PORT=8081
+EXPOSE 8081
 
 ENTRYPOINT ["/app/spese"]

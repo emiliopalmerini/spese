@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make test:*)",
+      "Bash(make lint:*)",
+      "Bash(make:*)",
+      "Bash(go test:*)",
+      "Bash(command -v:*)",
+      "Bash(/dev/null)",
+      "Bash(golangci-lint run:*)",
+      "Bash(docker logs:*)",
+      "Bash(lsof:*)",
+      "Bash(DATA_BACKEND=memory make run)",
+      "Bash(curl:*)",
+      "Bash(find:*)",
+      "Bash(go mod:*)",
+      "Bash(go vet:*)",
+      "Bash(DATA_BACKEND=memory timeout 5s bin/spese)",
+      "Bash(cat:*)",
+      "Bash(DATA_BACKEND=sheets GOOGLE_OAUTH_CLIENT_FILE=./configs/client.json GOOGLE_OAUTH_TOKEN_FILE=./token.json timeout 5s bin/spese)",
+      "Bash(docker system prune:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -58,6 +58,18 @@ cover:
 	go tool cover -func=coverage.out | tail -n1 | awk '{print $$3}' | grep -qx '100.0%' && echo "Coverage 100%" || (echo "Coverage below 100%" && go tool cover -func=coverage.out && exit 1)
 
 oauth-init:
-	GOOGLE_OAUTH_TOKEN_FILE?=token.json
 	@echo "Starting OAuth flow (redirect to http://localhost:$${OAUTH_REDIRECT_PORT:-8085}/callback)"
+	@echo "Token will be saved to: $${GOOGLE_OAUTH_TOKEN_FILE:-token.json}"
 	go run ./cmd/oauth-init
+
+oauth-init-docker:
+	@echo "Starting OAuth flow in Docker container"
+	@echo "The OAuth callback server will run on port $${OAUTH_REDIRECT_PORT:-8085}"
+	@echo "Open the displayed URL in your browser on the HOST machine"
+	@echo "Token will be saved to .secrets/token.json"
+	@mkdir -p .secrets
+	docker compose --profile oauth up --build oauth-init
+
+oauth-init-docker-clean:
+	@echo "Cleaning up OAuth container"
+	docker compose --profile oauth down oauth-init

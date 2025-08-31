@@ -19,6 +19,7 @@ tmp/
 *.test
 *.exe
 *.out
+.gocache/
 
 # Node (if ever used for static tooling)
 node_modules/
