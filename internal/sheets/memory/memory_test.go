@@ -20,8 +20,8 @@ func TestMemoryStoreAppendAndList(t *testing.T) {
 		Date:        core.DateParts{Day: 1, Month: 1},
 		Description: "t",
 		Amount:      core.Money{Cents: 123},
-		Category:    "A",
-		Subcategory: "X",
+		Primary:     "A",
+		Secondary:   "X",
 	})
 	if err != nil || ref != "mem:1" {
 		t.Fatalf("unexpected append: ref=%q err=%v", ref, err)
