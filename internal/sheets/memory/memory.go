@@ -3,9 +3,12 @@ package memory
 import (
 	"bufio"
 	"context"
+	"encoding/csv"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -39,7 +42,15 @@ func NewFromFiles(base string) *Store {
 	if len(subs) == 0 {
 		subs = []string{"Generale", "Supermercato", "Ristorante"}
 	}
-	return New(cats, subs)
+	s := New(cats, subs)
+	// Optionally seed expenses from CSV if present.
+	seedCSV := filepath.Join(base, "seed_expenses.csv")
+	if _, err := os.Stat(seedCSV); err == nil {
+		if n, err := s.loadExpensesCSV(seedCSV); err == nil {
+			_ = n // loaded successfully
+		}
+	}
+	return s
 }
 
 // Append stores the expense and returns a synthetic row reference.
@@ -137,4 +148,61 @@ func dedupeSorted(in []string) []string {
 	}
 	// Preserve input order; sorting is optional and can be added later.
 	return out
+}
+
+// loadExpensesCSV reads a simple CSV with columns:
+// Month,Day,Description,Amount,Primary,Secondary
+// Amount is a decimal string in euros.
+func (s *Store) loadExpensesCSV(path string) (int, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	r := csv.NewReader(bufio.NewReader(f))
+	r.TrimLeadingSpace = true
+	count := 0
+	for {
+		rec, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return count, err
+		}
+		if len(rec) == 0 {
+			continue
+		}
+		// Skip header or commented lines
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(rec[0])), "month") || strings.HasPrefix(strings.TrimSpace(rec[0]), "#") {
+			continue
+		}
+		// Ensure at least 6 columns
+		for len(rec) < 6 {
+			rec = append(rec, "")
+		}
+		month, _ := strconv.Atoi(strings.TrimSpace(rec[0]))
+		day, _ := strconv.Atoi(strings.TrimSpace(rec[1]))
+		desc := strings.TrimSpace(rec[2])
+		amtStr := strings.TrimSpace(rec[3])
+		primary := strings.TrimSpace(rec[4])
+		secondary := strings.TrimSpace(rec[5])
+		cents, err := core.ParseDecimalToCents(amtStr)
+		if err != nil {
+			continue // skip invalid amounts
+		}
+		e := core.Expense{
+			Date:        core.DateParts{Day: day, Month: month},
+			Description: desc,
+			Amount:      core.Money{Cents: cents},
+			Primary:     primary,
+			Secondary:   secondary,
+		}
+		if err := e.Validate(); err != nil {
+			continue
+		}
+		s.items = append(s.items, e)
+		count++
+	}
+	return count, nil
 }

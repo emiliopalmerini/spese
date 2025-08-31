@@ -40,6 +40,11 @@ PORT=8080
 
 App disponibile su `http://localhost:8080` (variabile `PORT`).
 
+Con `DATA_BACKEND=memory`, l'app carica dati di sviluppo da `./data`:
+- `data/seed_categories.txt` e `data/seed_subcategories.txt`
+- opzionale `data/seed_expenses.csv` (Month,Day,Description,Amount,Primary,Secondary)
+Questi dati sono usati anche per popolare la panoramica mensile sotto il form.
+
 **Sicurezza e Performance:**
 - Rate limiting: 60 richieste per minuto per IP
 - Timeout: 10s read/write, 60s idle
