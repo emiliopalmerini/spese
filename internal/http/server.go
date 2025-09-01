@@ -1,11 +1,14 @@
 package http
 
 import (
+	"container/list"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"html/template"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,6 +20,121 @@ import (
 	appweb "spese/web"
 )
 
+// LRU cache with TTL and size-based eviction
+type lruCache[T any] struct {
+	mu       sync.Mutex
+	maxSize  int
+	ttl      time.Duration
+	items    map[string]*list.Element
+	lru      *list.List
+}
+
+type cacheItem[T any] struct {
+	key       string
+	data      T
+	expiresAt time.Time
+}
+
+func newLRUCache[T any](maxSize int, ttl time.Duration) *lruCache[T] {
+	return &lruCache[T]{
+		maxSize: maxSize,
+		ttl:     ttl,
+		items:   make(map[string]*list.Element),
+		lru:     list.New(),
+	}
+}
+
+func (c *lruCache[T]) Get(key string) (T, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var zero T
+	elem, exists := c.items[key]
+	if !exists {
+		return zero, false
+	}
+
+	item := elem.Value.(*cacheItem[T])
+	
+	// Check if expired
+	if time.Now().After(item.expiresAt) {
+		c.removeElement(elem)
+		return zero, false
+	}
+
+	// Move to front (most recently used)
+	c.lru.MoveToFront(elem)
+	return item.data, true
+}
+
+func (c *lruCache[T]) Set(key string, data T) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := time.Now()
+	item := &cacheItem[T]{
+		key:       key,
+		data:      data,
+		expiresAt: now.Add(c.ttl),
+	}
+
+	// Check if key already exists
+	if elem, exists := c.items[key]; exists {
+		elem.Value = item
+		c.lru.MoveToFront(elem)
+		return
+	}
+
+	// Add new item
+	elem := c.lru.PushFront(item)
+	c.items[key] = elem
+
+	// Evict if over capacity
+	if c.lru.Len() > c.maxSize {
+		oldest := c.lru.Back()
+		if oldest != nil {
+			c.removeElement(oldest)
+		}
+	}
+}
+
+func (c *lruCache[T]) Delete(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if elem, exists := c.items[key]; exists {
+		c.removeElement(elem)
+	}
+}
+
+func (c *lruCache[T]) removeElement(elem *list.Element) {
+	item := elem.Value.(*cacheItem[T])
+	delete(c.items, item.key)
+	c.lru.Remove(elem)
+}
+
+// CleanExpired removes all expired entries
+func (c *lruCache[T]) CleanExpired() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := time.Now()
+	var toRemove []*list.Element
+	
+	for elem := c.lru.Front(); elem != nil; elem = elem.Next() {
+		item := elem.Value.(*cacheItem[T])
+		if now.After(item.expiresAt) {
+			toRemove = append(toRemove, elem)
+		}
+	}
+
+	for _, elem := range toRemove {
+		c.removeElement(elem)
+	}
+
+	return len(toRemove)
+}
+
 type Server struct {
     http.Server
     templates   *template.Template
@@ -26,17 +144,19 @@ type Server struct {
     expLister   sheets.ExpenseLister
     rateLimiter *rateLimiter
 
-    // cache for month overviews
-    cacheMu       sync.Mutex
-    overviewCache map[string]cachedOverview
-    itemsCache    map[string]cachedItems
-    cacheTTL      time.Duration
+    // LRU cache for month overviews with eviction policy
+    overviewCache *lruCache[core.MonthOverview]
+    itemsCache    *lruCache[[]core.Expense]
+    
+    // Cache cleanup
+    stopCacheCleanup chan struct{}
 }
 
 // Simple in-memory rate limiter
 type rateLimiter struct {
-	mu      sync.Mutex
-	clients map[string]*clientInfo
+	mu         sync.Mutex
+	clients    map[string]*clientInfo
+	stopCleanup chan struct{}
 }
 
 type clientInfo struct {
@@ -45,9 +165,80 @@ type clientInfo struct {
 }
 
 func newRateLimiter() *rateLimiter {
-	return &rateLimiter{
-		clients: make(map[string]*clientInfo),
+	rl := &rateLimiter{
+		clients:     make(map[string]*clientInfo),
+		stopCleanup: make(chan struct{}),
 	}
+	go rl.startCleanup()
+	return rl
+}
+
+// startCleanup runs periodic cleanup to remove stale client entries
+func (rl *rateLimiter) startCleanup() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			rl.cleanupStaleEntries()
+		case <-rl.stopCleanup:
+			return
+		}
+	}
+}
+
+// cleanupStaleEntries removes client entries older than 10 minutes
+func (rl *rateLimiter) cleanupStaleEntries() {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	cutoff := time.Now().Add(-10 * time.Minute)
+	for ip, client := range rl.clients {
+		if client.lastRequest.Before(cutoff) {
+			delete(rl.clients, ip)
+		}
+	}
+}
+
+// stop gracefully shuts down the rate limiter cleanup goroutine
+func (rl *rateLimiter) stop() {
+	close(rl.stopCleanup)
+}
+
+// startCacheCleanup runs periodic cleanup for both caches
+func (s *Server) startCacheCleanup() {
+	ticker := time.NewTicker(10 * time.Minute) // Cleanup every 10 minutes
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			overviewCleaned := s.overviewCache.CleanExpired()
+			itemsCleaned := s.itemsCache.CleanExpired()
+			if overviewCleaned > 0 || itemsCleaned > 0 {
+				slog.Debug("Cache cleanup completed", 
+					"overview_entries_removed", overviewCleaned,
+					"items_entries_removed", itemsCleaned)
+			}
+		case <-s.stopCacheCleanup:
+			return
+		}
+	}
+}
+
+// Shutdown gracefully shuts down the server and cleanup routines
+func (s *Server) Shutdown(ctx context.Context) error {
+	// Stop cache cleanup
+	close(s.stopCacheCleanup)
+	
+	// Stop rate limiter cleanup
+	if s.rateLimiter != nil {
+		s.rateLimiter.stop()
+	}
+	
+	// Shutdown HTTP server
+	return s.Server.Shutdown(ctx)
 }
 
 func (rl *rateLimiter) allow(clientIP string) bool {
@@ -92,16 +283,19 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
         taxReader:     tr,
         dashReader:    dr,
         expLister:     lr,
-        rateLimiter:   newRateLimiter(),
-        overviewCache: make(map[string]cachedOverview),
-        itemsCache:    make(map[string]cachedItems),
-        cacheTTL:      5 * time.Minute,
+        rateLimiter:      newRateLimiter(),
+        overviewCache:    newLRUCache[core.MonthOverview](100, 5*time.Minute), // Max 100 entries, 5min TTL
+        itemsCache:       newLRUCache[[]core.Expense](200, 5*time.Minute),     // Max 200 entries, 5min TTL
+        stopCacheCleanup: make(chan struct{}),
     }
+
+    // Start periodic cache cleanup
+    go s.startCacheCleanup()
 
 	// Parse embedded templates at startup.
 	t, err := template.ParseFS(appweb.TemplatesFS, "templates/*.html")
 	if err != nil {
-		log.Printf("warning: failed parsing templates: %v", err)
+		slog.Warn("Failed parsing templates", "error", err)
 	}
 	s.templates = t
 
@@ -114,7 +308,7 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 			static.ServeHTTP(w, r)
 		}))
 	} else {
-		log.Printf("warning: failed to mount embedded static FS: %v", err)
+		slog.Warn("Failed to mount embedded static FS", "error", err)
 	}
 
 	// Add security middleware
@@ -128,9 +322,12 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	return s
 }
 
-// withSecurityHeaders adds security headers and rate limiting to responses
+
+// withSecurityHeaders adds security headers, rate limiting, and request logging to responses
 func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		
 		// Extract client IP (considering proxies)
 		clientIP := r.Header.Get("X-Forwarded-For")
 		if clientIP == "" {
@@ -140,8 +337,23 @@ func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 			clientIP = r.RemoteAddr
 		}
 
+		// Generate request ID for tracing
+		requestID := generateRequestID()
+		
+		// Add request context with metadata and request ID
+		ctx := context.WithValue(r.Context(), "request_id", requestID)
+		r = r.WithContext(ctx)
+		
+		slog.InfoContext(ctx, "Request started", 
+			"request_id", requestID,
+			"method", r.Method, 
+			"url", r.URL.Path, 
+			"client_ip", clientIP, 
+			"user_agent", r.Header.Get("User-Agent"))
+
 		// Apply rate limiting to POST requests (expense creation)
 		if r.Method == http.MethodPost && !s.rateLimiter.allow(clientIP) {
+			slog.WarnContext(ctx, "Rate limit exceeded", "client_ip", clientIP, "method", r.Method, "url", r.URL.Path)
 			w.Header().Set("Retry-After", "60")
 			http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
 			return
@@ -152,8 +364,42 @@ func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		next(w, r)
+		
+		// Create a custom response writer to capture status code
+		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next(rw, r)
+		
+		// Log request completion
+		duration := time.Since(start)
+		slog.InfoContext(ctx, "Request completed", 
+			"request_id", requestID,
+			"method", r.Method, 
+			"url", r.URL.Path, 
+			"status", rw.statusCode, 
+			"duration_ms", duration.Milliseconds(),
+			"client_ip", clientIP)
 	}
+}
+
+// responseWriter wraps http.ResponseWriter to capture the status code
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+// generateRequestID creates a unique request ID for tracing
+func generateRequestID() string {
+	bytes := make([]byte, 8)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to timestamp if random fails
+		return fmt.Sprintf("req_%d", time.Now().UnixNano())
+	}
+	return "req_" + hex.EncodeToString(bytes)
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -169,6 +415,7 @@ func handleReady(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if s.templates == nil {
+		slog.ErrorContext(r.Context(), "Templates not loaded", "url", r.URL.Path)
 		http.Error(w, "templates not loaded", http.StatusInternalServerError)
 		return
 	}
@@ -176,7 +423,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	cats, subs, err := s.taxReader.List(r.Context())
 	if err != nil {
-		log.Printf("taxonomy list error: %v", err)
+		slog.ErrorContext(r.Context(), "Taxonomy list error", "error", err)
 	}
 	data := struct {
 		Day        int
@@ -191,6 +438,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.templates.ExecuteTemplate(w, "index.html", data); err != nil {
+		slog.ErrorContext(r.Context(), "Index template execution failed", "error", err, "template", "index.html")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -202,7 +450,7 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		log.Printf("parse form error: %v", err)
+		slog.ErrorContext(r.Context(), "Parse form error", "error", err, "method", r.Method, "url", r.URL.Path)
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`<div class="error">Formato richiesta non valido</div>`))
 		return
@@ -249,7 +497,7 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 
 	ref, err := s.expWriter.Append(r.Context(), exp)
 	if err != nil {
-		log.Printf("append error: %v", err)
+		slog.ErrorContext(r.Context(), "Expense append error", "error", err, "expense", exp.Description, "amount", exp.Amount.Cents)
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(`<div class="error">Errore nel salvataggio</div>`))
 		return
@@ -279,42 +527,27 @@ func sanitizeInput(s string) string {
 	return result
 }
 
-type cachedOverview struct {
-    at   time.Time
-    data core.MonthOverview
-}
-
-type cachedItems struct {
-    at    time.Time
-    items []core.Expense
-}
-
 func (s *Server) cacheKey(year, month int) string {
 	return strconv.Itoa(year) + "-" + strconv.Itoa(month)
 }
 
 func (s *Server) invalidateOverview(year, month int) {
-    s.cacheMu.Lock()
-    delete(s.overviewCache, s.cacheKey(year, month))
-    s.cacheMu.Unlock()
+    s.overviewCache.Delete(s.cacheKey(year, month))
 }
 
 func (s *Server) invalidateExpenses(year, month int) {
-    s.cacheMu.Lock()
-    delete(s.itemsCache, s.cacheKey(year, month))
-    s.cacheMu.Unlock()
+    s.itemsCache.Delete(s.cacheKey(year, month))
 }
 
 func (s *Server) getOverview(ctx context.Context, year, month int) (core.MonthOverview, error) {
     key := s.cacheKey(year, month)
-    now := time.Now()
-    s.cacheMu.Lock()
-    if c, ok := s.overviewCache[key]; ok && now.Sub(c.at) < s.cacheTTL {
-        data := c.data
-        s.cacheMu.Unlock()
+    
+    // Check cache first
+    if data, found := s.overviewCache.Get(key); found {
+        slog.DebugContext(ctx, "Overview cache hit", "year", year, "month", month)
         return data, nil
     }
-    s.cacheMu.Unlock()
+    
     if s.dashReader == nil {
         return core.MonthOverview{Year: year, Month: month}, nil
     }
@@ -325,24 +558,25 @@ func (s *Server) getOverview(ctx context.Context, year, month int) (core.MonthOv
     if err != nil {
         return core.MonthOverview{}, fmt.Errorf("read month overview (year=%d, month=%d): %w", year, month, err)
     }
-    s.cacheMu.Lock()
-    s.overviewCache[key] = cachedOverview{at: now, data: data}
-    s.cacheMu.Unlock()
-    log.Printf("overview cache store: year=%d month=%d total_cents=%d cats=%d", year, month, data.Total.Cents, len(data.ByCategory))
+    
+    // Cache the result
+    s.overviewCache.Set(key, data)
+    slog.DebugContext(ctx, "Overview cached", "year", year, "month", month, "total_cents", data.Total.Cents, "categories", len(data.ByCategory))
     return data, nil
 }
 
 func (s *Server) getExpenses(ctx context.Context, year, month int) ([]core.Expense, error) {
     key := s.cacheKey(year, month)
-    now := time.Now()
-    s.cacheMu.Lock()
-    if c, ok := s.itemsCache[key]; ok && now.Sub(c.at) < s.cacheTTL {
-        items := make([]core.Expense, len(c.items))
-        copy(items, c.items)
-        s.cacheMu.Unlock()
-        return items, nil
+    
+    // Check cache first
+    if items, found := s.itemsCache.Get(key); found {
+        slog.DebugContext(ctx, "Expenses cache hit", "year", year, "month", month, "count", len(items))
+        // Return a copy to prevent external mutation
+        result := make([]core.Expense, len(items))
+        copy(result, items)
+        return result, nil
     }
-    s.cacheMu.Unlock()
+    
     if s.expLister == nil {
         return nil, nil
     }
@@ -352,9 +586,10 @@ func (s *Server) getExpenses(ctx context.Context, year, month int) ([]core.Expen
     if err != nil {
         return nil, fmt.Errorf("list month expenses (year=%d, month=%d): %w", year, month, err)
     }
-    s.cacheMu.Lock()
-    s.itemsCache[key] = cachedItems{at: now, items: items}
-    s.cacheMu.Unlock()
+    
+    // Cache the result
+    s.itemsCache.Set(key, items)
+    slog.DebugContext(ctx, "Expenses cached", "year", year, "month", month, "count", len(items))
     return items, nil
 }
 
@@ -376,12 +611,12 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 	}
     // Validate month range
     if month < 1 || month > 12 {
-        log.Printf("invalid month parameter: year=%d month=%d", year, month)
+        slog.WarnContext(r.Context(), "Invalid month parameter", "year", year, "month", month, "corrected_to", int(now.Month()))
         month = int(now.Month())
     }
     ov, err := s.getOverview(r.Context(), year, month)
     if err != nil {
-        log.Printf("month overview error: year=%d month=%d err=%v", year, month, err)
+        slog.ErrorContext(r.Context(), "Month overview error", "error", err, "year", year, "month", month)
         _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Errore caricando panoramica</div></section>`))
         return
     }
@@ -436,7 +671,7 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
     if s.expLister != nil {
         items, err := s.getExpenses(r.Context(), year, month)
         if err != nil {
-            log.Printf("list expenses error: year=%d month=%d err=%v", year, month, err)
+            slog.ErrorContext(r.Context(), "List expenses error", "error", err, "year", year, "month", month)
         } else {
             for _, e := range items {
                 data.Items = append(data.Items, struct{
@@ -450,7 +685,7 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
         }
     }
     if err := s.templates.ExecuteTemplate(w, "month_overview.html", data); err != nil {
-        log.Printf("template error: %v", err)
+        slog.ErrorContext(r.Context(), "Template execution error", "error", err, "template", "month_overview.html", "year", year, "month", month)
         _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Errore rendering panoramica</div></section>`))
         return
     }

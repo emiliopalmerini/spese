@@ -5,7 +5,9 @@ import (
     "encoding/json"
     "errors"
     "fmt"
-    "log"
+    "log/slog"
+    "net"
+    "net/http"
     "os"
     "spese/internal/core"
     "strconv"
@@ -153,8 +155,51 @@ func newSheetsService(ctx context.Context) (*gsheet.Service, error) {
 		return nil, fmt.Errorf("oauth token expired and missing refresh_token; re-run 'make oauth-init' to generate a new token (with offline access)")
 	}
 
+	// Create HTTP client with connection pooling and proper timeouts
+	baseClient := newHTTPClientWithPooling()
 	httpClient := cfg.Client(ctx, tok)
+	
+	// Replace the transport with our optimized one while preserving OAuth
+	if transport, ok := httpClient.Transport.(*oauth2.Transport); ok {
+		transport.Base = baseClient.Transport
+	}
+	
 	return gsheet.NewService(ctx, goption.WithHTTPClient(httpClient))
+}
+
+// newHTTPClientWithPooling creates an HTTP client optimized for Google Sheets API
+// with connection pooling, proper timeouts, and keep-alive settings
+func newHTTPClientWithPooling() *http.Client {
+	// Create a custom dialer with timeouts
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second, // TCP connection timeout
+		KeepAlive: 30 * time.Second, // Keep-alive probe interval
+	}
+
+	transport := &http.Transport{
+		// Use custom dialer
+		DialContext: dialer.DialContext,
+		
+		// Connection pooling settings
+		MaxIdleConns:        100,              // Total max idle connections across all hosts
+		MaxIdleConnsPerHost: 10,               // Max idle connections per host (Google APIs)
+		MaxConnsPerHost:     50,               // Max total connections per host
+		IdleConnTimeout:     90 * time.Second, // How long idle connections stay open
+		
+		// TLS and response timeouts
+		TLSHandshakeTimeout:   10 * time.Second, // TLS handshake timeout
+		ResponseHeaderTimeout: 30 * time.Second, // Time to read response headers
+		ExpectContinueTimeout: 1 * time.Second,  // 100-continue timeout
+		
+		// Keep-alive and HTTP/2 settings
+		DisableKeepAlives: false, // Enable HTTP keep-alive
+		ForceAttemptHTTP2: true,  // Prefer HTTP/2
+	}
+
+	return &http.Client{
+		Transport: transport,
+		Timeout:   60 * time.Second, // Overall request timeout
+	}
 }
 
 // jsonUnmarshal is a tiny indirection to allow testing if needed.
@@ -264,8 +309,7 @@ func (c *Client) ReadMonthOverview(ctx context.Context, year int, month int) (co
 	// month overview directly by scanning the expenses sheet. This aligns
 	// with ADR-0004 for robustness to header changes.
     if strings.Contains(strings.ToLower(err.Error()), "unexpected dashboard header") {
-        log.Printf("dashboard header mismatch for %d/%02d on '%s' (range %s): %v — falling back to expenses sheet",
-            year, month, sheetName, rng, err)
+        slog.WarnContext(ctx, "Dashboard header mismatch, falling back to expenses sheet", "year", year, "month", month, "sheet", sheetName, "range", rng, "error", err)
         return c.readMonthOverviewFromExpenses(ctx, year, month)
     }
     return core.MonthOverview{}, err
