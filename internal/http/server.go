@@ -1,6 +1,7 @@
 package http
 
 import (
+	"container/list"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -19,6 +20,121 @@ import (
 	appweb "spese/web"
 )
 
+// LRU cache with TTL and size-based eviction
+type lruCache[T any] struct {
+	mu       sync.Mutex
+	maxSize  int
+	ttl      time.Duration
+	items    map[string]*list.Element
+	lru      *list.List
+}
+
+type cacheItem[T any] struct {
+	key       string
+	data      T
+	expiresAt time.Time
+}
+
+func newLRUCache[T any](maxSize int, ttl time.Duration) *lruCache[T] {
+	return &lruCache[T]{
+		maxSize: maxSize,
+		ttl:     ttl,
+		items:   make(map[string]*list.Element),
+		lru:     list.New(),
+	}
+}
+
+func (c *lruCache[T]) Get(key string) (T, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var zero T
+	elem, exists := c.items[key]
+	if !exists {
+		return zero, false
+	}
+
+	item := elem.Value.(*cacheItem[T])
+	
+	// Check if expired
+	if time.Now().After(item.expiresAt) {
+		c.removeElement(elem)
+		return zero, false
+	}
+
+	// Move to front (most recently used)
+	c.lru.MoveToFront(elem)
+	return item.data, true
+}
+
+func (c *lruCache[T]) Set(key string, data T) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := time.Now()
+	item := &cacheItem[T]{
+		key:       key,
+		data:      data,
+		expiresAt: now.Add(c.ttl),
+	}
+
+	// Check if key already exists
+	if elem, exists := c.items[key]; exists {
+		elem.Value = item
+		c.lru.MoveToFront(elem)
+		return
+	}
+
+	// Add new item
+	elem := c.lru.PushFront(item)
+	c.items[key] = elem
+
+	// Evict if over capacity
+	if c.lru.Len() > c.maxSize {
+		oldest := c.lru.Back()
+		if oldest != nil {
+			c.removeElement(oldest)
+		}
+	}
+}
+
+func (c *lruCache[T]) Delete(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if elem, exists := c.items[key]; exists {
+		c.removeElement(elem)
+	}
+}
+
+func (c *lruCache[T]) removeElement(elem *list.Element) {
+	item := elem.Value.(*cacheItem[T])
+	delete(c.items, item.key)
+	c.lru.Remove(elem)
+}
+
+// CleanExpired removes all expired entries
+func (c *lruCache[T]) CleanExpired() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := time.Now()
+	var toRemove []*list.Element
+	
+	for elem := c.lru.Front(); elem != nil; elem = elem.Next() {
+		item := elem.Value.(*cacheItem[T])
+		if now.After(item.expiresAt) {
+			toRemove = append(toRemove, elem)
+		}
+	}
+
+	for _, elem := range toRemove {
+		c.removeElement(elem)
+	}
+
+	return len(toRemove)
+}
+
 type Server struct {
     http.Server
     templates   *template.Template
@@ -28,11 +144,12 @@ type Server struct {
     expLister   sheets.ExpenseLister
     rateLimiter *rateLimiter
 
-    // cache for month overviews
-    cacheMu       sync.Mutex
-    overviewCache map[string]cachedOverview
-    itemsCache    map[string]cachedItems
-    cacheTTL      time.Duration
+    // LRU cache for month overviews with eviction policy
+    overviewCache *lruCache[core.MonthOverview]
+    itemsCache    *lruCache[[]core.Expense]
+    
+    // Cache cleanup
+    stopCacheCleanup chan struct{}
 }
 
 // Simple in-memory rate limiter
@@ -89,6 +206,41 @@ func (rl *rateLimiter) stop() {
 	close(rl.stopCleanup)
 }
 
+// startCacheCleanup runs periodic cleanup for both caches
+func (s *Server) startCacheCleanup() {
+	ticker := time.NewTicker(10 * time.Minute) // Cleanup every 10 minutes
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			overviewCleaned := s.overviewCache.CleanExpired()
+			itemsCleaned := s.itemsCache.CleanExpired()
+			if overviewCleaned > 0 || itemsCleaned > 0 {
+				slog.Debug("Cache cleanup completed", 
+					"overview_entries_removed", overviewCleaned,
+					"items_entries_removed", itemsCleaned)
+			}
+		case <-s.stopCacheCleanup:
+			return
+		}
+	}
+}
+
+// Shutdown gracefully shuts down the server and cleanup routines
+func (s *Server) Shutdown(ctx context.Context) error {
+	// Stop cache cleanup
+	close(s.stopCacheCleanup)
+	
+	// Stop rate limiter cleanup
+	if s.rateLimiter != nil {
+		s.rateLimiter.stop()
+	}
+	
+	// Shutdown HTTP server
+	return s.Server.Shutdown(ctx)
+}
+
 func (rl *rateLimiter) allow(clientIP string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
@@ -131,11 +283,14 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
         taxReader:     tr,
         dashReader:    dr,
         expLister:     lr,
-        rateLimiter:   newRateLimiter(),
-        overviewCache: make(map[string]cachedOverview),
-        itemsCache:    make(map[string]cachedItems),
-        cacheTTL:      5 * time.Minute,
+        rateLimiter:      newRateLimiter(),
+        overviewCache:    newLRUCache[core.MonthOverview](100, 5*time.Minute), // Max 100 entries, 5min TTL
+        itemsCache:       newLRUCache[[]core.Expense](200, 5*time.Minute),     // Max 200 entries, 5min TTL
+        stopCacheCleanup: make(chan struct{}),
     }
+
+    // Start periodic cache cleanup
+    go s.startCacheCleanup()
 
 	// Parse embedded templates at startup.
 	t, err := template.ParseFS(appweb.TemplatesFS, "templates/*.html")
@@ -167,15 +322,6 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	return s
 }
 
-// Shutdown gracefully shuts down the server and cleans up resources
-func (s *Server) Shutdown(ctx context.Context) error {
-	// Stop rate limiter cleanup goroutine
-	if s.rateLimiter != nil {
-		s.rateLimiter.stop()
-	}
-	// Shutdown HTTP server
-	return s.Server.Shutdown(ctx)
-}
 
 // withSecurityHeaders adds security headers, rate limiting, and request logging to responses
 func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
@@ -381,42 +527,27 @@ func sanitizeInput(s string) string {
 	return result
 }
 
-type cachedOverview struct {
-    at   time.Time
-    data core.MonthOverview
-}
-
-type cachedItems struct {
-    at    time.Time
-    items []core.Expense
-}
-
 func (s *Server) cacheKey(year, month int) string {
 	return strconv.Itoa(year) + "-" + strconv.Itoa(month)
 }
 
 func (s *Server) invalidateOverview(year, month int) {
-    s.cacheMu.Lock()
-    delete(s.overviewCache, s.cacheKey(year, month))
-    s.cacheMu.Unlock()
+    s.overviewCache.Delete(s.cacheKey(year, month))
 }
 
 func (s *Server) invalidateExpenses(year, month int) {
-    s.cacheMu.Lock()
-    delete(s.itemsCache, s.cacheKey(year, month))
-    s.cacheMu.Unlock()
+    s.itemsCache.Delete(s.cacheKey(year, month))
 }
 
 func (s *Server) getOverview(ctx context.Context, year, month int) (core.MonthOverview, error) {
     key := s.cacheKey(year, month)
-    now := time.Now()
-    s.cacheMu.Lock()
-    if c, ok := s.overviewCache[key]; ok && now.Sub(c.at) < s.cacheTTL {
-        data := c.data
-        s.cacheMu.Unlock()
+    
+    // Check cache first
+    if data, found := s.overviewCache.Get(key); found {
+        slog.DebugContext(ctx, "Overview cache hit", "year", year, "month", month)
         return data, nil
     }
-    s.cacheMu.Unlock()
+    
     if s.dashReader == nil {
         return core.MonthOverview{Year: year, Month: month}, nil
     }
@@ -427,24 +558,25 @@ func (s *Server) getOverview(ctx context.Context, year, month int) (core.MonthOv
     if err != nil {
         return core.MonthOverview{}, fmt.Errorf("read month overview (year=%d, month=%d): %w", year, month, err)
     }
-    s.cacheMu.Lock()
-    s.overviewCache[key] = cachedOverview{at: now, data: data}
-    s.cacheMu.Unlock()
+    
+    // Cache the result
+    s.overviewCache.Set(key, data)
     slog.DebugContext(ctx, "Overview cached", "year", year, "month", month, "total_cents", data.Total.Cents, "categories", len(data.ByCategory))
     return data, nil
 }
 
 func (s *Server) getExpenses(ctx context.Context, year, month int) ([]core.Expense, error) {
     key := s.cacheKey(year, month)
-    now := time.Now()
-    s.cacheMu.Lock()
-    if c, ok := s.itemsCache[key]; ok && now.Sub(c.at) < s.cacheTTL {
-        items := make([]core.Expense, len(c.items))
-        copy(items, c.items)
-        s.cacheMu.Unlock()
-        return items, nil
+    
+    // Check cache first
+    if items, found := s.itemsCache.Get(key); found {
+        slog.DebugContext(ctx, "Expenses cache hit", "year", year, "month", month, "count", len(items))
+        // Return a copy to prevent external mutation
+        result := make([]core.Expense, len(items))
+        copy(result, items)
+        return result, nil
     }
-    s.cacheMu.Unlock()
+    
     if s.expLister == nil {
         return nil, nil
     }
@@ -454,9 +586,10 @@ func (s *Server) getExpenses(ctx context.Context, year, month int) ([]core.Expen
     if err != nil {
         return nil, fmt.Errorf("list month expenses (year=%d, month=%d): %w", year, month, err)
     }
-    s.cacheMu.Lock()
-    s.itemsCache[key] = cachedItems{at: now, items: items}
-    s.cacheMu.Unlock()
+    
+    // Cache the result
+    s.itemsCache.Set(key, items)
+    slog.DebugContext(ctx, "Expenses cached", "year", year, "month", month, "count", len(items))
     return items, nil
 }
 

@@ -243,11 +243,10 @@ func TestCachingBehavior(t *testing.T) {
 	srv.invalidateOverview(2025, 1)
 	srv.invalidateExpenses(2025, 1)
 	
-	// Verify cache was cleared (check internal state)
-	srv.cacheMu.Lock()
-	_, existsOv := srv.overviewCache[srv.cacheKey(2025, 1)]
-	_, existsExp := srv.itemsCache[srv.cacheKey(2025, 1)]
-	srv.cacheMu.Unlock()
+	// Verify cache was cleared by checking that Get returns false
+	key := srv.cacheKey(2025, 1)
+	_, existsOv := srv.overviewCache.Get(key)
+	_, existsExp := srv.itemsCache.Get(key)
 	
 	if existsOv {
 		t.Fatal("overview cache should be invalidated")
