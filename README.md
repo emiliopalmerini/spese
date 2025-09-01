@@ -19,16 +19,18 @@ Stack: Go, HTMX, Google Sheets API, Docker (multistage), Docker Compose, Makefil
    - Copia l'esempio: `cp .env.example .env`
    - Modifica `.env` con i tuoi valori. Docker Compose carica `.env` e lo inietta nei container.
 
-Esempio di `.env`:
+Esempio di `.env` (nomi base senza anno; l'app prefigge automaticamente l'anno corrente):
 
 ```bash
 GOOGLE_SPREADSHEET_ID=...
-GOOGLE_SHEET_NAME=2025 Expenses
-GOOGLE_CATEGORIES_SHEET_NAME=2025 Dashboard
-GOOGLE_SUBCATEGORIES_SHEET_NAME=2025 Dashboard
-# Prefisso/pattern foglio dashboard annuale usato per il riepilogo mensile
-# Usa %d per l'anno, es: "%d Dashboard" -> "2025 Dashboard"
-DASHBOARD_SHEET_PREFIX="%d Dashboard"
+GOOGLE_SHEET_NAME=Expenses
+GOOGLE_CATEGORIES_SHEET_NAME=Dashboard
+GOOGLE_SUBCATEGORIES_SHEET_NAME=Dashboard
+# Nome base del foglio dashboard usato per il riepilogo mensile
+# L'app costruisce "<anno> <nome>", es: "2025 Dashboard"
+DASHBOARD_SHEET_NAME=Dashboard
+# (fallback legacy) Pattern con %d: es. "%d Dashboard"
+# DASHBOARD_SHEET_PREFIX="%d Dashboard"
 
 DATA_BACKEND=memory # usa 'sheets' per integrare Google Sheets
 PORT=8080
@@ -61,11 +63,12 @@ Vedi `.env.example` per i default. Principali:
 - `PORT`: porta HTTP (default: 8080)
 - `BASE_URL`: base URL pubblico (per link assoluti)
 - `GOOGLE_SPREADSHEET_ID`: ID del documento Google Sheets
-- `GOOGLE_SHEET_NAME`: foglio (tab) spese, default `Spese`
-- `GOOGLE_CATEGORIES_SHEET_NAME`: foglio categorie, default `Categories`
-- `GOOGLE_SUBCATEGORIES_SHEET_NAME`: foglio sottocategorie, default `Subcategories`
+- `GOOGLE_SHEET_NAME`: base name del foglio spese (senza anno), default `Expenses` → risolto a `"<anno> Expenses"`
+- `GOOGLE_CATEGORIES_SHEET_NAME`: base name foglio categorie, default `Dashboard` → `"<anno> Dashboard"`
+- `GOOGLE_SUBCATEGORIES_SHEET_NAME`: base name foglio sottocategorie, default `Dashboard` → `"<anno> Dashboard"`
 - `DATA_BACKEND`: `memory` (default) o `sheets`
-- `DASHBOARD_SHEET_PREFIX`: pattern del foglio dashboard annuale da cui leggere i totali mensili (default: `%d Dashboard`, es. `2025 Dashboard`). Usato per mostrare la panoramica del mese sotto il form.
+- `DASHBOARD_SHEET_NAME`: base name del foglio dashboard annuale da cui leggere i totali (preferito). Risultato: `"<anno> <nome>"`.
+- `DASHBOARD_SHEET_PREFIX`: (legacy) pattern o prefisso del foglio dashboard annuale (es. `%d Dashboard`). Usato solo se `DASHBOARD_SHEET_NAME` non è impostato.
 
 OAuth:
 - `GOOGLE_OAUTH_CLIENT_JSON` oppure `GOOGLE_OAUTH_CLIENT_FILE`: credenziali client OAuth (JSON)
@@ -92,10 +95,10 @@ OAuth:
 ## Setup Google Sheets (rapido)
 
 1) Crea il documento e i fogli:
-- Foglio spese (default `2025 Expenses`) con intestazioni in riga 1:
+- Foglio spese (es. `2025 Expenses`) con intestazioni in riga 1:
   - A: Month, B: Day, C: Expense, D: Amount, E: Currency, F: EUR, G: Primary, H: Secondary
-- Foglio categorie (default `2025 Dashboard A2:A65`) 
-- Foglio sottocategorie (default `2025 Dashboard B2:B65`)
+- Foglio categorie (es. `2025 Dashboard` colonna `A2:A65`) 
+- Foglio sottocategorie (es. `2025 Dashboard` colonna `B2:B65`)
 
 2) OAuth user consent:
 - Crea un OAuth Client (Tipo: App per desktop o Web con redirect `http://localhost:8085/callback`).

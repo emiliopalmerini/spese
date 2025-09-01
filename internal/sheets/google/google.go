@@ -20,12 +20,15 @@ import (
 )
 
 type Client struct {
-	svc                *gsheet.Service
-	spreadsheetID      string
-	expensesSheet      string
-	categoriesSheet    string
-	subcategoriesSheet string
-	dashboardPrefix    string
+    svc                *gsheet.Service
+    spreadsheetID      string
+    expensesSheet      string
+    categoriesSheet    string
+    subcategoriesSheet string
+    // Preferred: base name without year (e.g. "Dashboard"); code prefixes year.
+    dashboardBase      string
+    // Legacy fallback: pattern or plain prefix (e.g. "%d Dashboard" or "Dashboard").
+    dashboardPrefix    string
 }
 
 // Ensure interface conformance
@@ -42,42 +45,53 @@ var (
 // GOOGLE_CATEGORIES_SHEET_NAME (default "Categories"),
 // GOOGLE_SUBCATEGORIES_SHEET_NAME (default "Subcategories").
 func NewFromEnv(ctx context.Context) (*Client, error) {
-	spreadsheetID := strings.TrimSpace(os.Getenv("GOOGLE_SPREADSHEET_ID"))
-	if spreadsheetID == "" {
-		return nil, errors.New("missing GOOGLE_SPREADSHEET_ID")
-	}
+    spreadsheetID := strings.TrimSpace(os.Getenv("GOOGLE_SPREADSHEET_ID"))
+    if spreadsheetID == "" {
+        return nil, errors.New("missing GOOGLE_SPREADSHEET_ID")
+    }
 
-	expenses := os.Getenv("GOOGLE_SHEET_NAME")
-	if expenses == "" {
-		expenses = "2025 Expenses"
-	}
-	cats := os.Getenv("GOOGLE_CATEGORIES_SHEET_NAME")
-	if cats == "" {
-		cats = "2025 Dashboard"
-	}
-	subs := os.Getenv("GOOGLE_SUBCATEGORIES_SHEET_NAME")
-	if subs == "" {
-		subs = "2025 Dashboard"
-	}
+    // Base sheet names (without year). We will prefix the current year automatically.
+    expensesBase := strings.TrimSpace(os.Getenv("GOOGLE_SHEET_NAME"))
+    if expensesBase == "" {
+        expensesBase = "Expenses"
+    }
+    catsBase := strings.TrimSpace(os.Getenv("GOOGLE_CATEGORIES_SHEET_NAME"))
+    if catsBase == "" {
+        catsBase = "Dashboard"
+    }
+    subsBase := strings.TrimSpace(os.Getenv("GOOGLE_SUBCATEGORIES_SHEET_NAME"))
+    if subsBase == "" {
+        subsBase = "Dashboard"
+    }
 
 	svc, err := newSheetsService(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("sheets service: %w", err)
 	}
 
-	dashPrefix := os.Getenv("DASHBOARD_SHEET_PREFIX")
-	if strings.TrimSpace(dashPrefix) == "" {
-		dashPrefix = "%d Dashboard"
-	}
+    // Dashboard naming: prefer a base name (without year). Legacy prefix is supported.
+    dashBase := strings.TrimSpace(os.Getenv("DASHBOARD_SHEET_NAME"))
+    dashPrefix := strings.TrimSpace(os.Getenv("DASHBOARD_SHEET_PREFIX"))
+    if dashBase == "" && dashPrefix == "" {
+        // Default to base name when nothing provided
+        dashBase = "Dashboard"
+    }
 
-	return &Client{
-		svc:                svc,
-		spreadsheetID:      spreadsheetID,
-		expensesSheet:      expenses,
-		categoriesSheet:    cats,
-		subcategoriesSheet: subs,
-		dashboardPrefix:    dashPrefix,
-	}, nil
+    // Compute year-prefixed names for this client instance
+    currentYear := time.Now().Year()
+    expenses := yearPrefixedName(expensesBase, currentYear)
+    cats := yearPrefixedName(catsBase, currentYear)
+    subs := yearPrefixedName(subsBase, currentYear)
+
+    return &Client{
+        svc:                svc,
+        spreadsheetID:      spreadsheetID,
+        expensesSheet:      expenses,
+        categoriesSheet:    cats,
+        subcategoriesSheet: subs,
+        dashboardBase:      dashBase,
+        dashboardPrefix:    dashPrefix,
+    }, nil
 }
 
 // newSheetsService initializes a Sheets Service using either OAuth (user credentials)
@@ -254,19 +268,38 @@ func (c *Client) ReadMonthOverview(ctx context.Context, year int, month int) (co
 }
 
 func (c *Client) dashboardSheetName(year int) string {
-	if strings.Contains(c.dashboardPrefix, "%d") {
-		return fmt.Sprintf(c.dashboardPrefix, year)
-	}
-	// If prefix doesn’t contain %d, append year at the end with a space
-	return strings.TrimSpace(fmt.Sprintf("%s %d", c.dashboardPrefix, year))
+    // Preferred: base name present => "<year> <base>"
+    if strings.TrimSpace(c.dashboardBase) != "" {
+        return yearPrefixedName(c.dashboardBase, year)
+    }
+    // Legacy: if a printf-style pattern is provided, format it
+    if strings.Contains(c.dashboardPrefix, "%d") {
+        return fmt.Sprintf(c.dashboardPrefix, year)
+    }
+    // Legacy: treat prefix as a plain name and append year
+    return strings.TrimSpace(fmt.Sprintf("%s %d", c.dashboardPrefix, year))
 }
 
 func toStrings(in []interface{}) []string {
-	out := make([]string, len(in))
-	for i, v := range in {
-		out[i] = strings.TrimSpace(fmt.Sprint(v))
-	}
-	return out
+    out := make([]string, len(in))
+    for i, v := range in {
+        out[i] = strings.TrimSpace(fmt.Sprint(v))
+    }
+    return out
+}
+
+// yearPrefixedName returns "<year> <base>" unless base already starts with a 4-digit year.
+func yearPrefixedName(base string, year int) string {
+    base = strings.TrimSpace(base)
+    if base == "" {
+        return base
+    }
+    if len(base) >= 5 {
+        if y, err := strconv.Atoi(base[0:4]); err == nil && base[4] == ' ' && y > 1900 && y < 3000 {
+            return base
+        }
+    }
+    return fmt.Sprintf("%d %s", year, base)
 }
 
 // readMonthOverviewFromExpenses scans the expenses sheet for the given month and
