@@ -122,3 +122,26 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 60%, transparent); }
 .style-minimal .actions { gap: 0; }
 .style-minimal input, .style-minimal select, .style-minimal .btn, .style-minimal .success, .style-minimal .error { border-radius: 0; }
 .style-minimal input, .style-minimal select { background: var(--surface); }
+
+/* Month overview */
+.month-overview { border: 1px solid var(--border); background: var(--surface-2); }
+.month-overview h2 { margin: 0; padding: var(--space-2); border-bottom: 1px solid var(--border); font-size: 1rem; }
+.month-overview .overview-body { padding: 0 var(--space-2) var(--space-2); }
+.month-overview .total { padding: var(--space-2) 0; font-weight: 600; }
+.month-overview .legend { color: var(--muted); font-size: .9rem; margin: -6px 0 var(--space-2); }
+.month-overview .categories { border-top: 1px solid var(--border); }
+.month-overview .row { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 10px 0; }
+.month-overview .row + .row { border-top: 1px solid var(--line); }
+.month-overview .row .name { color: var(--text); }
+.month-overview .row .amount { color: var(--text); font-variant-numeric: tabular-nums; }
+.month-overview .row.placeholder { color: var(--muted); }
+.month-overview .row .bar { grid-column: 1 / -1; height: 4px; background: color-mix(in srgb, var(--muted) 22%, transparent); margin-top: 6px; }
+.month-overview .row .bar__fill { height: 100%; background: var(--accent-600); }
+.month-overview .expenses { margin-top: 16px; }
+.month-overview .expenses h3 { margin: 12px 0 8px; font-size: 1rem; }
+.month-overview .expenses__list { display: grid; gap: 6px; }
+.month-overview .expense { display: grid; grid-template-columns: 56px 1fr auto auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.month-overview .expense__date { color: var(--muted); font-variant-numeric: tabular-nums; }
+.month-overview .expense__desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.month-overview .expense__cat { color: var(--muted); font-size: .9rem; }
+.month-overview .expense__amt { font-weight: 600; font-variant-numeric: tabular-nums; }

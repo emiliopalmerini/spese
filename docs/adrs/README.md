@@ -17,3 +17,4 @@ ADR esistenti:
 - [0002-ddd-hexagonal-architecture.md](./0002-ddd-hexagonal-architecture.md) — DDD e architettura esagonale
 - [0003-domain-and-data-models.md](./0003-domain-and-data-models.md) — Modelli di dominio e dati
 - [0004-visualize-month-expenses-under-form.md](./0004-visualize-month-expenses-under-form.md) — Riepilogo spese mensili sotto il form
+- [0005-year-prefixed-sheet-names.md](./0005-year-prefixed-sheet-names.md) — Nomi fogli con anno prefisso e nomi base in env

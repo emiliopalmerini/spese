@@ -1,6 +1,8 @@
 package http
 
 import (
+	"context"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"log"
@@ -16,11 +18,19 @@ import (
 )
 
 type Server struct {
-	http.Server
-	templates *template.Template
-	expWriter sheets.ExpenseWriter
-	taxReader sheets.TaxonomyReader
-	rateLimiter *rateLimiter
+    http.Server
+    templates   *template.Template
+    expWriter   sheets.ExpenseWriter
+    taxReader   sheets.TaxonomyReader
+    dashReader  sheets.DashboardReader
+    expLister   sheets.ExpenseLister
+    rateLimiter *rateLimiter
+
+    // cache for month overviews
+    cacheMu       sync.Mutex
+    overviewCache map[string]cachedOverview
+    itemsCache    map[string]cachedItems
+    cacheTTL      time.Duration
 }
 
 // Simple in-memory rate limiter
@@ -43,10 +53,10 @@ func newRateLimiter() *rateLimiter {
 func (rl *rateLimiter) allow(clientIP string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	
+
 	now := time.Now()
 	client, exists := rl.clients[clientIP]
-	
+
 	if !exists {
 		rl.clients[clientIP] = &clientInfo{
 			lastRequest: now,
@@ -54,34 +64,39 @@ func (rl *rateLimiter) allow(clientIP string) bool {
 		}
 		return true
 	}
-	
+
 	// Reset counter if more than 1 minute has passed
 	if now.Sub(client.lastRequest) > time.Minute {
 		client.requests = 1
 		client.lastRequest = now
 		return true
 	}
-	
+
 	// Allow up to 60 requests per minute
 	client.requests++
 	client.lastRequest = now
-	
+
 	return client.requests <= 60
 }
 
 // NewServer configures routes and templates, returning a ready-to-run http.Server.
-func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader) *Server {
-	mux := http.NewServeMux()
+func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, dr sheets.DashboardReader, lr sheets.ExpenseLister) *Server {
+    mux := http.NewServeMux()
 
-	s := &Server{
-		Server: http.Server{
-			Addr:    addr,
-			Handler: mux,
-		},
-		expWriter:   ew,
-		taxReader:   tr,
-		rateLimiter: newRateLimiter(),
-	}
+    s := &Server{
+        Server: http.Server{
+            Addr:    addr,
+            Handler: mux,
+        },
+        expWriter:     ew,
+        taxReader:     tr,
+        dashReader:    dr,
+        expLister:     lr,
+        rateLimiter:   newRateLimiter(),
+        overviewCache: make(map[string]cachedOverview),
+        itemsCache:    make(map[string]cachedItems),
+        cacheTTL:      5 * time.Minute,
+    }
 
 	// Parse embedded templates at startup.
 	t, err := template.ParseFS(appweb.TemplatesFS, "templates/*.html")
@@ -107,6 +122,8 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader) *
 	mux.HandleFunc("/healthz", handleHealth)
 	mux.HandleFunc("/readyz", handleReady)
 	mux.HandleFunc("/expenses", s.withSecurityHeaders(s.handleCreateExpense))
+	// UI partials
+	mux.HandleFunc("/ui/month-overview", s.withSecurityHeaders(s.handleMonthOverview))
 
 	return s
 }
@@ -122,14 +139,14 @@ func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 		if clientIP == "" {
 			clientIP = r.RemoteAddr
 		}
-		
+
 		// Apply rate limiting to POST requests (expense creation)
 		if r.Method == http.MethodPost && !s.rateLimiter.allow(clientIP) {
 			w.Header().Set("Retry-After", "60")
 			http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
 			return
 		}
-		
+
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
@@ -237,6 +254,11 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`<div class="error">Errore nel salvataggio</div>`))
 		return
 	}
+    // Invalidate cache for current year+month and trigger client refresh
+    year := time.Now().Year()
+    s.invalidateOverview(year, month)
+    s.invalidateExpenses(year, month)
+	w.Header().Set("HX-Trigger", `{"expense:created": {"year": `+strconv.Itoa(year)+`, "month": `+strconv.Itoa(month)+`}}`)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`<div class="success">Spesa registrata (#` + template.HTMLEscapeString(ref) + `): ` +
 		template.HTMLEscapeString(exp.Description) +
@@ -255,4 +277,195 @@ func sanitizeInput(s string) string {
 		return r
 	}, s)
 	return result
+}
+
+type cachedOverview struct {
+    at   time.Time
+    data core.MonthOverview
+}
+
+type cachedItems struct {
+    at    time.Time
+    items []core.Expense
+}
+
+func (s *Server) cacheKey(year, month int) string {
+	return strconv.Itoa(year) + "-" + strconv.Itoa(month)
+}
+
+func (s *Server) invalidateOverview(year, month int) {
+    s.cacheMu.Lock()
+    delete(s.overviewCache, s.cacheKey(year, month))
+    s.cacheMu.Unlock()
+}
+
+func (s *Server) invalidateExpenses(year, month int) {
+    s.cacheMu.Lock()
+    delete(s.itemsCache, s.cacheKey(year, month))
+    s.cacheMu.Unlock()
+}
+
+func (s *Server) getOverview(ctx context.Context, year, month int) (core.MonthOverview, error) {
+    key := s.cacheKey(year, month)
+    now := time.Now()
+    s.cacheMu.Lock()
+    if c, ok := s.overviewCache[key]; ok && now.Sub(c.at) < s.cacheTTL {
+        data := c.data
+        s.cacheMu.Unlock()
+        return data, nil
+    }
+    s.cacheMu.Unlock()
+    if s.dashReader == nil {
+        return core.MonthOverview{Year: year, Month: month}, nil
+    }
+    // Add a small timeout to avoid hanging partials
+    cctx, cancel := context.WithTimeout(ctx, 7*time.Second)
+    defer cancel()
+    data, err := s.dashReader.ReadMonthOverview(cctx, year, month)
+    if err != nil {
+        return core.MonthOverview{}, fmt.Errorf("read month overview (year=%d, month=%d): %w", year, month, err)
+    }
+    s.cacheMu.Lock()
+    s.overviewCache[key] = cachedOverview{at: now, data: data}
+    s.cacheMu.Unlock()
+    log.Printf("overview cache store: year=%d month=%d total_cents=%d cats=%d", year, month, data.Total.Cents, len(data.ByCategory))
+    return data, nil
+}
+
+func (s *Server) getExpenses(ctx context.Context, year, month int) ([]core.Expense, error) {
+    key := s.cacheKey(year, month)
+    now := time.Now()
+    s.cacheMu.Lock()
+    if c, ok := s.itemsCache[key]; ok && now.Sub(c.at) < s.cacheTTL {
+        items := make([]core.Expense, len(c.items))
+        copy(items, c.items)
+        s.cacheMu.Unlock()
+        return items, nil
+    }
+    s.cacheMu.Unlock()
+    if s.expLister == nil {
+        return nil, nil
+    }
+    cctx, cancel := context.WithTimeout(ctx, 7*time.Second)
+    defer cancel()
+    items, err := s.expLister.ListExpenses(cctx, year, month)
+    if err != nil {
+        return nil, fmt.Errorf("list month expenses (year=%d, month=%d): %w", year, month, err)
+    }
+    s.cacheMu.Lock()
+    s.itemsCache[key] = cachedItems{at: now, items: items}
+    s.cacheMu.Unlock()
+    return items, nil
+}
+
+// handleMonthOverview renders the monthly overview partial.
+func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "text/html; charset=utf-8")
+    now := time.Now()
+    year := now.Year()
+    month := int(now.Month())
+	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
+		if y, err := strconv.Atoi(v); err == nil {
+			year = y
+		}
+	}
+	if v := strings.TrimSpace(r.URL.Query().Get("month")); v != "" {
+		if m, err := strconv.Atoi(v); err == nil {
+			month = m
+		}
+	}
+    // Validate month range
+    if month < 1 || month > 12 {
+        log.Printf("invalid month parameter: year=%d month=%d", year, month)
+        month = int(now.Month())
+    }
+    ov, err := s.getOverview(r.Context(), year, month)
+    if err != nil {
+        log.Printf("month overview error: year=%d month=%d err=%v", year, month, err)
+        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Errore caricando panoramica</div></section>`))
+        return
+    }
+    if s.templates == nil {
+        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Totale: ` + formatEuros(ov.Total.Cents) + `</div></section>`))
+        return
+    }
+	// Pass data to template
+	// Compute max category for progress scaling and legend
+	var maxCents int64
+	var maxName string
+	for _, r := range ov.ByCategory {
+		if r.Amount.Cents > maxCents {
+			maxCents = r.Amount.Cents
+			maxName = r.Name
+		}
+	}
+	type row struct {
+		Name, Amount string
+		Width        int
+	}
+    data := struct {
+        Year    int
+        Month   int
+        Total   string
+        MaxName string
+        Max     string
+        Rows    []row
+        // Expenses detail list
+        Items []struct{
+            Day  int
+            Desc string
+            Amt  string
+            Cat  string
+            Sub  string
+        }
+    }{Year: ov.Year, Month: ov.Month, Total: formatEuros(ov.Total.Cents), MaxName: maxName, Max: formatEuros(maxCents)}
+    for _, r := range ov.ByCategory {
+        width := 0
+		if maxCents > 0 && r.Amount.Cents > 0 {
+			width = int((r.Amount.Cents*100 + maxCents/2) / maxCents) // rounded percent
+			if width > 0 && width < 2 {                               // ensure visibility for very small values
+				width = 2
+			}
+			if width > 100 {
+				width = 100
+			}
+		}
+        data.Rows = append(data.Rows, row{Name: r.Name, Amount: formatEuros(r.Amount.Cents), Width: width})
+    }
+    // Fetch detailed items (cached)
+    if s.expLister != nil {
+        items, err := s.getExpenses(r.Context(), year, month)
+        if err != nil {
+            log.Printf("list expenses error: year=%d month=%d err=%v", year, month, err)
+        } else {
+            for _, e := range items {
+                data.Items = append(data.Items, struct{
+                    Day  int
+                    Desc string
+                    Amt  string
+                    Cat  string
+                    Sub  string
+                }{Day: e.Date.Day, Desc: template.HTMLEscapeString(e.Description), Amt: formatEuros(e.Amount.Cents), Cat: e.Primary, Sub: e.Secondary})
+            }
+        }
+    }
+    if err := s.templates.ExecuteTemplate(w, "month_overview.html", data); err != nil {
+        log.Printf("template error: %v", err)
+        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Errore rendering panoramica</div></section>`))
+        return
+    }
+}
+
+func formatEuros(cents int64) string {
+	neg := cents < 0
+	if neg {
+		cents = -cents
+	}
+	euros := cents / 100
+	rem := cents % 100
+	s := strconv.FormatInt(euros, 10) + "," + fmt.Sprintf("%02d", rem)
+	if neg {
+		return "-€" + s
+	}
+	return "€" + s
 }

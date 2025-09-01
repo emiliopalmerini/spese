@@ -15,13 +15,23 @@ Stack: Go, HTMX, Google Sheets API, Docker (multistage), Docker Compose, Makefil
 
 ## Esecuzione locale
 
-1) Configura le variabili d'ambiente (vedi sotto). Esempio con `.env`:
+1) Configura le variabili d'ambiente (vedi sotto).
+   - Copia l'esempio: `cp .env.example .env`
+   - Modifica `.env` con i tuoi valori. Docker Compose carica `.env` e lo inietta nei container.
+
+Esempio di `.env` (nomi base senza anno; l'app prefigge automaticamente l'anno corrente):
 
 ```bash
 GOOGLE_SPREADSHEET_ID=...
-GOOGLE_SHEET_NAME=Spese
-GOOGLE_CATEGORIES_SHEET_NAME=Categories
-GOOGLE_SUBCATEGORIES_SHEET_NAME=Subcategories
+GOOGLE_SHEET_NAME=Expenses
+GOOGLE_CATEGORIES_SHEET_NAME=Dashboard
+GOOGLE_SUBCATEGORIES_SHEET_NAME=Dashboard
+# Nome base del foglio dashboard usato per il riepilogo mensile
+# L'app costruisce "<anno> <nome>", es: "2025 Dashboard"
+DASHBOARD_SHEET_NAME=Dashboard
+# (fallback legacy) Pattern con %d: es. "%d Dashboard"
+# DASHBOARD_SHEET_PREFIX="%d Dashboard"
+
 DATA_BACKEND=memory # usa 'sheets' per integrare Google Sheets
 PORT=8080
 # OAuth
@@ -36,6 +46,11 @@ PORT=8080
 
 App disponibile su `http://localhost:8080` (variabile `PORT`).
 
+Con `DATA_BACKEND=memory`, l'app carica dati di sviluppo da `./data`:
+- `data/seed_categories.txt` e `data/seed_subcategories.txt`
+- opzionale `data/seed_expenses.csv` (Month,Day,Description,Amount,Primary,Secondary)
+Questi dati sono usati anche per popolare la panoramica mensile sotto il form.
+
 **Sicurezza e Performance:**
 - Rate limiting: 60 richieste per minuto per IP
 - Timeout: 10s read/write, 60s idle
@@ -48,10 +63,12 @@ Vedi `.env.example` per i default. Principali:
 - `PORT`: porta HTTP (default: 8080)
 - `BASE_URL`: base URL pubblico (per link assoluti)
 - `GOOGLE_SPREADSHEET_ID`: ID del documento Google Sheets
-- `GOOGLE_SHEET_NAME`: foglio (tab) spese, default `Spese`
-- `GOOGLE_CATEGORIES_SHEET_NAME`: foglio categorie, default `Categories`
-- `GOOGLE_SUBCATEGORIES_SHEET_NAME`: foglio sottocategorie, default `Subcategories`
+- `GOOGLE_SHEET_NAME`: base name del foglio spese (senza anno), default `Expenses` → risolto a `"<anno> Expenses"`
+- `GOOGLE_CATEGORIES_SHEET_NAME`: base name foglio categorie, default `Dashboard` → `"<anno> Dashboard"`
+- `GOOGLE_SUBCATEGORIES_SHEET_NAME`: base name foglio sottocategorie, default `Dashboard` → `"<anno> Dashboard"`
 - `DATA_BACKEND`: `memory` (default) o `sheets`
+- `DASHBOARD_SHEET_NAME`: base name del foglio dashboard annuale da cui leggere i totali (preferito). Risultato: `"<anno> <nome>"`.
+- `DASHBOARD_SHEET_PREFIX`: (legacy) pattern o prefisso del foglio dashboard annuale (es. `%d Dashboard`). Usato solo se `DASHBOARD_SHEET_NAME` non è impostato.
 
 OAuth:
 - `GOOGLE_OAUTH_CLIENT_JSON` oppure `GOOGLE_OAUTH_CLIENT_FILE`: credenziali client OAuth (JSON)
@@ -73,15 +90,15 @@ OAuth:
 ## Docker
 
 - Dockerfile multistage per immagini piccole (builder + runner distroless/alpine).
-- `docker compose up -d` per esecuzione locale; la configurazione legge `.env`.
+- `docker compose up -d` per esecuzione locale; la configurazione legge `.env` e lo inietta nei container (`env_file`).
 
 ## Setup Google Sheets (rapido)
 
 1) Crea il documento e i fogli:
-- Foglio spese (default `2025 Expenses`) con intestazioni in riga 1:
+- Foglio spese (es. `2025 Expenses`) con intestazioni in riga 1:
   - A: Month, B: Day, C: Expense, D: Amount, E: Currency, F: EUR, G: Primary, H: Secondary
-- Foglio categorie (default `2025 Dashboard A2:A65`) 
-- Foglio sottocategorie (default `2025 Dashboard B2:B65`)
+- Foglio categorie (es. `2025 Dashboard` colonna `A2:A65`) 
+- Foglio sottocategorie (es. `2025 Dashboard` colonna `B2:B65`)
 
 2) OAuth user consent:
 - Crea un OAuth Client (Tipo: App per desktop o Web con redirect `http://localhost:8085/callback`).
@@ -95,6 +112,11 @@ OAuth:
 - Token salvati con permessi 0600 (solo proprietario)
 - Auto-refresh dei token scaduti
 - Nessun Service Account key committato nel repo
+
+Troubleshooting OAuth (Docker):
+- Place your OAuth client file at `./configs/client.json` or set `GOOGLE_OAUTH_CLIENT_FILE` to a path inside the container and bind-mount it.
+- The compose profile `oauth-init` binds `./configs/client.json` to `${GOOGLE_OAUTH_CLIENT_FILE:-/client.json}` so the default works out-of-the-box.
+- If the token lacks `refresh_token`, revoke previous consent in your Google Account and rerun `make oauth-init-docker` (the flow forces `prompt=consent`).
 
 ## Health & Readiness
 

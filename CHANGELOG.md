@@ -41,6 +41,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved error messages with more context
 - Updated ADR 0001 to reflect OAuth-only architecture
 - Enhanced documentation with security notes
+- Env config: sheet names now use base names without year; the app prefixes the current year automatically. Preferred `DASHBOARD_SHEET_NAME`, legacy `DASHBOARD_SHEET_PREFIX` still supported.
+
+### Migration
+- Update `.env` and CI secrets to use base names without year:
+  - `GOOGLE_SHEET_NAME=Expenses`
+  - `GOOGLE_CATEGORIES_SHEET_NAME=Dashboard`
+  - `GOOGLE_SUBCATEGORIES_SHEET_NAME=Dashboard`
+  - `DASHBOARD_SHEET_NAME=Dashboard` (preferred) or keep existing `DASHBOARD_SHEET_PREFIX`.
+- Ensure your actual sheet tabs follow the pattern `YYYY <Name>` (e.g., `2025 Expenses`, `2025 Dashboard`).
+- Note: If a name already starts with `YYYY `, it is not double-prefixed.
 
 ### Performance
 - Added connection timeouts and limits

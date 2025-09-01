@@ -20,6 +20,7 @@ tmp/
 *.exe
 *.out
 .gocache/
+.gocache-local/
 
 # Node (if ever used for static tooling)
 node_modules/
@@ -29,4 +30,3 @@ node_modules/
 
 .secrets/
 configs/
-

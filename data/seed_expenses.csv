@@ -1,0 +1,11 @@
+# Month,Day,Description,Amount,Primary,Secondary
+7,1,Affitto,988.90,Casa,Generale
+7,3,Internet,46.90,Casa,Abbonamenti
+7,4,Spesa settimanale,120.50,Cibo,Supermercato
+7,6,Spesa extra,261.00,Cibo,Supermercato
+7,10,Treno,79.90,Trasporti,Generale
+7,12,Visita medica,148.00,Salute,Generale
+7,20,Abbonamento streaming,15.99,Tempo libero,Abbonamenti
+6,20,Vacanza acconto,1652.00,Tempo libero,Generale
+5,5,Pranzo fuori,25.00,Cibo,Ristorante
+3,14,Bollette,83.00,Casa,Generale

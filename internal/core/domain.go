@@ -20,7 +20,7 @@ type (
 		Description string
 		Amount      Money
 		Primary     string // Primary category
-		Secondary   string // Secondary category  
+		Secondary   string // Secondary category
 	}
 )
 
@@ -29,8 +29,8 @@ var (
 	ErrInvalidMonth     = errors.New("invalid month")
 	ErrInvalidAmount    = errors.New("invalid amount")
 	ErrEmptyDescription = errors.New("empty description")
-	ErrEmptyPrimary   = errors.New("empty primary category")
-	ErrEmptySecondary = errors.New("empty secondary category")
+	ErrEmptyPrimary     = errors.New("empty primary category")
+	ErrEmptySecondary   = errors.New("empty secondary category")
 )
 
 func (d DateParts) Validate() error {
