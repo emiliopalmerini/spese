@@ -26,10 +26,11 @@ type Server struct {
     expLister   sheets.ExpenseLister
     rateLimiter *rateLimiter
 
-	// cache for month overviews
-	cacheMu       sync.Mutex
-	overviewCache map[string]cachedOverview
-	cacheTTL      time.Duration
+    // cache for month overviews
+    cacheMu       sync.Mutex
+    overviewCache map[string]cachedOverview
+    itemsCache    map[string]cachedItems
+    cacheTTL      time.Duration
 }
 
 // Simple in-memory rate limiter
@@ -82,17 +83,18 @@ func (rl *rateLimiter) allow(clientIP string) bool {
 func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, dr sheets.DashboardReader, lr sheets.ExpenseLister) *Server {
     mux := http.NewServeMux()
 
-	s := &Server{
-		Server: http.Server{
-			Addr:    addr,
-			Handler: mux,
-		},
+    s := &Server{
+        Server: http.Server{
+            Addr:    addr,
+            Handler: mux,
+        },
         expWriter:     ew,
         taxReader:     tr,
         dashReader:    dr,
         expLister:     lr,
         rateLimiter:   newRateLimiter(),
         overviewCache: make(map[string]cachedOverview),
+        itemsCache:    make(map[string]cachedItems),
         cacheTTL:      5 * time.Minute,
     }
 
@@ -252,9 +254,10 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`<div class="error">Errore nel salvataggio</div>`))
 		return
 	}
-	// Invalidate cache for current year+month and trigger client refresh
-	year := time.Now().Year()
-	s.invalidateOverview(year, month)
+    // Invalidate cache for current year+month and trigger client refresh
+    year := time.Now().Year()
+    s.invalidateOverview(year, month)
+    s.invalidateExpenses(year, month)
 	w.Header().Set("HX-Trigger", `{"expense:created": {"year": `+strconv.Itoa(year)+`, "month": `+strconv.Itoa(month)+`}}`)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`<div class="success">Spesa registrata (#` + template.HTMLEscapeString(ref) + `): ` +
@@ -277,8 +280,13 @@ func sanitizeInput(s string) string {
 }
 
 type cachedOverview struct {
-	at   time.Time
-	data core.MonthOverview
+    at   time.Time
+    data core.MonthOverview
+}
+
+type cachedItems struct {
+    at    time.Time
+    items []core.Expense
 }
 
 func (s *Server) cacheKey(year, month int) string {
@@ -286,9 +294,15 @@ func (s *Server) cacheKey(year, month int) string {
 }
 
 func (s *Server) invalidateOverview(year, month int) {
-	s.cacheMu.Lock()
-	delete(s.overviewCache, s.cacheKey(year, month))
-	s.cacheMu.Unlock()
+    s.cacheMu.Lock()
+    delete(s.overviewCache, s.cacheKey(year, month))
+    s.cacheMu.Unlock()
+}
+
+func (s *Server) invalidateExpenses(year, month int) {
+    s.cacheMu.Lock()
+    delete(s.itemsCache, s.cacheKey(year, month))
+    s.cacheMu.Unlock()
 }
 
 func (s *Server) getOverview(ctx context.Context, year, month int) (core.MonthOverview, error) {
@@ -298,7 +312,6 @@ func (s *Server) getOverview(ctx context.Context, year, month int) (core.MonthOv
     if c, ok := s.overviewCache[key]; ok && now.Sub(c.at) < s.cacheTTL {
         data := c.data
         s.cacheMu.Unlock()
-        log.Printf("overview cache hit: year=%d month=%d", year, month)
         return data, nil
     }
     s.cacheMu.Unlock()
@@ -317,6 +330,32 @@ func (s *Server) getOverview(ctx context.Context, year, month int) (core.MonthOv
     s.cacheMu.Unlock()
     log.Printf("overview cache store: year=%d month=%d total_cents=%d cats=%d", year, month, data.Total.Cents, len(data.ByCategory))
     return data, nil
+}
+
+func (s *Server) getExpenses(ctx context.Context, year, month int) ([]core.Expense, error) {
+    key := s.cacheKey(year, month)
+    now := time.Now()
+    s.cacheMu.Lock()
+    if c, ok := s.itemsCache[key]; ok && now.Sub(c.at) < s.cacheTTL {
+        items := make([]core.Expense, len(c.items))
+        copy(items, c.items)
+        s.cacheMu.Unlock()
+        return items, nil
+    }
+    s.cacheMu.Unlock()
+    if s.expLister == nil {
+        return nil, nil
+    }
+    cctx, cancel := context.WithTimeout(ctx, 7*time.Second)
+    defer cancel()
+    items, err := s.expLister.ListExpenses(cctx, year, month)
+    if err != nil {
+        return nil, fmt.Errorf("list month expenses (year=%d, month=%d): %w", year, month, err)
+    }
+    s.cacheMu.Lock()
+    s.itemsCache[key] = cachedItems{at: now, items: items}
+    s.cacheMu.Unlock()
+    return items, nil
 }
 
 // handleMonthOverview renders the monthly overview partial.
@@ -393,9 +432,9 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 		}
         data.Rows = append(data.Rows, row{Name: r.Name, Amount: formatEuros(r.Amount.Cents), Width: width})
     }
-    // Fetch detailed items if available
+    // Fetch detailed items (cached)
     if s.expLister != nil {
-        items, err := s.expLister.ListExpenses(r.Context(), year, month)
+        items, err := s.getExpenses(r.Context(), year, month)
         if err != nil {
             log.Printf("list expenses error: year=%d month=%d err=%v", year, month, err)
         } else {
