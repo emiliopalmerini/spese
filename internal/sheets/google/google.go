@@ -34,9 +34,10 @@ type Client struct {
 
 // Ensure interface conformance
 var (
-	_ ports.ExpenseWriter   = (*Client)(nil)
-	_ ports.TaxonomyReader  = (*Client)(nil)
-	_ ports.DashboardReader = (*Client)(nil)
+    _ ports.ExpenseWriter   = (*Client)(nil)
+    _ ports.TaxonomyReader  = (*Client)(nil)
+    _ ports.DashboardReader = (*Client)(nil)
+    _ ports.ExpenseLister   = (*Client)(nil)
 )
 
 // NewFromEnv creates a Sheets client using environment variables and ADC.
@@ -369,6 +370,69 @@ func (c *Client) readMonthOverviewFromExpenses(ctx context.Context, year int, mo
 		}
 	}
 	return core.MonthOverview{Year: year, Month: month, Total: core.Money{Cents: total}, ByCategory: list}, nil
+}
+
+// ListExpenses lists raw expenses for the given year and month by scanning the expenses sheet.
+func (c *Client) ListExpenses(ctx context.Context, year int, month int) ([]core.Expense, error) {
+    if c.svc == nil {
+        return nil, errors.New("sheets service not initialized")
+    }
+    if month < 1 || month > 12 {
+        return nil, fmt.Errorf("invalid month: %d", month)
+    }
+    rng := fmt.Sprintf("%s!A:H", c.expensesSheet)
+    resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rng).Context(ctx).Do()
+    if err != nil {
+        return nil, fmt.Errorf("read %s: %w", rng, err)
+    }
+    var out []core.Expense
+    for i, row := range resp.Values {
+        cols := toStrings(row)
+        if len(cols) < 7 {
+            continue
+        }
+        // Skip likely header row if first row has non-numeric month
+        if i == 0 {
+            if _, err := strconv.Atoi(strings.TrimSpace(cols[0])); err != nil {
+                continue
+            }
+        }
+        m, err := strconv.Atoi(strings.TrimSpace(cols[0]))
+        if err != nil || m != month {
+            continue
+        }
+        day, _ := strconv.Atoi(strings.TrimSpace(cols[1]))
+        desc := strings.TrimSpace(cols[2])
+        cents, ok := parseEurosToCents(cols[3])
+        if !ok {
+            // Try simple float parsing
+            if f, ferr := strconv.ParseFloat(strings.TrimSpace(cols[3]), 64); ferr == nil {
+                cents = int64((f * 100.0) + 0.5)
+                ok = true
+            }
+        }
+        if !ok {
+            continue
+        }
+        primary := strings.TrimSpace(cols[6])
+        secondary := ""
+        if len(cols) >= 8 {
+            secondary = strings.TrimSpace(cols[7])
+        }
+        e := core.Expense{
+            Date:        core.DateParts{Day: day, Month: month},
+            Description: desc,
+            Amount:      core.Money{Cents: cents},
+            Primary:     primary,
+            Secondary:   secondary,
+        }
+        // Do not enforce validation strictly here; list is best-effort. Filter obviously empty rows.
+        if strings.TrimSpace(e.Description) == "" && e.Amount.Cents == 0 {
+            continue
+        }
+        out = append(out, e)
+    }
+    return out, nil
 }
 
 func indexOf(arr []string, target string) int {

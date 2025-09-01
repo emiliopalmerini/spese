@@ -56,6 +56,12 @@ func (f fakeDash) ReadMonthOverview(ctx context.Context, year int, month int) (c
 	return f.ov, nil
 }
 
+type fakeList struct{ items []core.Expense }
+
+func (f fakeList) ListExpenses(ctx context.Context, year int, month int) ([]core.Expense, error) {
+    return f.items, nil
+}
+
 // chdirRepoRoot attempts to set CWD to repo root so template glob works.
 func chdirRepoRoot(t *testing.T) {
 	t.Helper()
@@ -77,7 +83,7 @@ func TestIndexAndHealth(t *testing.T) {
 	chdirRepoRoot(t)
 	var ew ports.ExpenseWriter = fakeExp{}
 	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
-	srv := NewServer(":0", ew, tr, fakeDash{})
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -103,7 +109,7 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
 	chdirRepoRoot(t)
 	var ew ports.ExpenseWriter = fakeExp{}
 	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
-	srv := NewServer(":0", ew, tr, fakeDash{})
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
 
 	// Wrong method
 	rr := httptest.NewRecorder()
@@ -155,7 +161,7 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
 
 	// Append error -> 500
 	var ewErr ports.ExpenseWriter = fakeExpErr{}
-	srv = NewServer(":0", ewErr, tr, fakeDash{})
+	srv = NewServer(":0", ewErr, tr, fakeDash{}, fakeList{})
 	rr = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("description=ok&amount=1.23&primary=A&secondary=X"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -171,7 +177,7 @@ func TestTaxonomyErrorStillRenders(t *testing.T) {
 	chdirRepoRoot(t)
 	var ew ports.ExpenseWriter = fakeExp{}
 	var tr ports.TaxonomyReader = fakeTaxErr{}
-	srv := NewServer(":0", ew, tr, fakeDash{})
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	srv.Handler.ServeHTTP(rr, req)
@@ -184,7 +190,7 @@ func TestStaticServesWithCacheHeader(t *testing.T) {
 	chdirRepoRoot(t)
 	var ew ports.ExpenseWriter = fakeExp{}
 	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
-	srv := NewServer(":0", ew, tr, fakeDash{})
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/static/style.css", nil)

@@ -25,5 +25,22 @@
         <div class="row placeholder">Nessun dato</div>
       {{ end }}
     </div>
+    <div class="expenses">
+      <h3>Dettaglio spese</h3>
+      {{ if .Items }}
+        <div class="expenses__list">
+          {{ range .Items }}
+            <div class="expense">
+              <div class="expense__date">{{ .Day }}/{{ $.Month }}</div>
+              <div class="expense__desc">{{ .Desc }}</div>
+              <div class="expense__cat">{{ .Cat }} / {{ .Sub }}</div>
+              <div class="expense__amt">{{ .Amt }}</div>
+            </div>
+          {{ end }}
+        </div>
+      {{ else }}
+        <div class="row placeholder">Nessuna spesa registrata</div>
+      {{ end }}
+    </div>
   </div>
 </section>

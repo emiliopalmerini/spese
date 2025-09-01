@@ -18,12 +18,13 @@ import (
 )
 
 type Server struct {
-	http.Server
-	templates   *template.Template
-	expWriter   sheets.ExpenseWriter
-	taxReader   sheets.TaxonomyReader
-	dashReader  sheets.DashboardReader
-	rateLimiter *rateLimiter
+    http.Server
+    templates   *template.Template
+    expWriter   sheets.ExpenseWriter
+    taxReader   sheets.TaxonomyReader
+    dashReader  sheets.DashboardReader
+    expLister   sheets.ExpenseLister
+    rateLimiter *rateLimiter
 
 	// cache for month overviews
 	cacheMu       sync.Mutex
@@ -78,21 +79,22 @@ func (rl *rateLimiter) allow(clientIP string) bool {
 }
 
 // NewServer configures routes and templates, returning a ready-to-run http.Server.
-func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, dr sheets.DashboardReader) *Server {
-	mux := http.NewServeMux()
+func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, dr sheets.DashboardReader, lr sheets.ExpenseLister) *Server {
+    mux := http.NewServeMux()
 
 	s := &Server{
 		Server: http.Server{
 			Addr:    addr,
 			Handler: mux,
 		},
-		expWriter:     ew,
-		taxReader:     tr,
-		dashReader:    dr,
-		rateLimiter:   newRateLimiter(),
-		overviewCache: make(map[string]cachedOverview),
-		cacheTTL:      5 * time.Minute,
-	}
+        expWriter:     ew,
+        taxReader:     tr,
+        dashReader:    dr,
+        expLister:     lr,
+        rateLimiter:   newRateLimiter(),
+        overviewCache: make(map[string]cachedOverview),
+        cacheTTL:      5 * time.Minute,
+    }
 
 	// Parse embedded templates at startup.
 	t, err := template.ParseFS(appweb.TemplatesFS, "templates/*.html")
@@ -344,10 +346,10 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
         _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Errore caricando panoramica</div></section>`))
         return
     }
-	if s.templates == nil {
-		_, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Totale: ` + formatEuros(ov.Total.Cents) + `</div></section>`))
-		return
-	}
+    if s.templates == nil {
+        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Totale: ` + formatEuros(ov.Total.Cents) + `</div></section>`))
+        return
+    }
 	// Pass data to template
 	// Compute max category for progress scaling and legend
 	var maxCents int64
@@ -362,16 +364,24 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 		Name, Amount string
 		Width        int
 	}
-	data := struct {
-		Year    int
-		Month   int
-		Total   string
-		MaxName string
-		Max     string
-		Rows    []row
-	}{Year: ov.Year, Month: ov.Month, Total: formatEuros(ov.Total.Cents), MaxName: maxName, Max: formatEuros(maxCents)}
-	for _, r := range ov.ByCategory {
-		width := 0
+    data := struct {
+        Year    int
+        Month   int
+        Total   string
+        MaxName string
+        Max     string
+        Rows    []row
+        // Expenses detail list
+        Items []struct{
+            Day  int
+            Desc string
+            Amt  string
+            Cat  string
+            Sub  string
+        }
+    }{Year: ov.Year, Month: ov.Month, Total: formatEuros(ov.Total.Cents), MaxName: maxName, Max: formatEuros(maxCents)}
+    for _, r := range ov.ByCategory {
+        width := 0
 		if maxCents > 0 && r.Amount.Cents > 0 {
 			width = int((r.Amount.Cents*100 + maxCents/2) / maxCents) // rounded percent
 			if width > 0 && width < 2 {                               // ensure visibility for very small values
@@ -381,13 +391,30 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 				width = 100
 			}
 		}
-		data.Rows = append(data.Rows, row{Name: r.Name, Amount: formatEuros(r.Amount.Cents), Width: width})
-	}
-	if err := s.templates.ExecuteTemplate(w, "month_overview.html", data); err != nil {
-		log.Printf("template error: %v", err)
-		_, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Errore rendering panoramica</div></section>`))
-		return
-	}
+        data.Rows = append(data.Rows, row{Name: r.Name, Amount: formatEuros(r.Amount.Cents), Width: width})
+    }
+    // Fetch detailed items if available
+    if s.expLister != nil {
+        items, err := s.expLister.ListExpenses(r.Context(), year, month)
+        if err != nil {
+            log.Printf("list expenses error: year=%d month=%d err=%v", year, month, err)
+        } else {
+            for _, e := range items {
+                data.Items = append(data.Items, struct{
+                    Day  int
+                    Desc string
+                    Amt  string
+                    Cat  string
+                    Sub  string
+                }{Day: e.Date.Day, Desc: template.HTMLEscapeString(e.Description), Amt: formatEuros(e.Amount.Cents), Cat: e.Primary, Sub: e.Secondary})
+            }
+        }
+    }
+    if err := s.templates.ExecuteTemplate(w, "month_overview.html", data); err != nil {
+        log.Printf("template error: %v", err)
+        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Errore rendering panoramica</div></section>`))
+        return
+    }
 }
 
 func formatEuros(cents int64) string {

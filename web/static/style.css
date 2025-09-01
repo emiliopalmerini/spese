@@ -137,3 +137,11 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 60%, transparent); }
 .month-overview .row.placeholder { color: var(--muted); }
 .month-overview .row .bar { grid-column: 1 / -1; height: 4px; background: color-mix(in srgb, var(--muted) 22%, transparent); margin-top: 6px; }
 .month-overview .row .bar__fill { height: 100%; background: var(--accent-600); }
+.month-overview .expenses { margin-top: 16px; }
+.month-overview .expenses h3 { margin: 12px 0 8px; font-size: 1rem; }
+.month-overview .expenses__list { display: grid; gap: 6px; }
+.month-overview .expense { display: grid; grid-template-columns: 56px 1fr auto auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.month-overview .expense__date { color: var(--muted); font-variant-numeric: tabular-nums; }
+.month-overview .expense__desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.month-overview .expense__cat { color: var(--muted); font-size: .9rem; }
+.month-overview .expense__amt { font-weight: 600; font-variant-numeric: tabular-nums; }

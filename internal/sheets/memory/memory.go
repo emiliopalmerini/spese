@@ -24,9 +24,10 @@ type Store struct {
 
 // Interface conformance
 var _ interface {
-	Append(context.Context, core.Expense) (string, error)
-	List(context.Context) ([]string, []string, error)
-	ReadMonthOverview(context.Context, int, int) (core.MonthOverview, error)
+    Append(context.Context, core.Expense) (string, error)
+    List(context.Context) ([]string, []string, error)
+    ReadMonthOverview(context.Context, int, int) (core.MonthOverview, error)
+    ListExpenses(context.Context, int, int) ([]core.Expense, error)
 } = (*Store)(nil)
 
 func New(cats, subs []string) *Store {
@@ -112,6 +113,20 @@ func (s *Store) ReadMonthOverview(_ context.Context, year int, month int) (core.
 		Total:      core.Money{Cents: total},
 		ByCategory: list,
 	}, nil
+}
+
+// ListExpenses returns stored expenses for the given month (year ignored).
+func (s *Store) ListExpenses(_ context.Context, year int, month int) ([]core.Expense, error) { //nolint:revive // year unused
+    _ = year
+    s.mu.Lock()
+    defer s.mu.Unlock()
+    var out []core.Expense
+    for _, e := range s.items {
+        if e.Date.Month == month {
+            out = append(out, e)
+        }
+    }
+    return out, nil
 }
 
 func readLines(path string) []string {
