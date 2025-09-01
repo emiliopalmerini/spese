@@ -10,6 +10,7 @@ import (
 
 	"context"
 	"io"
+	"time"
 	"spese/internal/core"
 	ports "spese/internal/sheets"
 )
@@ -56,10 +57,264 @@ func (f fakeDash) ReadMonthOverview(ctx context.Context, year int, month int) (c
 	return f.ov, nil
 }
 
+// Test month overview endpoint
+func TestHandleMonthOverview(t *testing.T) {
+	chdirRepoRoot(t)
+	
+	// Test successful overview
+	mockOverview := core.MonthOverview{
+		Year:  2025,
+		Month: 1,
+		Total: core.Money{Cents: 12345}, // €123.45
+		ByCategory: []core.CategoryAmount{
+			{Name: "Food", Amount: core.Money{Cents: 8000}},    // €80.00
+			{Name: "Transport", Amount: core.Money{Cents: 4345}}, // €43.45
+		},
+	}
+	mockExpenses := []core.Expense{
+		{Date: core.DateParts{Day: 1, Month: 1}, Description: "Groceries", Amount: core.Money{Cents: 5000}, Primary: "Food", Secondary: "Supermarket"},
+		{Date: core.DateParts{Day: 2, Month: 1}, Description: "Bus ticket", Amount: core.Money{Cents: 345}, Primary: "Transport", Secondary: "Public"},
+	}
+	
+	var ew ports.ExpenseWriter = fakeExp{}
+	var tr ports.TaxonomyReader = fakeTax{cats: []string{"Food", "Transport"}, subs: []string{"Supermarket", "Public"}}
+	var dr ports.DashboardReader = fakeDash{ov: mockOverview}
+	var lr ports.ExpenseLister = fakeList{items: mockExpenses}
+	srv := NewServer(":0", ew, tr, dr, lr)
+	
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/ui/month-overview", nil)
+	srv.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	if got := rr.Header().Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("expected HTML content type, got %s", got)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "€123,45") {
+		t.Fatalf("expected total amount in body, got: %s", body)
+	}
+	if !strings.Contains(body, "Food") {
+		t.Fatalf("expected Food category in body, got: %s", body)
+	}
+	if !strings.Contains(body, "Groceries") {
+		t.Fatalf("expected expense details in body, got: %s", body)
+	}
+}
+
+// Test month overview with query parameters
+func TestHandleMonthOverviewWithParams(t *testing.T) {
+	chdirRepoRoot(t)
+	mockOverview := core.MonthOverview{Year: 2024, Month: 6, Total: core.Money{Cents: 5000}}
+	
+	var ew ports.ExpenseWriter = fakeExp{}
+	var tr ports.TaxonomyReader = fakeTax{}
+	var dr ports.DashboardReader = fakeDash{ov: mockOverview}
+	var lr ports.ExpenseLister = fakeList{}
+	srv := NewServer(":0", ew, tr, dr, lr)
+	
+	// Test with valid year/month params
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/ui/month-overview?year=2024&month=6", nil)
+	srv.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	
+	// Test with invalid month (should default to current)
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/ui/month-overview?month=13", nil)
+	srv.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	
+	// Test with invalid month (should default to current)
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/ui/month-overview?month=0", nil)
+	srv.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
+// Test month overview error handling
+func TestHandleMonthOverviewErrors(t *testing.T) {
+	chdirRepoRoot(t)
+	
+	// Test dashboard read error
+	var ew ports.ExpenseWriter = fakeExp{}
+	var tr ports.TaxonomyReader = fakeTax{}
+	var dr ports.DashboardReader = fakeDash{err: context.DeadlineExceeded}
+	var lr ports.ExpenseLister = fakeList{}
+	srv := NewServer(":0", ew, tr, dr, lr)
+	
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/ui/month-overview", nil)
+	srv.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "Errore caricando panoramica") {
+		t.Fatalf("expected error message in body, got: %s", body)
+	}
+	
+	// Test with missing templates
+	srv.templates = nil
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/ui/month-overview", nil)
+	srv.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	body = rr.Body.String()
+	if !strings.Contains(body, "month-overview") {
+		t.Fatalf("expected fallback HTML in body, got: %s", body)
+	}
+}
+
+// Test format euros function
+func TestFormatEuros(t *testing.T) {
+	tests := []struct {
+		cents    int64
+		expected string
+	}{
+		{0, "€0,00"},
+		{1, "€0,01"},
+		{99, "€0,99"},
+		{100, "€1,00"},
+		{123, "€1,23"},
+		{12345, "€123,45"},
+		{-100, "-€1,00"},
+		{-12345, "-€123,45"},
+		{1000000, "€10000,00"},
+	}
+	
+	for _, tt := range tests {
+		got := formatEuros(tt.cents)
+		if got != tt.expected {
+			t.Fatalf("formatEuros(%d) = %q, want %q", tt.cents, got, tt.expected)
+		}
+	}
+}
+
+// Test caching functionality
+func TestCachingBehavior(t *testing.T) {
+	chdirRepoRoot(t)
+	mockOverview := core.MonthOverview{Year: 2025, Month: 1, Total: core.Money{Cents: 5000}}
+	mockExpenses := []core.Expense{{Description: "test", Amount: core.Money{Cents: 1000}}}
+	
+	var ew ports.ExpenseWriter = fakeExp{}
+	var tr ports.TaxonomyReader = fakeTax{}
+	var dr ports.DashboardReader = fakeDash{ov: mockOverview}
+	var lr ports.ExpenseLister = fakeList{items: mockExpenses}
+	srv := NewServer(":0", ew, tr, dr, lr)
+	
+	// First call should populate cache
+	ov1, err1 := srv.getOverview(context.Background(), 2025, 1)
+	if err1 != nil {
+		t.Fatalf("getOverview error: %v", err1)
+	}
+	if ov1.Total.Cents != 5000 {
+		t.Fatalf("expected 5000 cents, got %d", ov1.Total.Cents)
+	}
+	
+	// Second call should use cache
+	ov2, err2 := srv.getOverview(context.Background(), 2025, 1)
+	if err2 != nil {
+		t.Fatalf("getOverview error: %v", err2)
+	}
+	if ov2.Total.Cents != 5000 {
+		t.Fatalf("expected cached 5000 cents, got %d", ov2.Total.Cents)
+	}
+	
+	// Test expenses caching
+	exp1, err3 := srv.getExpenses(context.Background(), 2025, 1)
+	if err3 != nil {
+		t.Fatalf("getExpenses error: %v", err3)
+	}
+	if len(exp1) != 1 || exp1[0].Amount.Cents != 1000 {
+		t.Fatalf("expected 1 expense with 1000 cents, got %+v", exp1)
+	}
+	
+	// Test cache invalidation
+	srv.invalidateOverview(2025, 1)
+	srv.invalidateExpenses(2025, 1)
+	
+	// Verify cache was cleared (check internal state)
+	srv.cacheMu.Lock()
+	_, existsOv := srv.overviewCache[srv.cacheKey(2025, 1)]
+	_, existsExp := srv.itemsCache[srv.cacheKey(2025, 1)]
+	srv.cacheMu.Unlock()
+	
+	if existsOv {
+		t.Fatal("overview cache should be invalidated")
+	}
+	if existsExp {
+		t.Fatal("expenses cache should be invalidated")
+	}
+}
+
+// Test context timeout in cache methods
+func TestCacheTimeouts(t *testing.T) {
+	// Test overview timeout with failing dashboard reader
+	var ew ports.ExpenseWriter = fakeExp{}
+	var tr ports.TaxonomyReader = fakeTax{}
+	var dr ports.DashboardReader = fakeDash{err: context.DeadlineExceeded}
+	var lr ports.ExpenseLister = fakeListErr{}
+	srv := NewServer(":0", ew, tr, dr, lr)
+	
+	// Create a context that's already cancelled
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	
+	_, err := srv.getOverview(ctx, 2025, 1)
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+	
+	_, err = srv.getExpenses(ctx, 2025, 1)
+	if err == nil {
+		t.Fatal("expected timeout error")  
+	}
+}
+
+// Test nil readers in cache methods
+func TestCacheNilReaders(t *testing.T) {
+	var ew ports.ExpenseWriter = fakeExp{}
+	var tr ports.TaxonomyReader = fakeTax{}
+	srv := NewServer(":0", ew, tr, nil, nil) // nil readers
+	
+	// Should return empty/default values without error
+	ov, err := srv.getOverview(context.Background(), 2025, 1)
+	if err != nil {
+		t.Fatalf("expected no error with nil dashboard reader, got %v", err)
+	}
+	if ov.Year != 2025 || ov.Month != 1 {
+		t.Fatalf("expected default overview, got %+v", ov)
+	}
+	
+	exp, err := srv.getExpenses(context.Background(), 2025, 1)
+	if err != nil {
+		t.Fatalf("expected no error with nil expense lister, got %v", err)
+	}
+	if exp != nil {
+		t.Fatalf("expected nil expenses, got %+v", exp)
+	}
+}
+
 type fakeList struct{ items []core.Expense }
 
 func (f fakeList) ListExpenses(ctx context.Context, year int, month int) ([]core.Expense, error) {
     return f.items, nil
+}
+
+type fakeListErr struct{}
+
+func (fakeListErr) ListExpenses(ctx context.Context, year int, month int) ([]core.Expense, error) {
+    return nil, context.DeadlineExceeded
 }
 
 // chdirRepoRoot attempts to set CWD to repo root so template glob works.
@@ -118,6 +373,9 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected 405, got %d", rr.Code)
 	}
+	if got := rr.Header().Get("Allow"); got != "POST" {
+		t.Fatalf("expected Allow: POST, got %s", got)
+	}
 
 	// Invalid amount
 	rr = httptest.NewRecorder()
@@ -158,6 +416,19 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
 	if !strings.Contains(rr.Body.String(), "success") {
 		t.Fatalf("expected success in body: %s", rr.Body.String())
 	}
+	// Check HTMX trigger header
+	if got := rr.Header().Get("HX-Trigger"); !strings.Contains(got, "expense:created") {
+		t.Fatalf("expected HX-Trigger header with expense:created, got %s", got)
+	}
+
+	// Success with invalid day/month params (should use current)
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("day=abc&month=xyz&description=ok&amount=1.23&primary=A&secondary=X"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	srv.Handler.ServeHTTP(rr, req)
+	if rr.Code != 200 {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
 
 	// Append error -> 500
 	var ewErr ports.ExpenseWriter = fakeExpErr{}
@@ -186,6 +457,41 @@ func TestTaxonomyErrorStillRenders(t *testing.T) {
 	}
 }
 
+// Test index handler with missing templates
+func TestIndexMissingTemplates(t *testing.T) {
+	var ew ports.ExpenseWriter = fakeExp{}
+	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
+	srv.templates = nil // Simulate missing templates
+	
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	srv.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}
+
+// Test sanitizeInput function
+func TestSanitizeInput(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"  normal text  ", "normal text"},
+		{"text\x01with\x02control\x03chars", "textwithcontrolchars"},
+		{"text\twith\ntab\rand\rcarriage", "text\twith\ntab\rand\rcarriage"},
+		{"\x00\x1F\x7F", "\x7F"}, // Keep DEL (0x7F) but remove others
+	}
+	
+	for _, tt := range tests {
+		got := sanitizeInput(tt.input)
+		if got != tt.expected {
+			t.Fatalf("sanitizeInput(%q) = %q, want %q", tt.input, got, tt.expected)
+		}
+	}
+}
+
 func TestStaticServesWithCacheHeader(t *testing.T) {
 	chdirRepoRoot(t)
 	var ew ports.ExpenseWriter = fakeExp{}
@@ -203,5 +509,257 @@ func TestStaticServesWithCacheHeader(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), ":root") {
 		t.Fatalf("unexpected static body: %s", rr.Body.String())
+	}
+}
+
+// Test rate limiter functionality
+func TestRateLimiterBehavior(t *testing.T) {
+	rl := newRateLimiter()
+	
+	// First request should be allowed
+	if !rl.allow("192.168.1.1") {
+		t.Fatal("first request should be allowed")
+	}
+	
+	// Multiple requests within limit should be allowed
+	for i := 0; i < 59; i++ {
+		if !rl.allow("192.168.1.1") {
+			t.Fatalf("request %d should be allowed", i+2)
+		}
+	}
+	
+	// 61st request should be blocked
+	if rl.allow("192.168.1.1") {
+		t.Fatal("61st request should be blocked")
+	}
+	
+	// Different IP should be allowed
+	if !rl.allow("192.168.1.2") {
+		t.Fatal("different IP should be allowed")
+	}
+}
+
+// Test rate limiter reset after time window
+func TestRateLimiterReset(t *testing.T) {
+	rl := newRateLimiter()
+	
+	// Fill up the rate limit
+	for i := 0; i < 60; i++ {
+		rl.allow("192.168.1.1")
+	}
+	
+	// Should be blocked
+	if rl.allow("192.168.1.1") {
+		t.Fatal("should be rate limited")
+	}
+	
+	// Simulate time passage by directly modifying the client info
+	rl.mu.Lock()
+	client := rl.clients["192.168.1.1"]
+	client.lastRequest = time.Now().Add(-2 * time.Minute)
+	rl.mu.Unlock()
+	
+	// Should be allowed again
+	if !rl.allow("192.168.1.1") {
+		t.Fatal("should be allowed after time window reset")
+	}
+}
+
+// Test rate limiter cleanup mechanism
+func TestRateLimiterCleanup(t *testing.T) {
+	rl := newRateLimiter()
+	defer rl.stop() // Ensure cleanup goroutine is stopped
+	
+	// Add some clients
+	rl.allow("192.168.1.1")
+	rl.allow("192.168.1.2")
+	rl.allow("192.168.1.3")
+	
+	// Verify clients exist
+	rl.mu.Lock()
+	initialCount := len(rl.clients)
+	rl.mu.Unlock()
+	if initialCount != 3 {
+		t.Fatalf("expected 3 clients, got %d", initialCount)
+	}
+	
+	// Manually set old timestamps to simulate stale entries
+	rl.mu.Lock()
+	oldTime := time.Now().Add(-15 * time.Minute)
+	rl.clients["192.168.1.1"].lastRequest = oldTime
+	rl.clients["192.168.1.2"].lastRequest = oldTime
+	// Keep 192.168.1.3 recent
+	rl.mu.Unlock()
+	
+	// Run cleanup manually
+	rl.cleanupStaleEntries()
+	
+	// Check that stale entries were removed
+	rl.mu.Lock()
+	finalCount := len(rl.clients)
+	_, exists1 := rl.clients["192.168.1.1"]
+	_, exists2 := rl.clients["192.168.1.2"]
+	_, exists3 := rl.clients["192.168.1.3"]
+	rl.mu.Unlock()
+	
+	if finalCount != 1 {
+		t.Fatalf("expected 1 client after cleanup, got %d", finalCount)
+	}
+	if exists1 {
+		t.Error("stale client 192.168.1.1 should have been cleaned up")
+	}
+	if exists2 {
+		t.Error("stale client 192.168.1.2 should have been cleaned up")
+	}
+	if !exists3 {
+		t.Error("recent client 192.168.1.3 should still exist")
+	}
+}
+
+// Test server shutdown cleanup
+func TestServerShutdownCleanup(t *testing.T) {
+	chdirRepoRoot(t)
+	var ew ports.ExpenseWriter = fakeExp{}
+	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
+	
+	// Verify rate limiter is running
+	if srv.rateLimiter == nil {
+		t.Fatal("rate limiter should be initialized")
+	}
+	
+	// Add some activity
+	srv.rateLimiter.allow("192.168.1.1")
+	
+	// Shutdown server
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	
+	err := srv.Shutdown(ctx)
+	if err != nil {
+		t.Fatalf("server shutdown failed: %v", err)
+	}
+	
+	// Verify cleanup goroutine was stopped by attempting to access after short delay
+	time.Sleep(10 * time.Millisecond)
+	// The cleanup should have stopped; we can't easily test the goroutine state directly
+	// but we verified the Shutdown method completes without error
+}
+
+// Test security headers middleware
+func TestSecurityHeaders(t *testing.T) {
+	chdirRepoRoot(t)
+	var ew ports.ExpenseWriter = fakeExp{}
+	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	srv.Handler.ServeHTTP(rr, req)
+	
+	// Check security headers
+	headers := []string{
+		"X-Content-Type-Options",
+		"X-Frame-Options",
+		"X-XSS-Protection",
+		"Content-Security-Policy",
+		"Referrer-Policy",
+	}
+	
+	for _, header := range headers {
+		if got := rr.Header().Get(header); got == "" {
+			t.Fatalf("missing security header: %s", header)
+		}
+	}
+}
+
+// Test rate limiting for POST requests
+func TestRateLimitingPOST(t *testing.T) {
+	chdirRepoRoot(t)
+	var ew ports.ExpenseWriter = fakeExp{}
+	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
+
+	// Fill up rate limit
+	for i := 0; i < 60; i++ {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("description=test&amount=1.00&primary=A&secondary=X"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = "192.168.1.1:12345"
+		srv.Handler.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("request %d failed: %d", i+1, rr.Code)
+		}
+	}
+	
+	// 61st request should be rate limited
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("description=test&amount=1.00&primary=A&secondary=X"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.RemoteAddr = "192.168.1.1:12345"
+	srv.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d", rr.Code)
+	}
+	if got := rr.Header().Get("Retry-After"); got != "60" {
+		t.Fatalf("expected Retry-After: 60, got %s", got)
+	}
+}
+
+// Test client IP extraction for rate limiting
+func TestClientIPExtraction(t *testing.T) {
+	chdirRepoRoot(t)
+	var ew ports.ExpenseWriter = fakeExp{}
+	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
+
+	tests := []struct {
+		name             string
+		xForwardedFor    string
+		xRealIP          string
+		remoteAddr       string
+		expectedRateKey  string
+	}{
+		{"X-Forwarded-For header", "10.0.0.1", "", "192.168.1.1:12345", "10.0.0.1"},
+		{"X-Real-IP header", "", "10.0.0.2", "192.168.1.1:12345", "10.0.0.2"},
+		{"RemoteAddr fallback", "", "", "192.168.1.1:12345", "192.168.1.1:12345"},
+	}
+	
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clear rate limiter state
+			srv.rateLimiter = newRateLimiter()
+			
+			// Fill up rate limit for the expected IP
+			for i := 0; i < 60; i++ {
+				rr := httptest.NewRecorder()
+				req := httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("description=test&amount=1.00&primary=A&secondary=X"))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				if tt.xForwardedFor != "" {
+					req.Header.Set("X-Forwarded-For", tt.xForwardedFor)
+				}
+				if tt.xRealIP != "" {
+					req.Header.Set("X-Real-IP", tt.xRealIP)
+				}
+				req.RemoteAddr = tt.remoteAddr
+				srv.Handler.ServeHTTP(rr, req)
+			}
+			
+			// Next request should be rate limited
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("description=test&amount=1.00&primary=A&secondary=X"))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if tt.xForwardedFor != "" {
+				req.Header.Set("X-Forwarded-For", tt.xForwardedFor)
+			}
+			if tt.xRealIP != "" {
+				req.Header.Set("X-Real-IP", tt.xRealIP)
+			}
+			req.RemoteAddr = tt.remoteAddr
+			srv.Handler.ServeHTTP(rr, req)
+			if rr.Code != http.StatusTooManyRequests {
+				t.Fatalf("expected 429, got %d", rr.Code)
+			}
+		})
 	}
 }

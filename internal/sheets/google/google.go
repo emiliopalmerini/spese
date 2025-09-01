@@ -5,7 +5,7 @@ import (
     "encoding/json"
     "errors"
     "fmt"
-    "log"
+    "log/slog"
     "os"
     "spese/internal/core"
     "strconv"
@@ -264,8 +264,7 @@ func (c *Client) ReadMonthOverview(ctx context.Context, year int, month int) (co
 	// month overview directly by scanning the expenses sheet. This aligns
 	// with ADR-0004 for robustness to header changes.
     if strings.Contains(strings.ToLower(err.Error()), "unexpected dashboard header") {
-        log.Printf("dashboard header mismatch for %d/%02d on '%s' (range %s): %v — falling back to expenses sheet",
-            year, month, sheetName, rng, err)
+        slog.WarnContext(ctx, "Dashboard header mismatch, falling back to expenses sheet", "year", year, "month", month, "sheet", sheetName, "range", rng, "error", err)
         return c.readMonthOverviewFromExpenses(ctx, year, month)
     }
     return core.MonthOverview{}, err

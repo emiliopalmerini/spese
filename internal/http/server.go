@@ -2,10 +2,12 @@ package http
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"html/template"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -35,8 +37,9 @@ type Server struct {
 
 // Simple in-memory rate limiter
 type rateLimiter struct {
-	mu      sync.Mutex
-	clients map[string]*clientInfo
+	mu         sync.Mutex
+	clients    map[string]*clientInfo
+	stopCleanup chan struct{}
 }
 
 type clientInfo struct {
@@ -45,9 +48,45 @@ type clientInfo struct {
 }
 
 func newRateLimiter() *rateLimiter {
-	return &rateLimiter{
-		clients: make(map[string]*clientInfo),
+	rl := &rateLimiter{
+		clients:     make(map[string]*clientInfo),
+		stopCleanup: make(chan struct{}),
 	}
+	go rl.startCleanup()
+	return rl
+}
+
+// startCleanup runs periodic cleanup to remove stale client entries
+func (rl *rateLimiter) startCleanup() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			rl.cleanupStaleEntries()
+		case <-rl.stopCleanup:
+			return
+		}
+	}
+}
+
+// cleanupStaleEntries removes client entries older than 10 minutes
+func (rl *rateLimiter) cleanupStaleEntries() {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	cutoff := time.Now().Add(-10 * time.Minute)
+	for ip, client := range rl.clients {
+		if client.lastRequest.Before(cutoff) {
+			delete(rl.clients, ip)
+		}
+	}
+}
+
+// stop gracefully shuts down the rate limiter cleanup goroutine
+func (rl *rateLimiter) stop() {
+	close(rl.stopCleanup)
 }
 
 func (rl *rateLimiter) allow(clientIP string) bool {
@@ -101,7 +140,7 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	// Parse embedded templates at startup.
 	t, err := template.ParseFS(appweb.TemplatesFS, "templates/*.html")
 	if err != nil {
-		log.Printf("warning: failed parsing templates: %v", err)
+		slog.Warn("Failed parsing templates", "error", err)
 	}
 	s.templates = t
 
@@ -114,7 +153,7 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 			static.ServeHTTP(w, r)
 		}))
 	} else {
-		log.Printf("warning: failed to mount embedded static FS: %v", err)
+		slog.Warn("Failed to mount embedded static FS", "error", err)
 	}
 
 	// Add security middleware
@@ -128,9 +167,21 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	return s
 }
 
-// withSecurityHeaders adds security headers and rate limiting to responses
+// Shutdown gracefully shuts down the server and cleans up resources
+func (s *Server) Shutdown(ctx context.Context) error {
+	// Stop rate limiter cleanup goroutine
+	if s.rateLimiter != nil {
+		s.rateLimiter.stop()
+	}
+	// Shutdown HTTP server
+	return s.Server.Shutdown(ctx)
+}
+
+// withSecurityHeaders adds security headers, rate limiting, and request logging to responses
 func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		
 		// Extract client IP (considering proxies)
 		clientIP := r.Header.Get("X-Forwarded-For")
 		if clientIP == "" {
@@ -140,8 +191,23 @@ func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 			clientIP = r.RemoteAddr
 		}
 
+		// Generate request ID for tracing
+		requestID := generateRequestID()
+		
+		// Add request context with metadata and request ID
+		ctx := context.WithValue(r.Context(), "request_id", requestID)
+		r = r.WithContext(ctx)
+		
+		slog.InfoContext(ctx, "Request started", 
+			"request_id", requestID,
+			"method", r.Method, 
+			"url", r.URL.Path, 
+			"client_ip", clientIP, 
+			"user_agent", r.Header.Get("User-Agent"))
+
 		// Apply rate limiting to POST requests (expense creation)
 		if r.Method == http.MethodPost && !s.rateLimiter.allow(clientIP) {
+			slog.WarnContext(ctx, "Rate limit exceeded", "client_ip", clientIP, "method", r.Method, "url", r.URL.Path)
 			w.Header().Set("Retry-After", "60")
 			http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
 			return
@@ -152,8 +218,42 @@ func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		next(w, r)
+		
+		// Create a custom response writer to capture status code
+		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next(rw, r)
+		
+		// Log request completion
+		duration := time.Since(start)
+		slog.InfoContext(ctx, "Request completed", 
+			"request_id", requestID,
+			"method", r.Method, 
+			"url", r.URL.Path, 
+			"status", rw.statusCode, 
+			"duration_ms", duration.Milliseconds(),
+			"client_ip", clientIP)
 	}
+}
+
+// responseWriter wraps http.ResponseWriter to capture the status code
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+// generateRequestID creates a unique request ID for tracing
+func generateRequestID() string {
+	bytes := make([]byte, 8)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to timestamp if random fails
+		return fmt.Sprintf("req_%d", time.Now().UnixNano())
+	}
+	return "req_" + hex.EncodeToString(bytes)
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -169,6 +269,7 @@ func handleReady(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if s.templates == nil {
+		slog.ErrorContext(r.Context(), "Templates not loaded", "url", r.URL.Path)
 		http.Error(w, "templates not loaded", http.StatusInternalServerError)
 		return
 	}
@@ -176,7 +277,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	cats, subs, err := s.taxReader.List(r.Context())
 	if err != nil {
-		log.Printf("taxonomy list error: %v", err)
+		slog.ErrorContext(r.Context(), "Taxonomy list error", "error", err)
 	}
 	data := struct {
 		Day        int
@@ -191,6 +292,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.templates.ExecuteTemplate(w, "index.html", data); err != nil {
+		slog.ErrorContext(r.Context(), "Index template execution failed", "error", err, "template", "index.html")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -202,7 +304,7 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		log.Printf("parse form error: %v", err)
+		slog.ErrorContext(r.Context(), "Parse form error", "error", err, "method", r.Method, "url", r.URL.Path)
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`<div class="error">Formato richiesta non valido</div>`))
 		return
@@ -249,7 +351,7 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 
 	ref, err := s.expWriter.Append(r.Context(), exp)
 	if err != nil {
-		log.Printf("append error: %v", err)
+		slog.ErrorContext(r.Context(), "Expense append error", "error", err, "expense", exp.Description, "amount", exp.Amount.Cents)
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(`<div class="error">Errore nel salvataggio</div>`))
 		return
@@ -328,7 +430,7 @@ func (s *Server) getOverview(ctx context.Context, year, month int) (core.MonthOv
     s.cacheMu.Lock()
     s.overviewCache[key] = cachedOverview{at: now, data: data}
     s.cacheMu.Unlock()
-    log.Printf("overview cache store: year=%d month=%d total_cents=%d cats=%d", year, month, data.Total.Cents, len(data.ByCategory))
+    slog.DebugContext(ctx, "Overview cached", "year", year, "month", month, "total_cents", data.Total.Cents, "categories", len(data.ByCategory))
     return data, nil
 }
 
@@ -376,12 +478,12 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 	}
     // Validate month range
     if month < 1 || month > 12 {
-        log.Printf("invalid month parameter: year=%d month=%d", year, month)
+        slog.WarnContext(r.Context(), "Invalid month parameter", "year", year, "month", month, "corrected_to", int(now.Month()))
         month = int(now.Month())
     }
     ov, err := s.getOverview(r.Context(), year, month)
     if err != nil {
-        log.Printf("month overview error: year=%d month=%d err=%v", year, month, err)
+        slog.ErrorContext(r.Context(), "Month overview error", "error", err, "year", year, "month", month)
         _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Errore caricando panoramica</div></section>`))
         return
     }
@@ -436,7 +538,7 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
     if s.expLister != nil {
         items, err := s.getExpenses(r.Context(), year, month)
         if err != nil {
-            log.Printf("list expenses error: year=%d month=%d err=%v", year, month, err)
+            slog.ErrorContext(r.Context(), "List expenses error", "error", err, "year", year, "month", month)
         } else {
             for _, e := range items {
                 data.Items = append(data.Items, struct{
@@ -450,7 +552,7 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
         }
     }
     if err := s.templates.ExecuteTemplate(w, "month_overview.html", data); err != nil {
-        log.Printf("template error: %v", err)
+        slog.ErrorContext(r.Context(), "Template execution error", "error", err, "template", "month_overview.html", "year", year, "month", month)
         _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Errore rendering panoramica</div></section>`))
         return
     }

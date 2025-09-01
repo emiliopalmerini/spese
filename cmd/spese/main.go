@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,6 +15,12 @@ import (
 )
 
 func main() {
+	// Setup structured logging
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	slog.SetDefault(logger)
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8081"
@@ -37,12 +43,15 @@ func main() {
 	case "sheets":
 		cli, err := gsheet.NewFromEnv(context.Background())
 		if err != nil {
-			log.Fatalf("google sheets init: %v", err)
+			logger.Error("Failed to initialize Google Sheets client", "error", err, "backend", backend)
+			os.Exit(1)
 		}
         expWriter, taxReader, dashReader, expLister = cli, cli, cli, cli
+		logger.Info("Initialized Google Sheets backend", "backend", backend)
 	default:
 		store := mem.NewFromFiles("data")
         expWriter, taxReader, dashReader, expLister = store, store, store, store
+		logger.Info("Initialized memory backend", "backend", backend)
 	}
 
     srv := apphttp.NewServer(":"+port, expWriter, taxReader, dashReader, expLister)
@@ -60,23 +69,24 @@ func main() {
 	go func() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-		<-sigChan
-		log.Printf("shutdown signal received")
+		sig := <-sigChan
+		logger.Info("Shutdown signal received", "signal", sig.String())
 
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer shutdownCancel()
 
 		if err := srv.Shutdown(shutdownCtx); err != nil {
-			log.Printf("server shutdown error: %v", err)
+			logger.Error("Server shutdown error", "error", err)
 		}
 		cancel()
 	}()
 
-	log.Printf("starting spese on :%s", port)
+	logger.Info("Starting spese server", "port", port, "backend", backend)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("server error: %v", err)
+		logger.Error("Server error", "error", err, "port", port)
+		os.Exit(1)
 	}
 
 	<-ctx.Done()
-	log.Printf("server stopped")
+	logger.Info("Server stopped gracefully")
 }
