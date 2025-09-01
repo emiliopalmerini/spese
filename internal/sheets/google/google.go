@@ -1,15 +1,16 @@
 package google
 
 import (
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"os"
-	"spese/internal/core"
-	"strconv"
-	"strings"
-	"time"
+    "context"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "log"
+    "os"
+    "spese/internal/core"
+    "strconv"
+    "strings"
+    "time"
 
 	ports "spese/internal/sheets"
 
@@ -247,10 +248,10 @@ func (c *Client) ReadMonthOverview(ctx context.Context, year int, month int) (co
 	}
 	sheetName := c.dashboardSheetName(year)
 	rng := fmt.Sprintf("%s!A2:Q300", sheetName)
-	resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rng).Context(ctx).Do()
-	if err != nil {
-		return core.MonthOverview{}, fmt.Errorf("read %s: %w", rng, err)
-	}
+    resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rng).Context(ctx).Do()
+    if err != nil {
+        return core.MonthOverview{}, fmt.Errorf("read %s: %w", rng, err)
+    }
 	if len(resp.Values) == 0 {
 		return core.MonthOverview{Year: year, Month: month}, nil
 	}
@@ -261,10 +262,12 @@ func (c *Client) ReadMonthOverview(ctx context.Context, year int, month int) (co
 	// Fallback: if the dashboard header/layout is unexpected, compute the
 	// month overview directly by scanning the expenses sheet. This aligns
 	// with ADR-0004 for robustness to header changes.
-	if strings.Contains(strings.ToLower(err.Error()), "unexpected dashboard header") {
-		return c.readMonthOverviewFromExpenses(ctx, year, month)
-	}
-	return core.MonthOverview{}, err
+    if strings.Contains(strings.ToLower(err.Error()), "unexpected dashboard header") {
+        log.Printf("dashboard header mismatch for %d/%02d on '%s' (range %s): %v — falling back to expenses sheet",
+            year, month, sheetName, rng, err)
+        return c.readMonthOverviewFromExpenses(ctx, year, month)
+    }
+    return core.MonthOverview{}, err
 }
 
 func (c *Client) dashboardSheetName(year int) string {

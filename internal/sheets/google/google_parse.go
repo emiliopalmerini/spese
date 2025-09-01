@@ -1,9 +1,9 @@
 package google
 
 import (
-	"fmt"
-	"spese/internal/core"
-	"strings"
+    "fmt"
+    "spese/internal/core"
+    "strings"
 )
 
 // parseDashboard converts a values matrix (as returned by Sheets API)
@@ -18,9 +18,20 @@ func parseDashboard(values [][]interface{}, year, month int) (core.MonthOverview
 	colSecondary := indexOf(headers, "Secondary")
 	monthHeaders := []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
 	colMonth := indexOf(headers, monthHeaders[month-1])
-	if colPrimary == -1 || colSecondary == -1 || colMonth == -1 {
-		return core.MonthOverview{}, fmt.Errorf("unexpected dashboard header")
-	}
+    if colPrimary == -1 || colSecondary == -1 || colMonth == -1 {
+        // Preserve substring for upstream fallback logic; add details for troubleshooting.
+        missing := make([]string, 0, 3)
+        if colPrimary == -1 {
+            missing = append(missing, "Primary")
+        }
+        if colSecondary == -1 {
+            missing = append(missing, "Secondary")
+        }
+        if colMonth == -1 {
+            missing = append(missing, monthHeaders[month-1])
+        }
+        return core.MonthOverview{}, fmt.Errorf("unexpected dashboard header: missing %s; got headers=%v", strings.Join(missing, ","), headers)
+    }
 	var totalCents int64
 	byCat := map[string]int64{}
 	for i := 1; i < len(values); i++ {

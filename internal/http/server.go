@@ -290,34 +290,39 @@ func (s *Server) invalidateOverview(year, month int) {
 }
 
 func (s *Server) getOverview(ctx context.Context, year, month int) (core.MonthOverview, error) {
-	key := s.cacheKey(year, month)
-	now := time.Now()
-	s.cacheMu.Lock()
-	if c, ok := s.overviewCache[key]; ok && now.Sub(c.at) < s.cacheTTL {
-		data := c.data
-		s.cacheMu.Unlock()
-		return data, nil
-	}
-	s.cacheMu.Unlock()
-	if s.dashReader == nil {
-		return core.MonthOverview{Year: year, Month: month}, nil
-	}
-	data, err := s.dashReader.ReadMonthOverview(ctx, year, month)
-	if err != nil {
-		return core.MonthOverview{}, err
-	}
-	s.cacheMu.Lock()
-	s.overviewCache[key] = cachedOverview{at: now, data: data}
-	s.cacheMu.Unlock()
-	return data, nil
+    key := s.cacheKey(year, month)
+    now := time.Now()
+    s.cacheMu.Lock()
+    if c, ok := s.overviewCache[key]; ok && now.Sub(c.at) < s.cacheTTL {
+        data := c.data
+        s.cacheMu.Unlock()
+        log.Printf("overview cache hit: year=%d month=%d", year, month)
+        return data, nil
+    }
+    s.cacheMu.Unlock()
+    if s.dashReader == nil {
+        return core.MonthOverview{Year: year, Month: month}, nil
+    }
+    // Add a small timeout to avoid hanging partials
+    cctx, cancel := context.WithTimeout(ctx, 7*time.Second)
+    defer cancel()
+    data, err := s.dashReader.ReadMonthOverview(cctx, year, month)
+    if err != nil {
+        return core.MonthOverview{}, fmt.Errorf("read month overview (year=%d, month=%d): %w", year, month, err)
+    }
+    s.cacheMu.Lock()
+    s.overviewCache[key] = cachedOverview{at: now, data: data}
+    s.cacheMu.Unlock()
+    log.Printf("overview cache store: year=%d month=%d total_cents=%d cats=%d", year, month, data.Total.Cents, len(data.ByCategory))
+    return data, nil
 }
 
 // handleMonthOverview renders the monthly overview partial.
 func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	now := time.Now()
-	year := now.Year()
-	month := int(now.Month())
+    w.Header().Set("Content-Type", "text/html; charset=utf-8")
+    now := time.Now()
+    year := now.Year()
+    month := int(now.Month())
 	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
 		if y, err := strconv.Atoi(v); err == nil {
 			year = y
@@ -328,12 +333,17 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 			month = m
 		}
 	}
-	ov, err := s.getOverview(r.Context(), year, month)
-	if err != nil {
-		log.Printf("month overview error: %v", err)
-		_, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Errore caricando panoramica</div></section>`))
-		return
-	}
+    // Validate month range
+    if month < 1 || month > 12 {
+        log.Printf("invalid month parameter: year=%d month=%d", year, month)
+        month = int(now.Month())
+    }
+    ov, err := s.getOverview(r.Context(), year, month)
+    if err != nil {
+        log.Printf("month overview error: year=%d month=%d err=%v", year, month, err)
+        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Errore caricando panoramica</div></section>`))
+        return
+    }
 	if s.templates == nil {
 		_, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Totale: ` + formatEuros(ov.Total.Cents) + `</div></section>`))
 		return
