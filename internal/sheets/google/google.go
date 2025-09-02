@@ -1,18 +1,18 @@
 package google
 
 import (
-    "context"
-    "encoding/json"
-    "errors"
-    "fmt"
-    "log/slog"
-    "net"
-    "net/http"
-    "os"
-    "spese/internal/core"
-    "strconv"
-    "strings"
-    "time"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net"
+	"net/http"
+	"os"
+	"spese/internal/core"
+	"strconv"
+	"strings"
+	"time"
 
 	ports "spese/internal/sheets"
 
@@ -23,23 +23,23 @@ import (
 )
 
 type Client struct {
-    svc                *gsheet.Service
-    spreadsheetID      string
-    expensesSheet      string
-    categoriesSheet    string
-    subcategoriesSheet string
-    // Preferred: base name without year (e.g. "Dashboard"); code prefixes year.
-    dashboardBase      string
-    // Legacy fallback: pattern or plain prefix (e.g. "%d Dashboard" or "Dashboard").
-    dashboardPrefix    string
+	svc                *gsheet.Service
+	spreadsheetID      string
+	expensesSheet      string
+	categoriesSheet    string
+	subcategoriesSheet string
+	// Preferred: base name without year (e.g. "Dashboard"); code prefixes year.
+	dashboardBase string
+	// Legacy fallback: pattern or plain prefix (e.g. "%d Dashboard" or "Dashboard").
+	dashboardPrefix string
 }
 
 // Ensure interface conformance
 var (
-    _ ports.ExpenseWriter   = (*Client)(nil)
-    _ ports.TaxonomyReader  = (*Client)(nil)
-    _ ports.DashboardReader = (*Client)(nil)
-    _ ports.ExpenseLister   = (*Client)(nil)
+	_ ports.ExpenseWriter   = (*Client)(nil)
+	_ ports.TaxonomyReader  = (*Client)(nil)
+	_ ports.DashboardReader = (*Client)(nil)
+	_ ports.ExpenseLister   = (*Client)(nil)
 )
 
 // NewFromEnv creates a Sheets client using environment variables and ADC.
@@ -49,53 +49,53 @@ var (
 // GOOGLE_CATEGORIES_SHEET_NAME (default "Categories"),
 // GOOGLE_SUBCATEGORIES_SHEET_NAME (default "Subcategories").
 func NewFromEnv(ctx context.Context) (*Client, error) {
-    spreadsheetID := strings.TrimSpace(os.Getenv("GOOGLE_SPREADSHEET_ID"))
-    if spreadsheetID == "" {
-        return nil, errors.New("missing GOOGLE_SPREADSHEET_ID")
-    }
+	spreadsheetID := strings.TrimSpace(os.Getenv("GOOGLE_SPREADSHEET_ID"))
+	if spreadsheetID == "" {
+		return nil, errors.New("missing GOOGLE_SPREADSHEET_ID")
+	}
 
-    // Base sheet names (without year). We will prefix the current year automatically.
-    expensesBase := strings.TrimSpace(os.Getenv("GOOGLE_SHEET_NAME"))
-    if expensesBase == "" {
-        expensesBase = "Expenses"
-    }
-    catsBase := strings.TrimSpace(os.Getenv("GOOGLE_CATEGORIES_SHEET_NAME"))
-    if catsBase == "" {
-        catsBase = "Dashboard"
-    }
-    subsBase := strings.TrimSpace(os.Getenv("GOOGLE_SUBCATEGORIES_SHEET_NAME"))
-    if subsBase == "" {
-        subsBase = "Dashboard"
-    }
+	// Base sheet names (without year). We will prefix the current year automatically.
+	expensesBase := strings.TrimSpace(os.Getenv("GOOGLE_SHEET_NAME"))
+	if expensesBase == "" {
+		expensesBase = "Expenses"
+	}
+	catsBase := strings.TrimSpace(os.Getenv("GOOGLE_CATEGORIES_SHEET_NAME"))
+	if catsBase == "" {
+		catsBase = "Dashboard"
+	}
+	subsBase := strings.TrimSpace(os.Getenv("GOOGLE_SUBCATEGORIES_SHEET_NAME"))
+	if subsBase == "" {
+		subsBase = "Dashboard"
+	}
 
 	svc, err := newSheetsService(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("sheets service: %w", err)
 	}
 
-    // Dashboard naming: prefer a base name (without year). Legacy prefix is supported.
-    dashBase := strings.TrimSpace(os.Getenv("DASHBOARD_SHEET_NAME"))
-    dashPrefix := strings.TrimSpace(os.Getenv("DASHBOARD_SHEET_PREFIX"))
-    if dashBase == "" && dashPrefix == "" {
-        // Default to base name when nothing provided
-        dashBase = "Dashboard"
-    }
+	// Dashboard naming: prefer a base name (without year). Legacy prefix is supported.
+	dashBase := strings.TrimSpace(os.Getenv("DASHBOARD_SHEET_NAME"))
+	dashPrefix := strings.TrimSpace(os.Getenv("DASHBOARD_SHEET_PREFIX"))
+	if dashBase == "" && dashPrefix == "" {
+		// Default to base name when nothing provided
+		dashBase = "Dashboard"
+	}
 
-    // Compute year-prefixed names for this client instance
-    currentYear := time.Now().Year()
-    expenses := yearPrefixedName(expensesBase, currentYear)
-    cats := yearPrefixedName(catsBase, currentYear)
-    subs := yearPrefixedName(subsBase, currentYear)
+	// Compute year-prefixed names for this client instance
+	currentYear := time.Now().Year()
+	expenses := yearPrefixedName(expensesBase, currentYear)
+	cats := yearPrefixedName(catsBase, currentYear)
+	subs := yearPrefixedName(subsBase, currentYear)
 
-    return &Client{
-        svc:                svc,
-        spreadsheetID:      spreadsheetID,
-        expensesSheet:      expenses,
-        categoriesSheet:    cats,
-        subcategoriesSheet: subs,
-        dashboardBase:      dashBase,
-        dashboardPrefix:    dashPrefix,
-    }, nil
+	return &Client{
+		svc:                svc,
+		spreadsheetID:      spreadsheetID,
+		expensesSheet:      expenses,
+		categoriesSheet:    cats,
+		subcategoriesSheet: subs,
+		dashboardBase:      dashBase,
+		dashboardPrefix:    dashPrefix,
+	}, nil
 }
 
 // newSheetsService initializes a Sheets Service using either OAuth (user credentials)
@@ -158,12 +158,12 @@ func newSheetsService(ctx context.Context) (*gsheet.Service, error) {
 	// Create HTTP client with connection pooling and proper timeouts
 	baseClient := newHTTPClientWithPooling()
 	httpClient := cfg.Client(ctx, tok)
-	
+
 	// Replace the transport with our optimized one while preserving OAuth
 	if transport, ok := httpClient.Transport.(*oauth2.Transport); ok {
 		transport.Base = baseClient.Transport
 	}
-	
+
 	return gsheet.NewService(ctx, goption.WithHTTPClient(httpClient))
 }
 
@@ -179,18 +179,18 @@ func newHTTPClientWithPooling() *http.Client {
 	transport := &http.Transport{
 		// Use custom dialer
 		DialContext: dialer.DialContext,
-		
+
 		// Connection pooling settings
 		MaxIdleConns:        100,              // Total max idle connections across all hosts
 		MaxIdleConnsPerHost: 10,               // Max idle connections per host (Google APIs)
 		MaxConnsPerHost:     50,               // Max total connections per host
 		IdleConnTimeout:     90 * time.Second, // How long idle connections stay open
-		
+
 		// TLS and response timeouts
 		TLSHandshakeTimeout:   10 * time.Second, // TLS handshake timeout
 		ResponseHeaderTimeout: 30 * time.Second, // Time to read response headers
 		ExpectContinueTimeout: 1 * time.Second,  // 100-continue timeout
-		
+
 		// Keep-alive and HTTP/2 settings
 		DisableKeepAlives: false, // Enable HTTP keep-alive
 		ForceAttemptHTTP2: true,  // Prefer HTTP/2
@@ -215,22 +215,22 @@ func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
 
 	// Convert cents to decimal string
 	euros := float64(e.Amount.Cents) / 100.0
-	
+
 	// Find the next empty row by getting the sheet dimensions first
 	rng := fmt.Sprintf("%s!A:A", c.expensesSheet)
 	resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rng).Context(ctx).Do()
 	if err != nil {
 		return "", fmt.Errorf("failed to get sheet dimensions for %s: %w", c.expensesSheet, err)
 	}
-	
+
 	// Calculate next row (number of existing rows + 1)
 	nextRow := len(resp.Values) + 1
-	
+
 	// Update only the specific columns we want, skipping E and F
 	// Update A:D (Month, Day, Description, Amount)
 	dataRange1 := fmt.Sprintf("%s!A%d:D%d", c.expensesSheet, nextRow, nextRow)
 	vr1 := &gsheet.ValueRange{Values: [][]any{{e.Date.Month, e.Date.Day, e.Description, euros}}}
-	
+
 	_, err = c.svc.Spreadsheets.Values.Update(c.spreadsheetID, dataRange1, vr1).
 		ValueInputOption("USER_ENTERED").Context(ctx).Do()
 	if err != nil {
@@ -240,7 +240,7 @@ func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
 	// Update G:H (Primary, Secondary categories)
 	dataRange2 := fmt.Sprintf("%s!G%d:H%d", c.expensesSheet, nextRow, nextRow)
 	vr2 := &gsheet.ValueRange{Values: [][]any{{e.Primary, e.Secondary}}}
-	
+
 	_, err = c.svc.Spreadsheets.Values.Update(c.spreadsheetID, dataRange2, vr2).
 		ValueInputOption("USER_ENTERED").Context(ctx).Do()
 	if err != nil {
@@ -252,7 +252,6 @@ func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
 
 	return ref, nil
 }
-
 
 func (c *Client) List(ctx context.Context) ([]string, []string, error) {
 	if c.svc == nil {
@@ -310,11 +309,11 @@ func (c *Client) ReadMonthOverview(ctx context.Context, year int, month int) (co
 		return core.MonthOverview{}, fmt.Errorf("invalid month: %d", month)
 	}
 	sheetName := c.dashboardSheetName(year)
-	rng := fmt.Sprintf("%s!A2:Q300", sheetName)
-    resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rng).Context(ctx).Do()
-    if err != nil {
-        return core.MonthOverview{}, fmt.Errorf("read %s: %w", rng, err)
-    }
+	rng := fmt.Sprintf("%s!A2:Q67", sheetName)
+	resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rng).Context(ctx).Do()
+	if err != nil {
+		return core.MonthOverview{}, fmt.Errorf("read %s: %w", rng, err)
+	}
 	if len(resp.Values) == 0 {
 		return core.MonthOverview{Year: year, Month: month}, nil
 	}
@@ -325,46 +324,46 @@ func (c *Client) ReadMonthOverview(ctx context.Context, year int, month int) (co
 	// Fallback: if the dashboard header/layout is unexpected, compute the
 	// month overview directly by scanning the expenses sheet. This aligns
 	// with ADR-0004 for robustness to header changes.
-    if strings.Contains(strings.ToLower(err.Error()), "unexpected dashboard header") {
-        slog.WarnContext(ctx, "Dashboard header mismatch, falling back to expenses sheet", "year", year, "month", month, "sheet", sheetName, "range", rng, "error", err)
-        return c.readMonthOverviewFromExpenses(ctx, year, month)
-    }
-    return core.MonthOverview{}, err
+	if strings.Contains(strings.ToLower(err.Error()), "unexpected dashboard header") {
+		slog.WarnContext(ctx, "Dashboard header mismatch, falling back to expenses sheet", "year", year, "month", month, "sheet", sheetName, "range", rng, "error", err)
+		return c.readMonthOverviewFromExpenses(ctx, year, month)
+	}
+	return core.MonthOverview{}, err
 }
 
 func (c *Client) dashboardSheetName(year int) string {
-    // Preferred: base name present => "<year> <base>"
-    if strings.TrimSpace(c.dashboardBase) != "" {
-        return yearPrefixedName(c.dashboardBase, year)
-    }
-    // Legacy: if a printf-style pattern is provided, format it
-    if strings.Contains(c.dashboardPrefix, "%d") {
-        return fmt.Sprintf(c.dashboardPrefix, year)
-    }
-    // Legacy: treat prefix as a plain name and append year
-    return strings.TrimSpace(fmt.Sprintf("%s %d", c.dashboardPrefix, year))
+	// Preferred: base name present => "<year> <base>"
+	if strings.TrimSpace(c.dashboardBase) != "" {
+		return yearPrefixedName(c.dashboardBase, year)
+	}
+	// Legacy: if a printf-style pattern is provided, format it
+	if strings.Contains(c.dashboardPrefix, "%d") {
+		return fmt.Sprintf(c.dashboardPrefix, year)
+	}
+	// Legacy: treat prefix as a plain name and append year
+	return strings.TrimSpace(fmt.Sprintf("%s %d", c.dashboardPrefix, year))
 }
 
 func toStrings(in []interface{}) []string {
-    out := make([]string, len(in))
-    for i, v := range in {
-        out[i] = strings.TrimSpace(fmt.Sprint(v))
-    }
-    return out
+	out := make([]string, len(in))
+	for i, v := range in {
+		out[i] = strings.TrimSpace(fmt.Sprint(v))
+	}
+	return out
 }
 
 // yearPrefixedName returns "<year> <base>" unless base already starts with a 4-digit year.
 func yearPrefixedName(base string, year int) string {
-    base = strings.TrimSpace(base)
-    if base == "" {
-        return base
-    }
-    if len(base) >= 5 {
-        if y, err := strconv.Atoi(base[0:4]); err == nil && base[4] == ' ' && y > 1900 && y < 3000 {
-            return base
-        }
-    }
-    return fmt.Sprintf("%d %s", year, base)
+	base = strings.TrimSpace(base)
+	if base == "" {
+		return base
+	}
+	if len(base) >= 5 {
+		if y, err := strconv.Atoi(base[0:4]); err == nil && base[4] == ' ' && y > 1900 && y < 3000 {
+			return base
+		}
+	}
+	return fmt.Sprintf("%d %s", year, base)
 }
 
 // readMonthOverviewFromExpenses scans the expenses sheet for the given month and
@@ -435,65 +434,65 @@ func (c *Client) readMonthOverviewFromExpenses(ctx context.Context, year int, mo
 
 // ListExpenses lists raw expenses for the given year and month by scanning the expenses sheet.
 func (c *Client) ListExpenses(ctx context.Context, year int, month int) ([]core.Expense, error) {
-    if c.svc == nil {
-        return nil, errors.New("sheets service not initialized")
-    }
-    if month < 1 || month > 12 {
-        return nil, fmt.Errorf("invalid month: %d", month)
-    }
-    rng := fmt.Sprintf("%s!A:H", c.expensesSheet)
-    resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rng).Context(ctx).Do()
-    if err != nil {
-        return nil, fmt.Errorf("read %s: %w", rng, err)
-    }
-    var out []core.Expense
-    for i, row := range resp.Values {
-        cols := toStrings(row)
-        if len(cols) < 7 {
-            continue
-        }
-        // Skip likely header row if first row has non-numeric month
-        if i == 0 {
-            if _, err := strconv.Atoi(strings.TrimSpace(cols[0])); err != nil {
-                continue
-            }
-        }
-        m, err := strconv.Atoi(strings.TrimSpace(cols[0]))
-        if err != nil || m != month {
-            continue
-        }
-        day, _ := strconv.Atoi(strings.TrimSpace(cols[1]))
-        desc := strings.TrimSpace(cols[2])
-        cents, ok := parseEurosToCents(cols[3])
-        if !ok {
-            // Try simple float parsing
-            if f, ferr := strconv.ParseFloat(strings.TrimSpace(cols[3]), 64); ferr == nil {
-                cents = int64((f * 100.0) + 0.5)
-                ok = true
-            }
-        }
-        if !ok {
-            continue
-        }
-        primary := strings.TrimSpace(cols[6])
-        secondary := ""
-        if len(cols) >= 8 {
-            secondary = strings.TrimSpace(cols[7])
-        }
-        e := core.Expense{
-            Date:        core.DateParts{Day: day, Month: month},
-            Description: desc,
-            Amount:      core.Money{Cents: cents},
-            Primary:     primary,
-            Secondary:   secondary,
-        }
-        // Do not enforce validation strictly here; list is best-effort. Filter obviously empty rows.
-        if strings.TrimSpace(e.Description) == "" && e.Amount.Cents == 0 {
-            continue
-        }
-        out = append(out, e)
-    }
-    return out, nil
+	if c.svc == nil {
+		return nil, errors.New("sheets service not initialized")
+	}
+	if month < 1 || month > 12 {
+		return nil, fmt.Errorf("invalid month: %d", month)
+	}
+	rng := fmt.Sprintf("%s!A:H", c.expensesSheet)
+	resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rng).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", rng, err)
+	}
+	var out []core.Expense
+	for i, row := range resp.Values {
+		cols := toStrings(row)
+		if len(cols) < 7 {
+			continue
+		}
+		// Skip likely header row if first row has non-numeric month
+		if i == 0 {
+			if _, err := strconv.Atoi(strings.TrimSpace(cols[0])); err != nil {
+				continue
+			}
+		}
+		m, err := strconv.Atoi(strings.TrimSpace(cols[0]))
+		if err != nil || m != month {
+			continue
+		}
+		day, _ := strconv.Atoi(strings.TrimSpace(cols[1]))
+		desc := strings.TrimSpace(cols[2])
+		cents, ok := parseEurosToCents(cols[3])
+		if !ok {
+			// Try simple float parsing
+			if f, ferr := strconv.ParseFloat(strings.TrimSpace(cols[3]), 64); ferr == nil {
+				cents = int64((f * 100.0) + 0.5)
+				ok = true
+			}
+		}
+		if !ok {
+			continue
+		}
+		primary := strings.TrimSpace(cols[6])
+		secondary := ""
+		if len(cols) >= 8 {
+			secondary = strings.TrimSpace(cols[7])
+		}
+		e := core.Expense{
+			Date:        core.DateParts{Day: day, Month: month},
+			Description: desc,
+			Amount:      core.Money{Cents: cents},
+			Primary:     primary,
+			Secondary:   secondary,
+		}
+		// Do not enforce validation strictly here; list is best-effort. Filter obviously empty rows.
+		if strings.TrimSpace(e.Description) == "" && e.Amount.Cents == 0 {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out, nil
 }
 
 func indexOf(arr []string, target string) int {
