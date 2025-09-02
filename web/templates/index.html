@@ -1,69 +1,76 @@
 {{ define "content" }}
-  <section class="page__section">
-    <h1>Registra Spesa</h1>
-    <form id="expense-form"
-          class="form"
-          hx-post="/expenses"
-          hx-target="#flash"
-          hx-swap="innerHTML"
-          hx-indicator=".indicator"
-          hx-on::after-request="if(event.detail.successful) { this.reset(); document.getElementById('description').focus(); }">
+  <div class="container">
+    <section class="page__section">
+      <h1 class="page__title">Registra Spesa</h1>
+      
+      <form id="expense-form"
+            class="form"
+            hx-post="/expenses"
+            hx-target="#flash"
+            hx-swap="innerHTML"
+            hx-indicator=".indicator"
+            hx-on::after-request="if(event.detail.successful) { this.reset(); document.getElementById('description').focus(); }">
 
-      <div class="field">
-        <label for="day">Giorno</label>
-        <input id="day" type="number" name="day" min="1" max="31" value="{{ .Day }}" required />
-      </div>
+        <div class="field-group">
+          <div class="field field--half">
+            <label for="day">Giorno</label>
+            <input id="day" type="number" name="day" min="1" max="31" value="{{ .Day }}" required />
+          </div>
 
-      <div class="field">
-        <label for="month">Mese</label>
-        <input id="month" type="number" name="month" min="1" max="12" value="{{ .Month }}" required />
-      </div>
-
-      <div class="field">
-        <label for="description">Descrizione</label>
-        <input id="description" type="text" name="description" maxlength="200" placeholder="es. Supermercato" required />
-      </div>
-
-      <div class="field">
-        <label for="amount">Importo (€)</label>
-        <input id="amount" type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required />
-      </div>
-
-      <div class="field">
-        <label for="primary">Categoria Primaria</label>
-        <select id="primary" name="primary" required>
-          {{ range .Categories }}<option>{{ . }}</option>{{ end }}
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="secondary">Categoria Secondaria</label>
-        <select id="secondary" name="secondary" required>
-          {{ range .Subcats }}<option>{{ . }}</option>{{ end }}
-        </select>
-      </div>
-
-      <div id="flash" class="flash" aria-live="polite"></div>
-
-      <div class="actions">
-        <button class="btn btn-primary" type="submit">Aggiungi</button>
-        <div class="indicator htmx-indicator" aria-hidden="true">
-          <span class="spinner"></span>
-          <span>Salvataggio…</span>
+          <div class="field field--half">
+            <label for="month">Mese</label>
+            <input id="month" type="number" name="month" min="1" max="12" value="{{ .Month }}" required />
+          </div>
         </div>
-      </div>
-    </form>
-  </section>
 
-  <section class="page__section">
-    <div id="month-overview" 
-         hx-get="/ui/month-overview" 
-         hx-trigger="load, expense:created from:body"
-         hx-target="#month-overview" 
-         hx-swap="outerHTML">
-      <div class="placeholder">Caricamento panoramica mese…</div>
-    </div>
-  </section>
+        <div class="field">
+          <label for="description">Descrizione</label>
+          <input id="description" type="text" name="description" maxlength="200" placeholder="es. Supermercato" required />
+        </div>
+
+        <div class="field">
+          <label for="amount">Importo (€)</label>
+          <input id="amount" type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required />
+        </div>
+
+        <div class="field-group">
+          <div class="field field--half">
+            <label for="primary">Categoria Primaria</label>
+            <select id="primary" name="primary" required>
+              {{ range .Categories }}<option>{{ . }}</option>{{ end }}
+            </select>
+          </div>
+
+          <div class="field field--half">
+            <label for="secondary">Categoria Secondaria</label>
+            <select id="secondary" name="secondary" required>
+              {{ range .Subcats }}<option>{{ . }}</option>{{ end }}
+            </select>
+          </div>
+        </div>
+
+        <div id="flash" class="flash" aria-live="polite"></div>
+
+        <div class="actions">
+          <button class="btn btn-primary btn--block" type="submit">Aggiungi Spesa</button>
+          <div class="indicator htmx-indicator" aria-hidden="true">
+            <span class="spinner"></span>
+            <span>Salvataggio…</span>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <section class="page__section">
+      <div id="month-overview" 
+           hx-get="/ui/month-overview" 
+           hx-trigger="load, expense:created from:body"
+           hx-target="#month-overview" 
+           hx-swap="outerHTML">
+        <div class="placeholder">Caricamento panoramica mese…</div>
+      </div>
+    </section>
+  </div>
 {{ end }}
 
 {{ template "base.html" . }}

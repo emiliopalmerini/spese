@@ -15,14 +15,6 @@
   --safe-top:env(safe-area-inset-top,0px);
   --safe-bottom:env(safe-area-inset-bottom,0px);
 }
-@media (prefers-color-scheme: dark){
-  :root{
-    --bg-light:#0b0f14; --surface:#0b0f14; --surface-2:#0b0f14;
-    --text:#e5e7eb; --muted:#9ca3af; --line:#1f2937; --border:var(--line);
-    --accent:#e5e7eb; --accent-600:#e5e7eb; --accent-700:#cbd5e1; --accent-contrast:#0b0f14;
-    --ring:0 0 0 2px rgba(229,231,235,.18);
-  }
-}
 
 /* ==============================================================
    Layout e tipografia
@@ -51,7 +43,7 @@ html{font-size:16px;}
 /* ==============================================================
    Form
 ============================================================== */
-.form{max-width:640px;margin:0 auto;border:1px solid var(--border);background:var(--surface-2);}
+.form{max-width:var(--container-max);margin:0 auto;border:1px solid var(--border);background:var(--surface-2);}
 .field{padding:10px var(--space-2);border-top:1px solid var(--border);}
 .density-compact .field{padding:6px var(--space-2);}
 .field:first-child{border-top:0;}
@@ -70,6 +62,11 @@ input::placeholder{color:color-mix(in srgb,var(--muted) 60%, transparent);}
 input[type="number"]{-moz-appearance:textfield;}
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+
+/* Layout campi responsive */
+.field-group{display:grid;grid-template-columns:1fr;gap:0;}
+@media (min-width:640px){.field-group{grid-template-columns:1fr 1fr;}}
+.field--half{flex:1;}
 
 /* Azioni responsive */
 .actions{display:grid;grid-template-columns:1fr;gap:var(--space-2);margin:var(--space-2);}

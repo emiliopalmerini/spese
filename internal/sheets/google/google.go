@@ -215,27 +215,44 @@ func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
 
 	// Convert cents to decimal string
 	euros := float64(e.Amount.Cents) / 100.0
-	// Structure: Month, Day, Expense, Amount, [E skip], [F skip], Primary, Secondary
-	// Use null values for E and F to preserve existing formulas/data
-	row := []any{e.Date.Month, e.Date.Day, e.Description, euros, nil, nil, e.Primary, e.Secondary}
-	vr := &gsheet.ValueRange{Values: [][]any{row}}
-	rng := fmt.Sprintf("%s!A:H", c.expensesSheet)
-
-	call := c.svc.Spreadsheets.Values.Append(c.spreadsheetID, rng, vr).
-		ValueInputOption("USER_ENTERED").
-		InsertDataOption("INSERT_ROWS")
-
-	resp, err := call.Context(ctx).Do()
+	
+	// Find the next empty row by getting the sheet dimensions first
+	rng := fmt.Sprintf("%s!A:A", c.expensesSheet)
+	resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rng).Context(ctx).Do()
 	if err != nil {
-		return "", fmt.Errorf("failed to append to sheet %s: %w", c.expensesSheet, err)
+		return "", fmt.Errorf("failed to get sheet dimensions for %s: %w", c.expensesSheet, err)
+	}
+	
+	// Calculate next row (number of existing rows + 1)
+	nextRow := len(resp.Values) + 1
+	
+	// Update only the specific columns we want, skipping E and F
+	// Update A:D (Month, Day, Description, Amount)
+	dataRange1 := fmt.Sprintf("%s!A%d:D%d", c.expensesSheet, nextRow, nextRow)
+	vr1 := &gsheet.ValueRange{Values: [][]any{{e.Date.Month, e.Date.Day, e.Description, euros}}}
+	
+	_, err = c.svc.Spreadsheets.Values.Update(c.spreadsheetID, dataRange1, vr1).
+		ValueInputOption("USER_ENTERED").Context(ctx).Do()
+	if err != nil {
+		return "", fmt.Errorf("failed to update A:D in sheet %s: %w", c.expensesSheet, err)
 	}
 
-	ref := ""
-	if resp.Updates != nil && resp.Updates.UpdatedRange != "" {
-		ref = resp.Updates.UpdatedRange
+	// Update G:H (Primary, Secondary categories)
+	dataRange2 := fmt.Sprintf("%s!G%d:H%d", c.expensesSheet, nextRow, nextRow)
+	vr2 := &gsheet.ValueRange{Values: [][]any{{e.Primary, e.Secondary}}}
+	
+	_, err = c.svc.Spreadsheets.Values.Update(c.spreadsheetID, dataRange2, vr2).
+		ValueInputOption("USER_ENTERED").Context(ctx).Do()
+	if err != nil {
+		return "", fmt.Errorf("failed to update G:H in sheet %s: %w", c.expensesSheet, err)
 	}
+
+	// Return reference in the format expected by callers
+	ref := fmt.Sprintf("%s!A%d:H%d", c.expensesSheet, nextRow, nextRow)
+
 	return ref, nil
 }
+
 
 func (c *Client) List(ctx context.Context) ([]string, []string, error) {
 	if c.svc == nil {
