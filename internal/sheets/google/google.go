@@ -215,9 +215,9 @@ func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
 
 	// Convert cents to decimal string
 	euros := float64(e.Amount.Cents) / 100.0
-	// Structure: Month, Day, Expense, Amount, [E blank], [F blank], Primary, Secondary
-	// Leave E and F empty to allow sheet formulas/autofill to manage them.
-	row := []any{e.Date.Month, e.Date.Day, e.Description, euros, "", "", e.Primary, e.Secondary}
+	// Structure: Month, Day, Expense, Amount, [E skip], [F skip], Primary, Secondary
+	// Use null values for E and F to preserve existing formulas/data
+	row := []any{e.Date.Month, e.Date.Day, e.Description, euros, nil, nil, e.Primary, e.Secondary}
 	vr := &gsheet.ValueRange{Values: [][]any{row}}
 	rng := fmt.Sprintf("%s!A:H", c.expensesSheet)
 

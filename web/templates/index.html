@@ -6,7 +6,8 @@
           hx-post="/expenses"
           hx-target="#flash"
           hx-swap="innerHTML"
-          hx-indicator=".indicator">
+          hx-indicator=".indicator"
+          hx-on::after-request="if(event.detail.successful) { this.reset(); document.getElementById('description').focus(); }">
 
       <div class="field">
         <label for="day">Giorno</label>
