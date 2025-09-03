@@ -1,11 +1,20 @@
-{{/* Partial rendered by /ui/month-overview. Expects .Year, .Month, .Total, .Rows */}}
+{{/* 
+  Month overview partial template
+  Rendered by /ui/month-overview HTMX endpoint
+  Expects: .Year, .Month, .Total, .Rows (category totals), .Items (expense details)
+*/}}
 <section id="month-overview" class="month-overview">
   <h2>Panoramica mese</h2>
   <div class="overview-body">
+    {{/* Total amount display */}}
     <div class="total">Totale mese: <strong>{{ .Total }}</strong></div>
+    
+    {{/* Scale legend (if available) */}}
     {{ if .MaxName }}
     <div class="legend">Scala rispetto a: <em>{{ .MaxName }}</em> ({{ .Max }})</div>
     {{ end }}
+    
+    {{/* Category breakdown with bars */}}
     <div class="categories">
       {{ if .Rows }}
         {{ range .Rows }}
@@ -21,6 +30,8 @@
         <div class="row placeholder">Nessun dato</div>
       {{ end }}
     </div>
+    
+    {{/* Expense details section */}}
     <div class="expenses">
       <h3>Dettaglio spese</h3>
       {{ if .Items }}

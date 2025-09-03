@@ -1,5 +1,6 @@
 {{ define "content" }}
   <div class="container">
+    {{/* Main expense form section */}}
     <section class="page__section">
       <h1 class="page__title">Registra Spesa</h1>
       
@@ -11,6 +12,7 @@
             hx-indicator=".indicator"
             hx-on::after-request="if(event.detail.successful) { this.reset(); document.getElementById('description').focus(); }">
 
+        {{/* Date fields group */}}
         <div class="field-group">
           <div class="field field--half">
             <label for="day">Giorno</label>
@@ -23,16 +25,19 @@
           </div>
         </div>
 
+        {{/* Description field */}}
         <div class="field">
           <label for="description">Descrizione</label>
           <input id="description" type="text" name="description" maxlength="200" placeholder="es. Supermercato" required />
         </div>
 
+        {{/* Amount field */}}
         <div class="field">
           <label for="amount">Importo (€)</label>
           <input id="amount" type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required />
         </div>
 
+        {{/* Category fields group */}}
         <div class="field-group">
           <div class="field field--half">
             <label for="primary">Categoria Primaria</label>
@@ -49,8 +54,10 @@
           </div>
         </div>
 
+        {{/* Flash messages area */}}
         <div id="flash" class="flash" aria-live="polite"></div>
 
+        {{/* Submit button and loading indicator */}}
         <div class="actions">
           <button class="btn btn-primary btn--block" type="submit">Aggiungi Spesa</button>
           <div class="indicator htmx-indicator" aria-hidden="true">
@@ -61,6 +68,7 @@
       </form>
     </section>
 
+    {{/* Month overview section that loads via HTMX */}}
     <section class="page__section">
       <div id="month-overview" 
            hx-get="/ui/month-overview" 
