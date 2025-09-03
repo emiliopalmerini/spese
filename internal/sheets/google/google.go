@@ -258,11 +258,11 @@ func (c *Client) List(ctx context.Context) ([]string, []string, error) {
 		return nil, nil, errors.New("sheets service not initialized")
 	}
 
-	cats, err := c.readCol(ctx, c.categoriesSheet, "A2:A65")
+	cats, err := c.readCol(ctx, c.categoriesSheet, "A3:A65")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read categories: %w", err)
 	}
-	subs, err := c.readCol(ctx, c.subcategoriesSheet, "B2:B65")
+	subs, err := c.readCol(ctx, c.subcategoriesSheet, "B3:B65")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read subcategories: %w", err)
 	}

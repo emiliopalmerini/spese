@@ -76,7 +76,7 @@ func TestClient_validateExpense(t *testing.T) {
 func TestClient_readColParsing(t *testing.T) {
 	// Test the deduplication and filtering logic for specific ranges (no header skipping)
 
-	// Mock the sheet response data (A2:A65 or B2:B65 range - no headers)
+	// Mock the sheet response data (A3:A65 or B3:B65 range - no headers)
 	testData := [][]interface{}{
 		{"Food"},
 		{"Transport"},
