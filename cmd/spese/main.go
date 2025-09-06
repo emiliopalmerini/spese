@@ -29,6 +29,12 @@ func main() {
 
 	// Load configuration
 	cfg := config.Load()
+	
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		logger.Error("Configuration validation failed", "error", err)
+		os.Exit(1)
+	}
 
     var (
         expWriter  ports.ExpenseWriter
