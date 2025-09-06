@@ -157,7 +157,7 @@ func TestHandleMonthOverviewErrors(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "Errore caricando panoramica") {
+	if !strings.Contains(body, "Error loading overview") {
 		t.Fatalf("expected error message in body, got: %s", body)
 	}
 	

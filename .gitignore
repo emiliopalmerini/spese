@@ -15,6 +15,11 @@ out/
 coverage/
 tmp/
 
+# Compiled binaries (root level)
+spese
+spese-worker
+oauth-init
+
 # Go
 *.test
 *.exe
@@ -30,3 +35,7 @@ node_modules/
 
 .secrets/
 configs/
+
+# Local development data
+data/*.db
+data/spese.db

@@ -10,12 +10,14 @@ COPY . .
 # Ensure CA certificates are available to copy into the runner image
 RUN apk add --no-cache ca-certificates && update-ca-certificates
 RUN CGO_ENABLED=0 go build -ldflags='-s -w' -o /out/spese ./cmd/spese
+RUN CGO_ENABLED=0 go build -ldflags='-s -w' -o /out/spese-worker ./cmd/spese-worker
 
 ########################
 # Runner
 FROM scratch AS runner
 WORKDIR /app
 COPY --from=builder /out/spese /app/spese
+COPY --from=builder /out/spese-worker /app/bin/spese-worker
 # Copy system CA bundle so HTTPS works inside scratch image
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 

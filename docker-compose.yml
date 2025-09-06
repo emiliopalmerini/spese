@@ -1,4 +1,22 @@
 services:
+  # RabbitMQ message broker for AMQP
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: spese-rabbitmq
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   # OAuth initialization service (run once to get token)
   oauth-init:
     build: .
@@ -31,13 +49,58 @@ services:
     environment:
       - PORT=${PORT:-8081}
       - BASE_URL=${BASE_URL:-http://localhost:${PORT:-8081}}
-      - DATA_BACKEND=${DATA_BACKEND:-memory}
+      - DATA_BACKEND=${DATA_BACKEND:-sqlite}
+      - SQLITE_DB_PATH=/data/spese.db
+      - AMQP_URL=amqp://admin:admin@rabbitmq:5672/
+      - AMQP_EXCHANGE=spese
+      - AMQP_QUEUE=sync_expenses
       # OAuth: choose file- or json-based (file requires mounting volume)
       # Values from .env are injected via env_file; uncomment below only to override
       # - GOOGLE_OAUTH_CLIENT_JSON=${GOOGLE_OAUTH_CLIENT_JSON:-}
       # - GOOGLE_OAUTH_TOKEN_JSON=${GOOGLE_OAUTH_TOKEN_JSON:-}
-    # Uncomment volumes below if using file-based OAuth credentials inside container
     volumes:
       - ./configs/client.json:${GOOGLE_OAUTH_CLIENT_FILE:-/client.json}:ro
       - ./.secrets:/secrets:ro
+      - spese_data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped
+
+  # Background worker for syncing to Google Sheets
+  spese-worker:
+    build: .
+    image: spese:dev
+    container_name: spese-worker
+    env_file:
+      - .env
+    environment:
+      - DATA_BACKEND=sqlite
+      - SQLITE_DB_PATH=/data/spese.db
+      - AMQP_URL=amqp://admin:admin@rabbitmq:5672/
+      - AMQP_EXCHANGE=spese
+      - AMQP_QUEUE=sync_expenses
+      - SYNC_BATCH_SIZE=${SYNC_BATCH_SIZE:-10}
+      - SYNC_INTERVAL=${SYNC_INTERVAL:-30s}
+      # Google Sheets configuration
+      - GOOGLE_SPREADSHEET_ID=${GOOGLE_SPREADSHEET_ID}
+      - GOOGLE_SHEET_NAME=${GOOGLE_SHEET_NAME:-Expenses}
+      - GOOGLE_CATEGORIES_SHEET_NAME=${GOOGLE_CATEGORIES_SHEET_NAME:-Dashboard}
+      - GOOGLE_SUBCATEGORIES_SHEET_NAME=${GOOGLE_SUBCATEGORIES_SHEET_NAME:-Dashboard}
+      - DASHBOARD_SHEET_NAME=${DASHBOARD_SHEET_NAME:-Dashboard}
+      # OAuth credentials for Google Sheets access
+      - GOOGLE_OAUTH_CLIENT_FILE=/client.json
+      - GOOGLE_OAUTH_TOKEN_FILE=/secrets/token.json
+    volumes:
+      - ./configs/client.json:${GOOGLE_OAUTH_CLIENT_FILE:-/client.json}:ro
+      - ./.secrets:/secrets:ro
+      - spese_data:/data
+    entrypoint: ["/app/bin/spese-worker"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  rabbitmq_data:
+  spese_data:

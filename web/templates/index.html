@@ -2,7 +2,7 @@
   <div class="container">
     {{/* Main expense form section */}}
     <section class="page__section">
-      <h1 class="page__title">Registra Spesa</h1>
+      <h1 class="page__title">Record Expense</h1>
       
       <form id="expense-form"
             class="form"
@@ -15,42 +15,56 @@
         {{/* Date fields group */}}
         <div class="field-group">
           <div class="field field--half">
-            <label for="day">Giorno</label>
+            <label for="day">Day</label>
             <input id="day" type="number" name="day" min="1" max="31" value="{{ .Day }}" required />
           </div>
 
           <div class="field field--half">
-            <label for="month">Mese</label>
+            <label for="month">Month</label>
             <input id="month" type="number" name="month" min="1" max="12" value="{{ .Month }}" required />
           </div>
         </div>
 
         {{/* Description field */}}
         <div class="field">
-          <label for="description">Descrizione</label>
-          <input id="description" type="text" name="description" maxlength="200" placeholder="es. Supermercato" required />
+          <label for="description">Description</label>
+          <input id="description" type="text" name="description" maxlength="200" placeholder="e.g. Grocery store" required />
         </div>
 
         {{/* Amount field */}}
         <div class="field">
-          <label for="amount">Importo (€)</label>
+          <label for="amount">Amount (€)</label>
           <input id="amount" type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required />
         </div>
 
         {{/* Category fields group */}}
         <div class="field-group">
           <div class="field field--half">
-            <label for="primary">Categoria Primaria</label>
-            <select id="primary" name="primary" required>
-              {{ range .Categories }}<option>{{ . }}</option>{{ end }}
+            <label for="primary">Primary Category</label>
+            <select id="primary" name="primary" required
+                    hx-get="/api/categories/secondary"
+                    hx-trigger="change"
+                    hx-target="#secondary"
+                    hx-swap="innerHTML"
+                    hx-indicator="#category-loading">
+              <option value="">Seleziona categoria</option>
+              {{ range .Categories }}<option value="{{ . }}">{{ . }}</option>{{ end }}
             </select>
           </div>
 
           <div class="field field--half">
-            <label for="secondary">Categoria Secondaria</label>
+            <label for="secondary">Secondary Category</label>
             <select id="secondary" name="secondary" required>
-              {{ range .Subcats }}<option>{{ . }}</option>{{ end }}
+              {{/* If we have legacy subcategories (for non-SQLite adapters), show them */}}
+              {{ if .Subcats }}
+                {{ range .Subcats }}<option value="{{ . }}">{{ . }}</option>{{ end }}
+              {{ else }}
+                <option value="">Seleziona prima la categoria primaria</option>
+              {{ end }}
             </select>
+            <div id="category-loading" class="htmx-indicator" style="display: none; margin-top: 4px; font-size: 0.875rem; color: #6b7280;">
+              Caricamento sottocategorie...
+            </div>
           </div>
         </div>
 
@@ -59,10 +73,10 @@
 
         {{/* Submit button and loading indicator */}}
         <div class="actions">
-          <button class="btn btn-primary btn--block" type="submit">Aggiungi Spesa</button>
+          <button class="btn btn-primary btn--block" type="submit">Add Expense</button>
           <div class="indicator htmx-indicator" aria-hidden="true">
             <span class="spinner"></span>
-            <span>Salvataggio…</span>
+            <span>Saving…</span>
           </div>
         </div>
       </form>
@@ -75,7 +89,7 @@
            hx-trigger="load, expense:created from:body"
            hx-target="#month-overview" 
            hx-swap="outerHTML">
-        <div class="placeholder">Caricamento panoramica mese…</div>
+        <div class="placeholder">Loading month overview…</div>
       </div>
     </section>
   </div>

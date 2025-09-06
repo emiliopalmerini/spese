@@ -1,7 +1,7 @@
 # One category per line
-Casa
-Cibo
-Trasporti
-Tempo libero
-Salute
+Home
+Food
+Transport
+Entertainment
+Health
 
