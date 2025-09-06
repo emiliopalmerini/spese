@@ -16,12 +16,23 @@ CREATE INDEX idx_expenses_month ON expenses(month, day);
 CREATE INDEX idx_expenses_sync_status ON expenses(sync_status);
 CREATE INDEX idx_expenses_created_at ON expenses(created_at);
 
--- Categories table for dynamic category management
-CREATE TABLE categories (
+-- Primary categories table
+CREATE TABLE primary_categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
-    type TEXT NOT NULL CHECK (type IN ('primary', 'secondary')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_categories_type ON categories(type);
+-- Secondary categories table with foreign key to primary
+CREATE TABLE secondary_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    primary_category_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (primary_category_id) REFERENCES primary_categories(id) ON DELETE CASCADE
+);
+
+-- Create indexes for better performance
+CREATE INDEX idx_secondary_categories_primary_id ON secondary_categories(primary_category_id);
+CREATE INDEX idx_primary_categories_name ON primary_categories(name);
+CREATE INDEX idx_secondary_categories_name ON secondary_categories(name);

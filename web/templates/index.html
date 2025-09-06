@@ -41,16 +41,30 @@
         <div class="field-group">
           <div class="field field--half">
             <label for="primary">Primary Category</label>
-            <select id="primary" name="primary" required>
-              {{ range .Categories }}<option>{{ . }}</option>{{ end }}
+            <select id="primary" name="primary" required
+                    hx-get="/api/categories/secondary"
+                    hx-trigger="change"
+                    hx-target="#secondary"
+                    hx-swap="innerHTML"
+                    hx-indicator="#category-loading">
+              <option value="">Seleziona categoria</option>
+              {{ range .Categories }}<option value="{{ . }}">{{ . }}</option>{{ end }}
             </select>
           </div>
 
           <div class="field field--half">
             <label for="secondary">Secondary Category</label>
             <select id="secondary" name="secondary" required>
-              {{ range .Subcats }}<option>{{ . }}</option>{{ end }}
+              {{/* If we have legacy subcategories (for non-SQLite adapters), show them */}}
+              {{ if .Subcats }}
+                {{ range .Subcats }}<option value="{{ . }}">{{ . }}</option>{{ end }}
+              {{ else }}
+                <option value="">Seleziona prima la categoria primaria</option>
+              {{ end }}
             </select>
+            <div id="category-loading" class="htmx-indicator" style="display: none; margin-top: 4px; font-size: 0.875rem; color: #6b7280;">
+              Caricamento sottocategorie...
+            </div>
           </div>
         </div>
 

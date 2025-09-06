@@ -13,8 +13,15 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-func RunMigrations(db *sql.DB) error {
-	driver, err := sqlite.WithInstance(db, &sqlite.Config{})
+func RunMigrations(dbPath string) error {
+	// Create a separate connection for migrations to avoid interfering with the main connection
+	migrateDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return fmt.Errorf("open migration database: %w", err)
+	}
+	defer migrateDB.Close()
+
+	driver, err := sqlite.WithInstance(migrateDB, &sqlite.Config{})
 	if err != nil {
 		return fmt.Errorf("create sqlite driver: %w", err)
 	}

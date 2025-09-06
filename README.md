@@ -1,9 +1,10 @@
 # Spese (Go + HTMX)
 
-Simple expense tracking application that saves to Google Spreadsheets.
+Simple expense tracking application that saves to Google Spreadsheets with hierarchical categories.
 - Automatic date (day and month) pre-filled in the form
-- Description and expense amount input
-- Categories and subcategories read from Spreadsheet
+- Description and expense amount input  
+- **Hierarchical categories**: Primary categories with dynamic secondary category loading
+- Categories and subcategories read from Spreadsheet with intelligent mapping
 
 Stack: Go, HTMX, SQLite, RabbitMQ, Google Sheets API, Docker (multistage), Docker Compose, Makefile, pre-commit.
 

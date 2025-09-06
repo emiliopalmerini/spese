@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"spese/internal/adapters"
 	"spese/internal/core"
 	"spese/internal/sheets"
 	appweb "spese/web"
@@ -517,6 +518,7 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	mux.HandleFunc("/expenses", s.withSecurityHeaders(s.handleCreateExpense))
 	// UI partials
 	mux.HandleFunc("/ui/month-overview", s.withSecurityHeaders(s.handleMonthOverview))
+	mux.HandleFunc("/api/categories/secondary", s.withSecurityHeaders(s.handleGetSecondaryCategories))
 
 	return s
 }
@@ -824,10 +826,28 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
-	cats, subs, err := s.taxReader.List(r.Context())
-	if err != nil {
-		slog.ErrorContext(r.Context(), "Taxonomy list error", "error", err)
+	
+	// For hierarchical categories, load only primaries initially
+	var cats, subs []string
+	var err error
+	
+	if _, ok := s.taxReader.(*adapters.SQLiteAdapter); ok {
+		// For SQLite adapter, get only primary categories initially
+		// Secondary categories will be loaded dynamically via HTMX
+		cats, _, err = s.taxReader.List(r.Context())
+		if err != nil {
+			slog.ErrorContext(r.Context(), "Primary categories list error", "error", err)
+		}
+		// Leave subs empty - will be populated dynamically
+		subs = []string{}
+	} else {
+		// For other adapters (memory, google sheets), load all as before
+		cats, subs, err = s.taxReader.List(r.Context())
+		if err != nil {
+			slog.ErrorContext(r.Context(), "Taxonomy list error", "error", err)
+		}
 	}
+	
 	data := struct {
 		Day        int
 		Month      int
@@ -1120,6 +1140,78 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
         _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Error rendering overview</div></section>`))
         return
     }
+}
+
+// handleGetSecondaryCategories returns secondary categories for a given primary category as HTML options
+func (s *Server) handleGetSecondaryCategories(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	
+	// Get primary category from query parameter
+	primaryCategory := strings.TrimSpace(r.URL.Query().Get("primary"))
+	if primaryCategory == "" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`<option value="">Seleziona prima la categoria primaria</option>`))
+		return
+	}
+	
+	// Check if we have access to the SQLite repository through the adapter
+	if sqliteAdapter, ok := s.taxReader.(*adapters.SQLiteAdapter); ok {
+		// Use the hierarchical filtering method
+		secondaries, err := sqliteAdapter.GetSecondariesByPrimary(r.Context(), primaryCategory)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "Failed to get secondary categories for primary", 
+				"primary", primaryCategory, "error", err)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusInternalServerError) 
+			_, _ = w.Write([]byte(`<option value="">Errore nel caricamento</option>`))
+			return
+		}
+		
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		
+		// Write empty option first
+		_, _ = w.Write([]byte(`<option value="">Seleziona sottocategoria</option>`))
+		
+		// Write filtered secondary categories as options
+		for _, secondary := range secondaries {
+			escapedSecondary := template.HTMLEscapeString(secondary)
+			_, _ = w.Write([]byte(fmt.Sprintf(`<option value="%s">%s</option>`, escapedSecondary, escapedSecondary)))
+		}
+		
+		slog.InfoContext(r.Context(), "Returned filtered secondary categories", 
+			"primary", primaryCategory, 
+			"count", len(secondaries))
+		return
+	}
+	
+	// Fallback for other adapters (memory, google sheets)
+	_, secondaries, err := s.taxReader.List(r.Context())
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to get secondary categories", 
+			"primary", primaryCategory, "error", err)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`<option value="">Errore nel caricamento</option>`))
+		return
+	}
+	
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	
+	// Write empty option first  
+	_, _ = w.Write([]byte(`<option value="">Seleziona sottocategoria</option>`))
+	
+	// Write all secondary categories as options
+	for _, secondary := range secondaries {
+		escapedSecondary := template.HTMLEscapeString(secondary)
+		_, _ = w.Write([]byte(fmt.Sprintf(`<option value="%s">%s</option>`, escapedSecondary, escapedSecondary)))
+	}
 }
 
 func formatEuros(cents int64) string {

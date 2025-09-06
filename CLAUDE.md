@@ -164,6 +164,76 @@ Schema and queries are in:
 - `internal/storage/queries.sql`: SQL queries with sqlc annotations
 - `migrations/`: Actual migration files for go-migrate
 
+## Hierarchical Categories System
+
+The application implements a hierarchical category system with dynamic frontend loading for improved user experience.
+
+### Database Structure
+
+Categories are stored in separate tables with parent-child relationships:
+
+```sql
+-- Primary categories (13 main categories in Italian)
+CREATE TABLE primary_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Secondary categories linked to primary categories
+CREATE TABLE secondary_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    primary_category_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (primary_category_id) REFERENCES primary_categories(id)
+);
+```
+
+### Category Structure
+
+**Primary Categories (13):**
+- Casa, Salute, Spesa, Trasporti, Fuori (come fuori a cena...), Viaggi, Bimbi, Vestiti, Divertimento, Regali, Tasse e Percentuali, Altre spese, Lavoro
+
+**Secondary Categories (47 total):**
+- **Casa**: Mutuo, Spese condominiali, Internet, Mobili, Assicurazioni, Pulizia, Elettricità, Telefono
+- **Salute**: Assicurazione sanitaria, Dottori, Medicine, Personale, Sport  
+- **Trasporti**: Trasporto locale, Car sharing, Spese automobile, Servizi taxi
+- And so on...
+
+### Frontend Integration
+
+The UI uses **HTMX** for dynamic category loading:
+
+1. **Primary Selection**: User selects a primary category
+2. **Dynamic Loading**: HTMX calls `/api/categories/secondary?primary=X`
+3. **Filtered Options**: Only relevant secondary categories are shown
+4. **Better UX**: Reduces selection errors and improves usability
+
+### API Endpoints
+
+- `GET /api/categories/secondary?primary={category}`: Returns HTML `<option>` elements for secondary categories filtered by primary category
+
+### Google Sheets Sync Compatibility
+
+The system maintains compatibility with Google Sheets sync through intelligent mapping:
+
+- **Primary categories**: Managed via database migrations (not synced from sheets)  
+- **Secondary categories**: Synced from Google Sheets with automatic mapping to primary categories
+- **Legacy support**: Old category names are automatically mapped to the new hierarchical structure
+
+### Repository Methods
+
+New methods support hierarchical operations:
+
+```go
+// Get secondary categories for a specific primary category
+func (r *SQLiteRepository) GetSecondariesByPrimary(ctx context.Context, primaryCategory string) ([]string, error)
+
+// SQLiteAdapter exposes hierarchical methods
+func (a *SQLiteAdapter) GetSecondariesByPrimary(ctx context.Context, primaryCategory string) ([]string, error)
+```
+
 ## Ports & Adapters Pattern
 
 The application follows hexagonal architecture with clear port definitions:

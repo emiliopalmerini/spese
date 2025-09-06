@@ -10,38 +10,6 @@ import (
 	"database/sql"
 )
 
-const clearCategoriesByType = `-- name: ClearCategoriesByType :exec
-DELETE FROM categories WHERE type = ?
-`
-
-func (q *Queries) ClearCategoriesByType(ctx context.Context, type_ string) error {
-	_, err := q.db.ExecContext(ctx, clearCategoriesByType, type_)
-	return err
-}
-
-const createCategory = `-- name: CreateCategory :one
-INSERT INTO categories (name, type)
-VALUES (?, ?)
-RETURNING id, name, type, created_at
-`
-
-type CreateCategoryParams struct {
-	Name string `db:"name" json:"name"`
-	Type string `db:"type" json:"type"`
-}
-
-func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error) {
-	row := q.db.QueryRowContext(ctx, createCategory, arg.Name, arg.Type)
-	var i Category
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Type,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const createExpense = `-- name: CreateExpense :one
 INSERT INTO expenses (day, month, description, amount_cents, primary_category, secondary_category)
 VALUES (?, ?, ?, ?, ?, ?)
@@ -83,69 +51,58 @@ func (q *Queries) CreateExpense(ctx context.Context, arg CreateExpenseParams) (E
 	return i, err
 }
 
-const deleteCategory = `-- name: DeleteCategory :exec
-DELETE FROM categories WHERE name = ? AND type = ?
+const createPrimaryCategory = `-- name: CreatePrimaryCategory :one
+INSERT INTO primary_categories (name)
+VALUES (?)
+RETURNING id, name, created_at
 `
 
-type DeleteCategoryParams struct {
-	Name string `db:"name" json:"name"`
-	Type string `db:"type" json:"type"`
+func (q *Queries) CreatePrimaryCategory(ctx context.Context, name string) (PrimaryCategory, error) {
+	row := q.db.QueryRowContext(ctx, createPrimaryCategory, name)
+	var i PrimaryCategory
+	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+	return i, err
 }
 
-func (q *Queries) DeleteCategory(ctx context.Context, arg DeleteCategoryParams) error {
-	_, err := q.db.ExecContext(ctx, deleteCategory, arg.Name, arg.Type)
+const createSecondaryCategory = `-- name: CreateSecondaryCategory :one
+INSERT INTO secondary_categories (name, primary_category_id)
+VALUES (?, ?)
+RETURNING id, name, primary_category_id, created_at
+`
+
+type CreateSecondaryCategoryParams struct {
+	Name              string `db:"name" json:"name"`
+	PrimaryCategoryID int64  `db:"primary_category_id" json:"primary_category_id"`
+}
+
+func (q *Queries) CreateSecondaryCategory(ctx context.Context, arg CreateSecondaryCategoryParams) (SecondaryCategory, error) {
+	row := q.db.QueryRowContext(ctx, createSecondaryCategory, arg.Name, arg.PrimaryCategoryID)
+	var i SecondaryCategory
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.PrimaryCategoryID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const deletePrimaryCategory = `-- name: DeletePrimaryCategory :exec
+DELETE FROM primary_categories WHERE name = ?
+`
+
+func (q *Queries) DeletePrimaryCategory(ctx context.Context, name string) error {
+	_, err := q.db.ExecContext(ctx, deletePrimaryCategory, name)
 	return err
 }
 
-const getCategoriesByType = `-- name: GetCategoriesByType :many
-SELECT name FROM categories 
-WHERE type = ?
-ORDER BY name ASC
+const deleteSecondaryCategory = `-- name: DeleteSecondaryCategory :exec
+DELETE FROM secondary_categories WHERE name = ?
 `
 
-func (q *Queries) GetCategoriesByType(ctx context.Context, type_ string) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, getCategoriesByType, type_)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
-		}
-		items = append(items, name)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getCategoryCount = `-- name: GetCategoryCount :one
-SELECT COUNT(*) FROM categories
-`
-
-func (q *Queries) GetCategoryCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getCategoryCount)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const getCategoryLastSync = `-- name: GetCategoryLastSync :one
-SELECT MAX(created_at) FROM categories
-`
-
-func (q *Queries) GetCategoryLastSync(ctx context.Context) (interface{}, error) {
-	row := q.db.QueryRowContext(ctx, getCategoryLastSync)
-	var max interface{}
-	err := row.Scan(&max)
-	return max, err
+func (q *Queries) DeleteSecondaryCategory(ctx context.Context, name string) error {
+	_, err := q.db.ExecContext(ctx, deleteSecondaryCategory, name)
+	return err
 }
 
 const getCategorySums = `-- name: GetCategorySums :many
@@ -297,6 +254,94 @@ func (q *Queries) GetPendingSyncExpenses(ctx context.Context, limit int64) ([]Ge
 	return items, nil
 }
 
+const getPrimaryCategories = `-- name: GetPrimaryCategories :many
+SELECT name FROM primary_categories 
+ORDER BY name ASC
+`
+
+// Primary Categories queries
+func (q *Queries) GetPrimaryCategories(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getPrimaryCategories)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getSecondariesByPrimary = `-- name: GetSecondariesByPrimary :many
+SELECT sc.name FROM secondary_categories sc
+JOIN primary_categories pc ON sc.primary_category_id = pc.id
+WHERE pc.name = ?
+ORDER BY sc.name ASC
+`
+
+func (q *Queries) GetSecondariesByPrimary(ctx context.Context, name string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getSecondariesByPrimary, name)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getSecondaryCategories = `-- name: GetSecondaryCategories :many
+SELECT name FROM secondary_categories 
+ORDER BY name ASC
+`
+
+// Secondary Categories queries
+func (q *Queries) GetSecondaryCategories(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getSecondaryCategories)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markExpenseSyncError = `-- name: MarkExpenseSyncError :exec
 UPDATE expenses 
 SET sync_status = 'error'
@@ -320,7 +365,7 @@ func (q *Queries) MarkExpenseSynced(ctx context.Context, id int64) error {
 }
 
 const refreshCategories = `-- name: RefreshCategories :exec
-DELETE FROM categories
+DELETE FROM secondary_categories
 `
 
 func (q *Queries) RefreshCategories(ctx context.Context) error {
@@ -328,18 +373,11 @@ func (q *Queries) RefreshCategories(ctx context.Context) error {
 	return err
 }
 
-const upsertCategory = `-- name: UpsertCategory :exec
-INSERT INTO categories (name, type)
-VALUES (?, ?)
-ON CONFLICT (name, type) DO NOTHING
+const refreshPrimaryCategories = `-- name: RefreshPrimaryCategories :exec
+DELETE FROM primary_categories
 `
 
-type UpsertCategoryParams struct {
-	Name string `db:"name" json:"name"`
-	Type string `db:"type" json:"type"`
-}
-
-func (q *Queries) UpsertCategory(ctx context.Context, arg UpsertCategoryParams) error {
-	_, err := q.db.ExecContext(ctx, upsertCategory, arg.Name, arg.Type)
+func (q *Queries) RefreshPrimaryCategories(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, refreshPrimaryCategories)
 	return err
 }

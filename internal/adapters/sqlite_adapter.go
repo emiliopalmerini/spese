@@ -41,3 +41,8 @@ func (a *SQLiteAdapter) ReadMonthOverview(ctx context.Context, year int, month i
 func (a *SQLiteAdapter) ListExpenses(ctx context.Context, year int, month int) ([]core.Expense, error) {
 	return a.storage.ListExpenses(ctx, year, month)
 }
+
+// GetSecondariesByPrimary returns secondary categories for a given primary category
+func (a *SQLiteAdapter) GetSecondariesByPrimary(ctx context.Context, primaryCategory string) ([]string, error) {
+	return a.storage.GetSecondariesByPrimary(ctx, primaryCategory)
+}

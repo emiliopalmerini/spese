@@ -39,32 +39,40 @@ WHERE id = ?;
 -- name: GetExpense :one
 SELECT * FROM expenses WHERE id = ?;
 
--- name: GetCategoriesByType :many
-SELECT name FROM categories 
-WHERE type = ?
+-- Primary Categories queries
+-- name: GetPrimaryCategories :many
+SELECT name FROM primary_categories 
 ORDER BY name ASC;
 
--- name: CreateCategory :one
-INSERT INTO categories (name, type)
+-- name: CreatePrimaryCategory :one
+INSERT INTO primary_categories (name)
+VALUES (?)
+RETURNING id, name, created_at;
+
+-- name: DeletePrimaryCategory :exec
+DELETE FROM primary_categories WHERE name = ?;
+
+-- Secondary Categories queries
+-- name: GetSecondaryCategories :many
+SELECT name FROM secondary_categories 
+ORDER BY name ASC;
+
+-- name: GetSecondariesByPrimary :many
+SELECT sc.name FROM secondary_categories sc
+JOIN primary_categories pc ON sc.primary_category_id = pc.id
+WHERE pc.name = ?
+ORDER BY sc.name ASC;
+
+-- name: CreateSecondaryCategory :one
+INSERT INTO secondary_categories (name, primary_category_id)
 VALUES (?, ?)
-RETURNING id, name, type, created_at;
+RETURNING id, name, primary_category_id, created_at;
 
--- name: DeleteCategory :exec
-DELETE FROM categories WHERE name = ? AND type = ?;
-
--- name: UpsertCategory :exec
-INSERT INTO categories (name, type)
-VALUES (?, ?)
-ON CONFLICT (name, type) DO NOTHING;
-
--- name: ClearCategoriesByType :exec
-DELETE FROM categories WHERE type = ?;
-
--- name: GetCategoryCount :one
-SELECT COUNT(*) FROM categories;
-
--- name: GetCategoryLastSync :one
-SELECT MAX(created_at) FROM categories;
+-- name: DeleteSecondaryCategory :exec
+DELETE FROM secondary_categories WHERE name = ?;
 
 -- name: RefreshCategories :exec
-DELETE FROM categories;
+DELETE FROM secondary_categories;
+
+-- name: RefreshPrimaryCategories :exec  
+DELETE FROM primary_categories;

@@ -9,22 +9,25 @@ import (
 )
 
 type Querier interface {
-	ClearCategoriesByType(ctx context.Context, type_ string) error
-	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateExpense(ctx context.Context, arg CreateExpenseParams) (Expense, error)
-	DeleteCategory(ctx context.Context, arg DeleteCategoryParams) error
-	GetCategoriesByType(ctx context.Context, type_ string) ([]string, error)
-	GetCategoryCount(ctx context.Context) (int64, error)
-	GetCategoryLastSync(ctx context.Context) (interface{}, error)
+	CreatePrimaryCategory(ctx context.Context, name string) (PrimaryCategory, error)
+	CreateSecondaryCategory(ctx context.Context, arg CreateSecondaryCategoryParams) (SecondaryCategory, error)
+	DeletePrimaryCategory(ctx context.Context, name string) error
+	DeleteSecondaryCategory(ctx context.Context, name string) error
 	GetCategorySums(ctx context.Context, month int64) ([]GetCategorySumsRow, error)
 	GetExpense(ctx context.Context, id int64) (Expense, error)
 	GetExpensesByMonth(ctx context.Context, month int64) ([]Expense, error)
 	GetMonthTotal(ctx context.Context, month int64) (int64, error)
 	GetPendingSyncExpenses(ctx context.Context, limit int64) ([]GetPendingSyncExpensesRow, error)
+	// Primary Categories queries
+	GetPrimaryCategories(ctx context.Context) ([]string, error)
+	GetSecondariesByPrimary(ctx context.Context, name string) ([]string, error)
+	// Secondary Categories queries
+	GetSecondaryCategories(ctx context.Context) ([]string, error)
 	MarkExpenseSyncError(ctx context.Context, id int64) error
 	MarkExpenseSynced(ctx context.Context, id int64) error
 	RefreshCategories(ctx context.Context) error
-	UpsertCategory(ctx context.Context, arg UpsertCategoryParams) error
+	RefreshPrimaryCategories(ctx context.Context) error
 }
 
 var _ Querier = (*Queries)(nil)

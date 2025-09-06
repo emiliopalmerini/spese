@@ -8,13 +8,6 @@ import (
 	"database/sql"
 )
 
-type Category struct {
-	ID        int64        `db:"id" json:"id"`
-	Name      string       `db:"name" json:"name"`
-	Type      string       `db:"type" json:"type"`
-	CreatedAt sql.NullTime `db:"created_at" json:"created_at"`
-}
-
 type Expense struct {
 	ID                int64          `db:"id" json:"id"`
 	Day               int64          `db:"day" json:"day"`
@@ -27,4 +20,17 @@ type Expense struct {
 	CreatedAt         sql.NullTime   `db:"created_at" json:"created_at"`
 	SyncedAt          interface{}    `db:"synced_at" json:"synced_at"`
 	SyncStatus        sql.NullString `db:"sync_status" json:"sync_status"`
+}
+
+type PrimaryCategory struct {
+	ID        int64        `db:"id" json:"id"`
+	Name      string       `db:"name" json:"name"`
+	CreatedAt sql.NullTime `db:"created_at" json:"created_at"`
+}
+
+type SecondaryCategory struct {
+	ID                int64        `db:"id" json:"id"`
+	Name              string       `db:"name" json:"name"`
+	PrimaryCategoryID int64        `db:"primary_category_id" json:"primary_category_id"`
+	CreatedAt         sql.NullTime `db:"created_at" json:"created_at"`
 }
