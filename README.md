@@ -5,7 +5,7 @@ Semplice app per registrare spese su un Google Spreadsheet.
 - Inserimento descrizione e valore spesa.
 - Categorie e sottocategorie lette dallo Spreadsheet.
 
-Stack: Go, HTMX, Google Sheets API, Docker (multistage), Docker Compose, Makefile, pre-commit.
+Stack: Go, HTMX, SQLite, RabbitMQ, Google Sheets API, Docker (multistage), Docker Compose, Makefile, pre-commit.
 
 ## Requisiti
 
@@ -32,7 +32,7 @@ DASHBOARD_SHEET_NAME=Dashboard
 # (fallback legacy) Pattern con %d: es. "%d Dashboard"
 # DASHBOARD_SHEET_PREFIX="%d Dashboard"
 
-DATA_BACKEND=memory # usa 'sheets' per integrare Google Sheets
+DATA_BACKEND=memory # usa 'sheets' per integrare Google Sheets direttamente o 'sqlite' per storage locale + sync asincrono
 PORT=8080
 # OAuth
 # GOOGLE_OAUTH_CLIENT_FILE=/percorso/client.json
@@ -66,9 +66,17 @@ Vedi `.env.example` per i default. Principali:
 - `GOOGLE_SHEET_NAME`: base name del foglio spese (senza anno), default `Expenses` → risolto a `"<anno> Expenses"`
 - `GOOGLE_CATEGORIES_SHEET_NAME`: base name foglio categorie, default `Dashboard` → `"<anno> Dashboard"`
 - `GOOGLE_SUBCATEGORIES_SHEET_NAME`: base name foglio sottocategorie, default `Dashboard` → `"<anno> Dashboard"`
-- `DATA_BACKEND`: `memory` (default) o `sheets`
+- `DATA_BACKEND`: `memory` (default), `sheets`, o `sqlite`
 - `DASHBOARD_SHEET_NAME`: base name del foglio dashboard annuale da cui leggere i totali (preferito). Risultato: `"<anno> <nome>"`.
 - `DASHBOARD_SHEET_PREFIX`: (legacy) pattern o prefisso del foglio dashboard annuale (es. `%d Dashboard`). Usato solo se `DASHBOARD_SHEET_NAME` non è impostato.
+
+SQLite + AMQP (backend `sqlite`):
+- `SQLITE_DB_PATH`: percorso database SQLite (default: `./data/spese.db`)
+- `AMQP_URL`: connessione RabbitMQ (default: `amqp://guest:guest@localhost:5672/`)
+- `AMQP_EXCHANGE`: nome exchange AMQP (default: `spese`)
+- `AMQP_QUEUE`: nome coda AMQP (default: `sync_expenses`)
+- `SYNC_BATCH_SIZE`: dimensione batch worker (default: `10`)
+- `SYNC_INTERVAL`: intervallo sync periodico (default: `30s`)
 
 OAuth:
 - `GOOGLE_OAUTH_CLIENT_JSON` oppure `GOOGLE_OAUTH_CLIENT_FILE`: credenziali client OAuth (JSON)
@@ -78,8 +86,12 @@ OAuth:
 
 - `make setup`: setup strumenti dev (pre-commit, linters)
 - `make tidy`: gestisce mod Go
-- `make build`: compila binario
-- `make run`: esegue in locale
+- `make build`: compila binario principale
+- `make build-worker`: compila worker di sincronizzazione
+- `make build-all`: compila entrambi i servizi
+- `make run`: esegue app principale in locale
+- `make run-worker`: esegue worker in locale
+- `make sqlc-generate`: rigenera codice sqlc dopo modifiche schema
 - `make test`: unit test con race/coverage
 - `make lint`: lints e vet
 - `make fmt`: formatta codice
@@ -87,10 +99,43 @@ OAuth:
 - `make docker-up`: avvia stack con Compose
 - `make docker-logs`: segue i log
 
+## Architettura SQLite + AMQP (Raccomandato)
+
+Per migliorare le performance e la scalabilità, l'app supporta un'architettura asincrona:
+
+1. **App principale** (`cmd/spese`): salva le spese in SQLite locale (veloce)
+2. **Messaggio AMQP**: pubblica ID spesa + versione (leggero, ~100 byte)
+3. **Worker background** (`cmd/spese-worker`): consuma messaggi, legge spesa completa da SQLite, sincronizza con Google Sheets
+4. **Fallback graceful**: funziona anche senza RabbitMQ (solo SQLite locale)
+
+Vantaggi:
+- **Performance**: risposte HTTP immediate (solo SQLite)
+- **Affidabilità**: messaggi persistenti, retry automatici
+- **Scalabilità**: worker indipendenti, elaborazione batch
+- **Resilienza**: continua a funzionare anche se Google Sheets non è disponibile
+
+Per usare questa modalità:
+```bash
+# Avvia RabbitMQ
+docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+
+# Avvia app principale con SQLite
+DATA_BACKEND=sqlite AMQP_URL=amqp://localhost:5672 make run
+
+# In un altro terminale, avvia il worker
+DATA_BACKEND=sqlite AMQP_URL=amqp://localhost:5672 make run-worker
+```
+
+O più semplicemente con Docker Compose (include RabbitMQ, app e worker):
+```bash
+make docker-up
+```
+
 ## Docker
 
 - Dockerfile multistage per immagini piccole (builder + runner distroless/alpine).
 - `docker compose up -d` per esecuzione locale; la configurazione legge `.env` e lo inietta nei container (`env_file`).
+- Include RabbitMQ con management UI su http://localhost:15672 (admin/admin).
 
 ## Setup Google Sheets (rapido)
 
