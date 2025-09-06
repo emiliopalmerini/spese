@@ -10,6 +10,15 @@ import (
 	"database/sql"
 )
 
+const clearCategoriesByType = `-- name: ClearCategoriesByType :exec
+DELETE FROM categories WHERE type = ?
+`
+
+func (q *Queries) ClearCategoriesByType(ctx context.Context, type_ string) error {
+	_, err := q.db.ExecContext(ctx, clearCategoriesByType, type_)
+	return err
+}
+
 const createCategory = `-- name: CreateCategory :one
 INSERT INTO categories (name, type)
 VALUES (?, ?)
@@ -115,6 +124,28 @@ func (q *Queries) GetCategoriesByType(ctx context.Context, type_ string) ([]stri
 		return nil, err
 	}
 	return items, nil
+}
+
+const getCategoryCount = `-- name: GetCategoryCount :one
+SELECT COUNT(*) FROM categories
+`
+
+func (q *Queries) GetCategoryCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getCategoryCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getCategoryLastSync = `-- name: GetCategoryLastSync :one
+SELECT MAX(created_at) FROM categories
+`
+
+func (q *Queries) GetCategoryLastSync(ctx context.Context) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getCategoryLastSync)
+	var max interface{}
+	err := row.Scan(&max)
+	return max, err
 }
 
 const getCategorySums = `-- name: GetCategorySums :many
@@ -285,5 +316,30 @@ WHERE id = ?
 
 func (q *Queries) MarkExpenseSynced(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, markExpenseSynced, id)
+	return err
+}
+
+const refreshCategories = `-- name: RefreshCategories :exec
+DELETE FROM categories
+`
+
+func (q *Queries) RefreshCategories(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, refreshCategories)
+	return err
+}
+
+const upsertCategory = `-- name: UpsertCategory :exec
+INSERT INTO categories (name, type)
+VALUES (?, ?)
+ON CONFLICT (name, type) DO NOTHING
+`
+
+type UpsertCategoryParams struct {
+	Name string `db:"name" json:"name"`
+	Type string `db:"type" json:"type"`
+}
+
+func (q *Queries) UpsertCategory(ctx context.Context, arg UpsertCategoryParams) error {
+	_, err := q.db.ExecContext(ctx, upsertCategory, arg.Name, arg.Type)
 	return err
 }

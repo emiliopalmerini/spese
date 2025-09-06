@@ -57,11 +57,18 @@ func main() {
 	defer amqpClient.Close()
 
 	// Create sync worker
-	syncWorker := worker.NewSyncWorker(sqliteRepo, sheetsClient, cfg.SyncBatchSize)
+	syncWorker := worker.NewSyncWorker(sqliteRepo, sheetsClient, sheetsClient, cfg.SyncBatchSize)
 
 	// Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// On startup, sync categories from Google Sheets if database is empty
+	logger.Info("Checking category cache...")
+	if err := syncWorker.SyncCategoriesIfNeeded(ctx); err != nil {
+		logger.Error("Failed to sync categories", "error", err)
+		// Don't exit - continue with normal operation
+	}
 
 	// On startup, process any pending expenses that might have been missed
 	logger.Info("Performing startup sync check...")
@@ -84,6 +91,10 @@ func main() {
 	ticker := time.NewTicker(cfg.SyncInterval)
 	defer ticker.Stop()
 
+	// Setup daily category refresh (check once per day)
+	categoryTicker := time.NewTicker(24 * time.Hour)
+	defer categoryTicker.Stop()
+
 	go func() {
 		for {
 			select {
@@ -92,6 +103,11 @@ func main() {
 			case <-ticker.C:
 				if err := syncWorker.ProcessPendingExpenses(ctx); err != nil {
 					logger.Error("Periodic sync failed", "error", err)
+				}
+			case <-categoryTicker.C:
+				// Periodic category refresh (respects cache age)
+				if err := syncWorker.PeriodicCategoryRefresh(ctx); err != nil {
+					logger.Error("Periodic category refresh failed", "error", err)
 				}
 			}
 		}

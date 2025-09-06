@@ -243,3 +243,104 @@ type PendingSyncExpense struct {
 	Version   int64
 	CreatedAt time.Time
 }
+
+// SyncCategories replaces all categories of a given type with the provided list
+func (r *SQLiteRepository) SyncCategories(ctx context.Context, categories []string, categoryType string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+	
+	qtx := r.queries.WithTx(tx)
+	
+	// Clear existing categories of this type
+	if err := qtx.ClearCategoriesByType(ctx, categoryType); err != nil {
+		return fmt.Errorf("clear categories: %w", err)
+	}
+	
+	// Insert new categories
+	for _, category := range categories {
+		if category != "" { // Skip empty categories
+			if err := qtx.UpsertCategory(ctx, UpsertCategoryParams{
+				Name: category,
+				Type: categoryType,
+			}); err != nil {
+				return fmt.Errorf("upsert category %s: %w", category, err)
+			}
+		}
+	}
+	
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+	
+	slog.InfoContext(ctx, "Categories synchronized", 
+		"type", categoryType, 
+		"count", len(categories))
+	
+	return nil
+}
+
+// GetCategoryCount returns the total number of categories in the database
+func (r *SQLiteRepository) GetCategoryCount(ctx context.Context) (int64, error) {
+	count, err := r.queries.GetCategoryCount(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("get category count: %w", err)
+	}
+	return count, nil
+}
+
+// GetCategoryLastSync returns when categories were last synced
+func (r *SQLiteRepository) GetCategoryLastSync(ctx context.Context) (time.Time, error) {
+	lastSync, err := r.queries.GetCategoryLastSync(ctx)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("get category last sync: %w", err)
+	}
+	
+	// Handle NULL case (no categories)
+	if lastSync == nil {
+		return time.Time{}, nil
+	}
+	
+	// Try to convert to sql.NullTime
+	switch v := lastSync.(type) {
+	case sql.NullTime:
+		if !v.Valid {
+			return time.Time{}, nil
+		}
+		return v.Time, nil
+	case *sql.NullTime:
+		if v == nil || !v.Valid {
+			return time.Time{}, nil
+		}
+		return v.Time, nil
+	case time.Time:
+		return v, nil
+	case *time.Time:
+		if v == nil {
+			return time.Time{}, nil
+		}
+		return *v, nil
+	default:
+		// Try to parse as string if it's a string representation
+		if str, ok := v.(string); ok && str != "" {
+			t, err := time.Parse(time.RFC3339, str)
+			if err != nil {
+				return time.Time{}, fmt.Errorf("parse time string: %w", err)
+			}
+			return t, nil
+		}
+		return time.Time{}, nil
+	}
+}
+
+// RefreshCategories clears all cached categories
+func (r *SQLiteRepository) RefreshCategories(ctx context.Context) error {
+	err := r.queries.RefreshCategories(ctx)
+	if err != nil {
+		return fmt.Errorf("refresh categories: %w", err)
+	}
+	slog.InfoContext(ctx, "Categories cache cleared")
+	return nil
+}

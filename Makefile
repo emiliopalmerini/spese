@@ -4,9 +4,57 @@ PKG := ./...
 BIN := bin/$(APP_NAME)
 WORKER_BIN := bin/$(WORKER_NAME)
 
-.PHONY: all setup tidy fmt vet lint test build build-worker build-all run run-worker clean docker-build docker-up docker-logs docker-down up smoke cover oauth-init sqlc-generate
+.PHONY: all help setup tidy fmt vet lint test build build-worker build-all run run-worker logs clean docker-build docker-up docker-logs docker-down up smoke cover oauth-init sqlc-generate refresh-categories
 
-all: build-all
+all: help
+
+help: ## Show this help message
+	@echo "🏷️  Spese - Expense Tracking Application"
+	@echo ""
+	@echo "📋 Available commands:"
+	@echo ""
+	@echo "🏗️  Build Commands:"
+	@echo "  build         Build main application"
+	@echo "  build-worker  Build background worker"
+	@echo "  build-all     Build both main app and worker"
+	@echo "  clean         Remove build artifacts"
+	@echo ""
+	@echo "🚀 Development Commands:"
+	@echo "  run           Run main application locally"
+	@echo "  run-worker    Run background worker locally"
+	@echo "  logs          Watch logs for both app and worker (Docker)"
+	@echo "  setup         Setup development environment"
+	@echo "  tidy          Run go mod tidy"
+	@echo ""
+	@echo "🧪 Code Quality Commands:"
+	@echo "  fmt           Format Go code"
+	@echo "  vet           Run go vet"
+	@echo "  lint          Run linter (golangci-lint)"
+	@echo "  test          Run tests with race detector"
+	@echo "  cover         Run coverage tests"
+	@echo "  smoke         Run smoke tests"
+	@echo ""
+	@echo "🐳 Docker Commands:"
+	@echo "  docker-build  Build Docker image"
+	@echo "  docker-up     Start services with Docker Compose"
+	@echo "  docker-logs   View Docker logs"
+	@echo "  docker-down   Stop Docker services"
+	@echo "  up            Format, build, test, and start containers"
+	@echo ""
+	@echo "🗄️  Database Commands:"
+	@echo "  sqlc-generate Generate sqlc code from queries"
+	@echo "  refresh-categories  Clear and reload category cache from Google Sheets"
+	@echo ""
+	@echo "🔐 OAuth Commands:"
+	@echo "  oauth-init         Initialize OAuth flow locally"
+	@echo "  oauth-init-docker  Initialize OAuth flow in Docker"
+	@echo ""
+	@echo "💡 Examples:"
+	@echo "  make build-all              # Build everything"
+	@echo "  make run                    # Start main app"
+	@echo "  make docker-up              # Start with Docker"
+	@echo "  make refresh-categories     # Force category refresh"
+	@echo ""
 
 setup:
 	@echo "Nothing to setup locally yet. Optionally: pre-commit install"
@@ -40,6 +88,9 @@ run:
 
 run-worker:
 	go run ./cmd/spese-worker
+
+logs:
+	docker compose logs -f $(APP_NAME) $(WORKER_NAME)
 
 sqlc-generate:
 	@echo "Generating sqlc code..."
@@ -87,3 +138,10 @@ oauth-init-docker:
 oauth-init-docker-clean:
 	@echo "Cleaning up OAuth container"
 	docker compose --profile oauth down oauth-init
+
+refresh-categories:
+	@echo "Refreshing category cache from Google Sheets"
+	@echo "This will clear the SQLite category cache and reload from Google Sheets"
+	@echo "Note: Requires worker to be running"
+	@sqlite3 $${SQLITE_DB_PATH:-./data/spese.db} "DELETE FROM categories;" || echo "Could not clear cache directly"
+	@echo "Categories cache cleared. The worker will reload categories on next sync check."

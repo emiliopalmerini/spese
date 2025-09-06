@@ -51,3 +51,20 @@ RETURNING id, name, type, created_at;
 
 -- name: DeleteCategory :exec
 DELETE FROM categories WHERE name = ? AND type = ?;
+
+-- name: UpsertCategory :exec
+INSERT INTO categories (name, type)
+VALUES (?, ?)
+ON CONFLICT (name, type) DO NOTHING;
+
+-- name: ClearCategoriesByType :exec
+DELETE FROM categories WHERE type = ?;
+
+-- name: GetCategoryCount :one
+SELECT COUNT(*) FROM categories;
+
+-- name: GetCategoryLastSync :one
+SELECT MAX(created_at) FROM categories;
+
+-- name: RefreshCategories :exec
+DELETE FROM categories;

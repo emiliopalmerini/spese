@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"spese/internal/amqp"
 	"spese/internal/core"
@@ -15,13 +16,15 @@ import (
 type SyncWorker struct {
 	storage     *storage.SQLiteRepository
 	sheets      sheets.ExpenseWriter
+	taxonomy    sheets.TaxonomyReader
 	batchSize   int
 }
 
-func NewSyncWorker(storage *storage.SQLiteRepository, sheets sheets.ExpenseWriter, batchSize int) *SyncWorker {
+func NewSyncWorker(storage *storage.SQLiteRepository, sheets sheets.ExpenseWriter, taxonomy sheets.TaxonomyReader, batchSize int) *SyncWorker {
 	return &SyncWorker{
 		storage:   storage,
 		sheets:    sheets,
+		taxonomy:  taxonomy,
 		batchSize: batchSize,
 	}
 }
@@ -164,6 +167,94 @@ func (w *SyncWorker) StartupSyncCheck(ctx context.Context) error {
 		"total", len(pendingExpenses),
 		"synced", successCount, 
 		"errors", errorCount)
+
+	return nil
+}
+
+// SyncCategoriesIfNeeded loads categories from Google Sheets and caches them in SQLite
+// with multiple invalidation strategies:
+// 1. Empty cache: Always sync if no categories exist
+// 2. Age-based: Refresh if cache is older than 7 days
+// 3. Force refresh: Can be triggered manually via ForceRefreshCategories
+func (w *SyncWorker) SyncCategoriesIfNeeded(ctx context.Context) error {
+	// Check if we already have categories in the database
+	count, err := w.storage.GetCategoryCount(ctx)
+	if err != nil {
+		return fmt.Errorf("check category count: %w", err)
+	}
+
+	// Strategy 1: Empty cache - always sync
+	if count == 0 {
+		slog.InfoContext(ctx, "No categories found in cache, loading from Google Sheets...")
+		return w.syncCategoriesFromSheets(ctx)
+	}
+
+	// Strategy 2: Age-based invalidation (7 days)
+	lastSync, err := w.storage.GetCategoryLastSync(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "Could not determine last sync time, keeping current cache", "error", err)
+		return nil
+	}
+
+	cacheAge := time.Since(lastSync)
+	const maxCacheAge = 7 * 24 * time.Hour
+	
+	if cacheAge > maxCacheAge {
+		slog.InfoContext(ctx, "Categories cache is stale, refreshing from Google Sheets", 
+			"last_sync", lastSync.Format(time.RFC3339),
+			"age", cacheAge.Round(time.Hour))
+		return w.syncCategoriesFromSheets(ctx)
+	}
+
+	slog.InfoContext(ctx, "Categories cache is fresh", 
+		"count", count,
+		"last_sync", lastSync.Format(time.RFC3339),
+		"age", cacheAge.Round(time.Hour))
+	
+	return nil
+}
+
+// ForceRefreshCategories forces a refresh of the category cache from Google Sheets
+// This can be called manually or triggered by an admin endpoint
+func (w *SyncWorker) ForceRefreshCategories(ctx context.Context) error {
+	slog.InfoContext(ctx, "Force refreshing categories from Google Sheets")
+	
+	// Clear existing cache
+	if err := w.storage.RefreshCategories(ctx); err != nil {
+		return fmt.Errorf("clear category cache: %w", err)
+	}
+	
+	// Reload from Google Sheets
+	return w.syncCategoriesFromSheets(ctx)
+}
+
+// PeriodicCategoryRefresh can be called periodically to refresh categories
+// It respects the age-based cache invalidation strategy
+func (w *SyncWorker) PeriodicCategoryRefresh(ctx context.Context) error {
+	return w.SyncCategoriesIfNeeded(ctx)
+}
+
+// syncCategoriesFromSheets is the internal method that actually syncs categories
+func (w *SyncWorker) syncCategoriesFromSheets(ctx context.Context) error {
+	// Load categories from Google Sheets
+	primaryCategories, secondaryCategories, err := w.taxonomy.List(ctx)
+	if err != nil {
+		return fmt.Errorf("load categories from Google Sheets: %w", err)
+	}
+
+	// Sync primary categories to SQLite
+	if err := w.storage.SyncCategories(ctx, primaryCategories, "primary"); err != nil {
+		return fmt.Errorf("sync primary categories: %w", err)
+	}
+
+	// Sync secondary categories to SQLite
+	if err := w.storage.SyncCategories(ctx, secondaryCategories, "secondary"); err != nil {
+		return fmt.Errorf("sync secondary categories: %w", err)
+	}
+
+	slog.InfoContext(ctx, "Categories successfully cached", 
+		"primary_count", len(primaryCategories),
+		"secondary_count", len(secondaryCategories))
 
 	return nil
 }

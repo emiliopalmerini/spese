@@ -9,10 +9,13 @@ import (
 )
 
 type Querier interface {
+	ClearCategoriesByType(ctx context.Context, type_ string) error
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateExpense(ctx context.Context, arg CreateExpenseParams) (Expense, error)
 	DeleteCategory(ctx context.Context, arg DeleteCategoryParams) error
 	GetCategoriesByType(ctx context.Context, type_ string) ([]string, error)
+	GetCategoryCount(ctx context.Context) (int64, error)
+	GetCategoryLastSync(ctx context.Context) (interface{}, error)
 	GetCategorySums(ctx context.Context, month int64) ([]GetCategorySumsRow, error)
 	GetExpense(ctx context.Context, id int64) (Expense, error)
 	GetExpensesByMonth(ctx context.Context, month int64) ([]Expense, error)
@@ -20,6 +23,8 @@ type Querier interface {
 	GetPendingSyncExpenses(ctx context.Context, limit int64) ([]GetPendingSyncExpensesRow, error)
 	MarkExpenseSyncError(ctx context.Context, id int64) error
 	MarkExpenseSynced(ctx context.Context, id int64) error
+	RefreshCategories(ctx context.Context) error
+	UpsertCategory(ctx context.Context, arg UpsertCategoryParams) error
 }
 
 var _ Querier = (*Queries)(nil)
