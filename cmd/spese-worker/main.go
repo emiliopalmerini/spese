@@ -57,6 +57,13 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// On startup, process any pending expenses that might have been missed
+	logger.Info("Performing startup sync check...")
+	if err := syncWorker.StartupSyncCheck(ctx); err != nil {
+		logger.Error("Failed startup sync check", "error", err)
+		// Don't exit - continue with normal operation
+	}
+
 	// Start message consumption
 	go func() {
 		if err := amqpClient.ConsumeExpenseSync(ctx, syncWorker.HandleSyncMessage); err != nil {
