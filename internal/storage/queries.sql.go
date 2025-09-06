@@ -10,6 +10,29 @@ import (
 	"database/sql"
 )
 
+const createCategory = `-- name: CreateCategory :one
+INSERT INTO categories (name, type)
+VALUES (?, ?)
+RETURNING id, name, type, created_at
+`
+
+type CreateCategoryParams struct {
+	Name string `db:"name" json:"name"`
+	Type string `db:"type" json:"type"`
+}
+
+func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error) {
+	row := q.db.QueryRowContext(ctx, createCategory, arg.Name, arg.Type)
+	var i Category
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Type,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createExpense = `-- name: CreateExpense :one
 INSERT INTO expenses (day, month, description, amount_cents, primary_category, secondary_category)
 VALUES (?, ?, ?, ?, ?, ?)
@@ -49,6 +72,49 @@ func (q *Queries) CreateExpense(ctx context.Context, arg CreateExpenseParams) (E
 		&i.SyncStatus,
 	)
 	return i, err
+}
+
+const deleteCategory = `-- name: DeleteCategory :exec
+DELETE FROM categories WHERE name = ? AND type = ?
+`
+
+type DeleteCategoryParams struct {
+	Name string `db:"name" json:"name"`
+	Type string `db:"type" json:"type"`
+}
+
+func (q *Queries) DeleteCategory(ctx context.Context, arg DeleteCategoryParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCategory, arg.Name, arg.Type)
+	return err
+}
+
+const getCategoriesByType = `-- name: GetCategoriesByType :many
+SELECT name FROM categories 
+WHERE type = ?
+ORDER BY name ASC
+`
+
+func (q *Queries) GetCategoriesByType(ctx context.Context, type_ string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getCategoriesByType, type_)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getCategorySums = `-- name: GetCategorySums :many

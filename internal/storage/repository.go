@@ -82,21 +82,19 @@ func (r *SQLiteRepository) Append(ctx context.Context, e core.Expense) (string, 
 
 // List implements sheets.TaxonomyReader
 func (r *SQLiteRepository) List(ctx context.Context) ([]string, []string, error) {
-	// For now, return hardcoded categories since we don't store them in SQLite
-	// In futuro, potremmo aggiungere una tabella categories
-	categories := []string{
-		"Alimentari", "Trasporti", "Casa", "Sanità", "Svago", 
-		"Vestiti", "Regali", "Tasse", "Investimenti", "Altro",
+	// Get primary categories from database
+	primaryCategories, err := r.queries.GetCategoriesByType(ctx, "primary")
+	if err != nil {
+		return nil, nil, fmt.Errorf("get primary categories: %w", err)
 	}
 	
-	subcategories := []string{
-		"Supermercato", "Ristorante", "Benzina", "Trasporto Pubblico",
-		"Affitto", "Bollette", "Medico", "Farmacia", "Cinema", 
-		"Hobby", "Abbigliamento", "Scarpe", "Compleanno", "Natale",
-		"IRPEF", "IMU", "Azioni", "Crypto", "Varie",
+	// Get secondary categories from database
+	secondaryCategories, err := r.queries.GetCategoriesByType(ctx, "secondary")
+	if err != nil {
+		return nil, nil, fmt.Errorf("get secondary categories: %w", err)
 	}
 	
-	return categories, subcategories, nil
+	return primaryCategories, secondaryCategories, nil
 }
 
 // ReadMonthOverview implements sheets.DashboardReader
@@ -202,6 +200,34 @@ func (r *SQLiteRepository) GetExpense(ctx context.Context, id int64) (*Expense, 
 		return nil, fmt.Errorf("get expense by id: %w", err)
 	}
 	return &expense, nil
+}
+
+// CreateCategory creates a new category of specified type
+func (r *SQLiteRepository) CreateCategory(ctx context.Context, name, categoryType string) error {
+	_, err := r.queries.CreateCategory(ctx, CreateCategoryParams{
+		Name: name,
+		Type: categoryType,
+	})
+	if err != nil {
+		return fmt.Errorf("create category: %w", err)
+	}
+	
+	slog.InfoContext(ctx, "Category created", "name", name, "type", categoryType)
+	return nil
+}
+
+// DeleteCategory removes a category by name and type
+func (r *SQLiteRepository) DeleteCategory(ctx context.Context, name, categoryType string) error {
+	err := r.queries.DeleteCategory(ctx, DeleteCategoryParams{
+		Name: name,
+		Type: categoryType,
+	})
+	if err != nil {
+		return fmt.Errorf("delete category: %w", err)
+	}
+	
+	slog.InfoContext(ctx, "Category deleted", "name", name, "type", categoryType)
+	return nil
 }
 
 // ExpenseWithID represents an expense with its database ID for sync operations

@@ -27,8 +27,7 @@ func NewSyncWorker(storage *storage.SQLiteRepository, sheets sheets.ExpenseWrite
 }
 
 // HandleSyncMessage processes a single expense sync message from AMQP
-func (w *SyncWorker) HandleSyncMessage(msg *amqp.ExpenseSyncMessage) error {
-	ctx := context.Background()
+func (w *SyncWorker) HandleSyncMessage(ctx context.Context, msg *amqp.ExpenseSyncMessage) error {
 	
 	slog.InfoContext(ctx, "Processing sync message", 
 		"id", msg.ID, 

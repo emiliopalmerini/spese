@@ -15,3 +15,13 @@ CREATE TABLE expenses (
 CREATE INDEX idx_expenses_month ON expenses(month, day);
 CREATE INDEX idx_expenses_sync_status ON expenses(sync_status);
 CREATE INDEX idx_expenses_created_at ON expenses(created_at);
+
+-- Categories table for dynamic category management
+CREATE TABLE categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    type TEXT NOT NULL CHECK (type IN ('primary', 'secondary')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_categories_type ON categories(type);

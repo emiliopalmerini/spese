@@ -148,15 +148,17 @@ type Server struct {
     overviewCache *lruCache[core.MonthOverview]
     itemsCache    *lruCache[[]core.Expense]
     
-    // Cache cleanup
+    // Cache cleanup management
     stopCacheCleanup chan struct{}
+    shutdownOnce     sync.Once
 }
 
 // Simple in-memory rate limiter
 type rateLimiter struct {
-	mu         sync.Mutex
-	clients    map[string]*clientInfo
-	stopCleanup chan struct{}
+	mu           sync.Mutex
+	clients      map[string]*clientInfo
+	stopCleanup  chan struct{}
+	shutdownOnce sync.Once
 }
 
 type clientInfo struct {
@@ -203,7 +205,11 @@ func (rl *rateLimiter) cleanupStaleEntries() {
 
 // stop gracefully shuts down the rate limiter cleanup goroutine
 func (rl *rateLimiter) stop() {
-	close(rl.stopCleanup)
+	rl.shutdownOnce.Do(func() {
+		if rl.stopCleanup != nil {
+			close(rl.stopCleanup)
+		}
+	})
 }
 
 // startCacheCleanup runs periodic cleanup for both caches
@@ -229,16 +235,25 @@ func (s *Server) startCacheCleanup() {
 
 // Shutdown gracefully shuts down the server and cleanup routines
 func (s *Server) Shutdown(ctx context.Context) error {
-	// Stop cache cleanup
-	close(s.stopCacheCleanup)
+	var shutdownErr error
 	
-	// Stop rate limiter cleanup
-	if s.rateLimiter != nil {
-		s.rateLimiter.stop()
-	}
+	// Ensure shutdown logic runs only once
+	s.shutdownOnce.Do(func() {
+		// Stop cache cleanup goroutine
+		if s.stopCacheCleanup != nil {
+			close(s.stopCacheCleanup)
+		}
+		
+		// Stop rate limiter cleanup goroutine  
+		if s.rateLimiter != nil {
+			s.rateLimiter.stop()
+		}
+		
+		// Shutdown HTTP server
+		shutdownErr = s.Server.Shutdown(ctx)
+	})
 	
-	// Shutdown HTTP server
-	return s.Server.Shutdown(ctx)
+	return shutdownErr
 }
 
 func (rl *rateLimiter) allow(clientIP string) bool {

@@ -333,7 +333,7 @@ func isConnectionError(err error) bool {
 }
 
 // ConsumeExpenseSync consumes expense sync messages
-func (c *Client) ConsumeExpenseSync(ctx context.Context, handler func(*ExpenseSyncMessage) error) error {
+func (c *Client) ConsumeExpenseSync(ctx context.Context, handler func(context.Context, *ExpenseSyncMessage) error) error {
 	msgs, err := c.channel.Consume(
 		c.queueName, // queue
 		"",          // consumer
@@ -370,7 +370,7 @@ func (c *Client) ConsumeExpenseSync(ctx context.Context, handler func(*ExpenseSy
 				"id", msg.ID, 
 				"version", msg.Version)
 
-			if err := handler(msg); err != nil {
+			if err := handler(ctx, msg); err != nil {
 				slog.ErrorContext(ctx, "Failed to handle message", 
 					"error", err, 
 					"id", msg.ID, 

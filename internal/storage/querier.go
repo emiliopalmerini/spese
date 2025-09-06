@@ -9,7 +9,10 @@ import (
 )
 
 type Querier interface {
+	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateExpense(ctx context.Context, arg CreateExpenseParams) (Expense, error)
+	DeleteCategory(ctx context.Context, arg DeleteCategoryParams) error
+	GetCategoriesByType(ctx context.Context, type_ string) ([]string, error)
 	GetCategorySums(ctx context.Context, month int64) ([]GetCategorySumsRow, error)
 	GetExpense(ctx context.Context, id int64) (Expense, error)
 	GetExpensesByMonth(ctx context.Context, month int64) ([]Expense, error)

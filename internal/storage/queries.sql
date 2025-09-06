@@ -38,3 +38,16 @@ WHERE id = ?;
 
 -- name: GetExpense :one
 SELECT * FROM expenses WHERE id = ?;
+
+-- name: GetCategoriesByType :many
+SELECT name FROM categories 
+WHERE type = ?
+ORDER BY name ASC;
+
+-- name: CreateCategory :one
+INSERT INTO categories (name, type)
+VALUES (?, ?)
+RETURNING id, name, type, created_at;
+
+-- name: DeleteCategory :exec
+DELETE FROM categories WHERE name = ? AND type = ?;
