@@ -52,7 +52,7 @@ func (q *Queries) CreateExpense(ctx context.Context, arg CreateExpenseParams) (E
 }
 
 const getCategorySums = `-- name: GetCategorySums :many
-SELECT primary_category, SUM(amount_cents) as total_amount
+SELECT primary_category, CAST(SUM(amount_cents) AS INTEGER) as total_amount
 FROM expenses 
 WHERE month = ?
 GROUP BY primary_category
@@ -60,8 +60,8 @@ ORDER BY total_amount DESC
 `
 
 type GetCategorySumsRow struct {
-	PrimaryCategory string          `db:"primary_category" json:"primary_category"`
-	TotalAmount     sql.NullFloat64 `db:"total_amount" json:"total_amount"`
+	PrimaryCategory string `db:"primary_category" json:"primary_category"`
+	TotalAmount     int64  `db:"total_amount" json:"total_amount"`
 }
 
 func (q *Queries) GetCategorySums(ctx context.Context, month int64) ([]GetCategorySumsRow, error) {
@@ -152,14 +152,14 @@ func (q *Queries) GetExpensesByMonth(ctx context.Context, month int64) ([]Expens
 }
 
 const getMonthTotal = `-- name: GetMonthTotal :one
-SELECT COALESCE(SUM(amount_cents), 0) as total
+SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) as total
 FROM expenses 
 WHERE month = ?
 `
 
-func (q *Queries) GetMonthTotal(ctx context.Context, month int64) (interface{}, error) {
+func (q *Queries) GetMonthTotal(ctx context.Context, month int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getMonthTotal, month)
-	var total interface{}
+	var total int64
 	err := row.Scan(&total)
 	return total, err
 }

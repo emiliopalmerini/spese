@@ -112,7 +112,7 @@ func (r *SQLiteRepository) ReadMonthOverview(ctx context.Context, year int, mont
 		return overview, fmt.Errorf("get month total: %w", err)
 	}
 	
-	overview.Total = core.Money{Cents: total.(int64)}
+	overview.Total = core.Money{Cents: total}
 
 	// Get category sums
 	categorySums, err := r.queries.GetCategorySums(ctx, int64(month))
@@ -123,7 +123,7 @@ func (r *SQLiteRepository) ReadMonthOverview(ctx context.Context, year int, mont
 	for _, cs := range categorySums {
 		overview.ByCategory = append(overview.ByCategory, core.CategoryAmount{
 			Name:   cs.PrimaryCategory,
-			Amount: core.Money{Cents: int64(cs.TotalAmount.Float64)},
+			Amount: core.Money{Cents: cs.TotalAmount},
 		})
 	}
 

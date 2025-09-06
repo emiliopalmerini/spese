@@ -9,12 +9,12 @@ WHERE month = ?
 ORDER BY day DESC, created_at DESC;
 
 -- name: GetMonthTotal :one
-SELECT COALESCE(SUM(amount_cents), 0) as total
+SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) as total
 FROM expenses 
 WHERE month = ?;
 
 -- name: GetCategorySums :many
-SELECT primary_category, SUM(amount_cents) as total_amount
+SELECT primary_category, CAST(SUM(amount_cents) AS INTEGER) as total_amount
 FROM expenses 
 WHERE month = ?
 GROUP BY primary_category
