@@ -13,7 +13,7 @@ type Querier interface {
 	GetCategorySums(ctx context.Context, month int64) ([]GetCategorySumsRow, error)
 	GetExpense(ctx context.Context, id int64) (Expense, error)
 	GetExpensesByMonth(ctx context.Context, month int64) ([]Expense, error)
-	GetMonthTotal(ctx context.Context, month int64) (interface{}, error)
+	GetMonthTotal(ctx context.Context, month int64) (int64, error)
 	GetPendingSyncExpenses(ctx context.Context, limit int64) ([]GetPendingSyncExpensesRow, error)
 	MarkExpenseSyncError(ctx context.Context, id int64) error
 	MarkExpenseSynced(ctx context.Context, id int64) error
