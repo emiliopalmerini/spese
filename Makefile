@@ -1,10 +1,12 @@
 APP_NAME := spese
+WORKER_NAME := spese-worker
 PKG := ./...
 BIN := bin/$(APP_NAME)
+WORKER_BIN := bin/$(WORKER_NAME)
 
-.PHONY: all setup tidy fmt vet lint test build run clean docker-build docker-up docker-logs docker-down up smoke cover oauth-init
+.PHONY: all setup tidy fmt vet lint test build build-worker build-all run run-worker clean docker-build docker-up docker-logs docker-down up smoke cover oauth-init sqlc-generate
 
-all: build
+all: build-all
 
 setup:
 	@echo "Nothing to setup locally yet. Optionally: pre-commit install"
@@ -28,8 +30,20 @@ test:
 build:
 	CGO_ENABLED=0 go build -ldflags='-s -w' -o $(BIN) ./cmd/spese
 
+build-worker:
+	CGO_ENABLED=0 go build -ldflags='-s -w' -o $(WORKER_BIN) ./cmd/spese-worker
+
+build-all: build build-worker
+
 run:
 	go run ./cmd/spese
+
+run-worker:
+	go run ./cmd/spese-worker
+
+sqlc-generate:
+	@echo "Generating sqlc code..."
+	sqlc generate
 
 clean:
 	rm -rf bin
@@ -46,7 +60,7 @@ docker-logs:
 docker-down:
 	docker compose down
 
-up: fmt build vet test docker-up
+up: fmt build-all vet test docker-up
 	@echo "Formatted, built, vetted, tested, and started containers."
 
 smoke:

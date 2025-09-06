@@ -195,6 +195,15 @@ func (r *SQLiteRepository) MarkSyncError(ctx context.Context, id int64) error {
 	return nil
 }
 
+// GetExpense retrieves a single expense by ID
+func (r *SQLiteRepository) GetExpense(ctx context.Context, id int64) (*Expense, error) {
+	expense, err := r.queries.GetExpense(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get expense by id: %w", err)
+	}
+	return &expense, nil
+}
+
 // ExpenseWithID represents an expense with its database ID for sync operations
 type ExpenseWithID struct {
 	ID        int64

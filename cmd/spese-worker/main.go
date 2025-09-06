@@ -1,0 +1,113 @@
+package main
+
+import (
+	"context"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"spese/internal/amqp"
+	"spese/internal/config"
+	gsheet "spese/internal/sheets/google"
+	"spese/internal/storage"
+	"spese/internal/worker"
+)
+
+func main() {
+	// Setup structured logging
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	slog.SetDefault(logger)
+
+	logger.Info("Starting spese-worker")
+
+	// Load configuration
+	cfg := config.Load()
+
+	// Initialize SQLite repository to read pending expenses
+	sqliteRepo, err := storage.NewSQLiteRepository(cfg.SQLiteDBPath)
+	if err != nil {
+		logger.Error("Failed to initialize SQLite repository", "error", err, "path", cfg.SQLiteDBPath)
+		os.Exit(1)
+	}
+	defer sqliteRepo.Close()
+
+	// Initialize Google Sheets client for sync operations
+	sheetsClient, err := gsheet.NewFromEnv(context.Background())
+	if err != nil {
+		logger.Error("Failed to initialize Google Sheets client", "error", err)
+		os.Exit(1)
+	}
+
+	// Initialize AMQP client for consuming messages
+	amqpClient, err := amqp.NewClient(cfg.AMQPURL, cfg.AMQPExchange, cfg.AMQPQueue)
+	if err != nil {
+		logger.Error("Failed to initialize AMQP client", "error", err)
+		os.Exit(1)
+	}
+	defer amqpClient.Close()
+
+	// Create sync worker
+	syncWorker := worker.NewSyncWorker(sqliteRepo, sheetsClient, cfg.SyncBatchSize)
+
+	// Setup graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start message consumption
+	go func() {
+		if err := amqpClient.ConsumeExpenseSync(ctx, syncWorker.HandleSyncMessage); err != nil {
+			if err != context.Canceled {
+				logger.Error("Message consumption failed", "error", err)
+			}
+			cancel()
+		}
+	}()
+
+	// Setup periodic sync for any missed messages
+	ticker := time.NewTicker(cfg.SyncInterval)
+	defer ticker.Stop()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := syncWorker.ProcessPendingExpenses(ctx); err != nil {
+					logger.Error("Periodic sync failed", "error", err)
+				}
+			}
+		}
+	}()
+
+	// Handle shutdown signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case sig := <-sigChan:
+		logger.Info("Shutdown signal received", "signal", sig.String())
+	case <-ctx.Done():
+		logger.Info("Context cancelled")
+	}
+
+	// Graceful shutdown
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	// Give worker time to finish current operations
+	logger.Info("Shutting down worker...")
+	cancel()
+
+	// Wait for shutdown or timeout
+	select {
+	case <-shutdownCtx.Done():
+		logger.Warn("Shutdown timeout reached")
+	case <-time.After(5 * time.Second):
+		logger.Info("Worker shutdown complete")
+	}
+}
