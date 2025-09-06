@@ -894,7 +894,7 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := exp.Validate(); err != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`<div class="error">Dati non validi: ` + template.HTMLEscapeString(err.Error()) + `</div>`))
+		_, _ = w.Write([]byte(`<div class="error">Invalid data: ` + template.HTMLEscapeString(err.Error()) + `</div>`))
 		return
 	}
 
@@ -909,7 +909,7 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 			"component", "expense_writer",
 			"operation", "append")
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`<div class="error">Errore nel salvataggio</div>`))
+		_, _ = w.Write([]byte(`<div class="error">Error saving expense</div>`))
 		return
 	}
 	
@@ -1048,7 +1048,7 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
     ov, err := s.getOverview(r.Context(), year, month)
     if err != nil {
         slog.ErrorContext(r.Context(), "Month overview error", "error", err, "year", year, "month", month)
-        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Errore caricando panoramica</div></section>`))
+        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Error loading overview</div></section>`))
         return
     }
     if s.templates == nil {
@@ -1117,7 +1117,7 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
     }
     if err := s.templates.ExecuteTemplate(w, "month_overview.html", data); err != nil {
         slog.ErrorContext(r.Context(), "Template execution error", "error", err, "template", "month_overview.html", "year", year, "month", month)
-        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Errore rendering panoramica</div></section>`))
+        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Error rendering overview</div></section>`))
         return
     }
 }

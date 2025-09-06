@@ -1,8 +1,8 @@
 # One subcategory per line
-Generale
-Supermercato
-Ristorante
-Abbonamenti
-Carburante
-Farmacia
+General
+Grocery store
+Restaurant
+Subscriptions
+Fuel
+Pharmacy
 
