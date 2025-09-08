@@ -61,34 +61,34 @@ func main() {
 	})
 	go func() { _ = srv.ListenAndServe() }()
 
-    // Force user consent to ensure a refresh_token is returned.
-    // Google only returns a refresh_token the first time unless prompt=consent.
-    url := cfg.AuthCodeURL(
-        "state-token",
-        oauth2.AccessTypeOffline,
-        oauth2.SetAuthURLParam("prompt", "consent"),
-        oauth2.SetAuthURLParam("include_granted_scopes", "true"),
-    )
+	// Force user consent to ensure a refresh_token is returned.
+	// Google only returns a refresh_token the first time unless prompt=consent.
+	url := cfg.AuthCodeURL(
+		"state-token",
+		oauth2.AccessTypeOffline,
+		oauth2.SetAuthURLParam("prompt", "consent"),
+		oauth2.SetAuthURLParam("include_granted_scopes", "true"),
+	)
 	fmt.Printf("Open this URL to authorize:\n%s\n", url)
 
 	// Wait for code
 	select {
-    case code := <-codeCh:
-        tok, err := cfg.Exchange(context.Background(), code)
-        if err != nil {
-            log.Fatalf("token exchange: %v", err)
-        }
-        if tok.RefreshToken == "" {
-            // Warn loudly because the app relies on refresh token for long-lived access
-            fmt.Println("WARNING: OAuth token does not include refresh_token.")
-            fmt.Println("Ensure 'Access type: offline' and 'prompt=consent' were applied.")
-            fmt.Println("If this persists, remove previous consent for this app and retry.")
-        }
-        // Save token
-        outFile := os.Getenv("GOOGLE_OAUTH_TOKEN_FILE")
-        if outFile == "" {
-            outFile = "token.json"
-        }
+	case code := <-codeCh:
+		tok, err := cfg.Exchange(context.Background(), code)
+		if err != nil {
+			log.Fatalf("token exchange: %v", err)
+		}
+		if tok.RefreshToken == "" {
+			// Warn loudly because the app relies on refresh token for long-lived access
+			fmt.Println("WARNING: OAuth token does not include refresh_token.")
+			fmt.Println("Ensure 'Access type: offline' and 'prompt=consent' were applied.")
+			fmt.Println("If this persists, remove previous consent for this app and retry.")
+		}
+		// Save token
+		outFile := os.Getenv("GOOGLE_OAUTH_TOKEN_FILE")
+		if outFile == "" {
+			outFile = "token.json"
+		}
 		f, err := os.OpenFile(outFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 		if err != nil {
 			log.Fatalf("open token file: %v", err)

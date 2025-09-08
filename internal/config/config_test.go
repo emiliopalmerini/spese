@@ -27,12 +27,12 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "valid sqlite backend config",
 			config: Config{
-				Port:         "8081",
-				DataBackend:  "sqlite",
-				SQLiteDBPath: "./test.db",
-				AMQPURL:      "amqp://guest:guest@localhost:5672/",
-				AMQPExchange: "test_exchange",
-				AMQPQueue:    "test_queue",
+				Port:          "8081",
+				DataBackend:   "sqlite",
+				SQLiteDBPath:  "./test.db",
+				AMQPURL:       "amqp://guest:guest@localhost:5672/",
+				AMQPExchange:  "test_exchange",
+				AMQPQueue:     "test_queue",
 				SyncBatchSize: 5,
 				SyncInterval:  15 * time.Second,
 			},
@@ -183,13 +183,13 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "sheets backend missing OAuth client",
 			config: Config{
-				Port:                "8080",
-				DataBackend:         "sheets",
-				GoogleSpreadsheetID: "123456789",
-				GoogleSheetName:     "Expenses",
+				Port:                 "8080",
+				DataBackend:          "sheets",
+				GoogleSpreadsheetID:  "123456789",
+				GoogleSheetName:      "Expenses",
 				GoogleOAuthTokenJSON: "{}",
-				SyncBatchSize:       10,
-				SyncInterval:        30 * time.Second,
+				SyncBatchSize:        10,
+				SyncInterval:         30 * time.Second,
 			},
 			wantErr:     true,
 			errorString: "either GOOGLE_OAUTH_CLIENT_FILE or GOOGLE_OAUTH_CLIENT_JSON must be provided for sheets backend",
@@ -277,11 +277,11 @@ func TestConfig_Validate(t *testing.T) {
 func TestConfig_ValidateWithFiles(t *testing.T) {
 	// Create temp directory for test files
 	tmpDir := t.TempDir()
-	
+
 	// Create test OAuth files
 	clientFile := filepath.Join(tmpDir, "client.json")
 	tokenFile := filepath.Join(tmpDir, "token.json")
-	
+
 	if err := os.WriteFile(clientFile, []byte(`{"client_id":"test"}`), 0644); err != nil {
 		t.Fatalf("Failed to create test client file: %v", err)
 	}
@@ -325,14 +325,14 @@ func TestConfig_ValidateWithFiles(t *testing.T) {
 		{
 			name: "sheets backend with non-existent token file",
 			config: Config{
-				Port:                 "8080",
-				DataBackend:          "sheets",
-				GoogleSpreadsheetID:  "123456789",
-				GoogleSheetName:      "Expenses",
+				Port:                  "8080",
+				DataBackend:           "sheets",
+				GoogleSpreadsheetID:   "123456789",
+				GoogleSheetName:       "Expenses",
 				GoogleOAuthClientJSON: "{}",
-				GoogleOAuthTokenFile: "/non/existent/file.json",
-				SyncBatchSize:        10,
-				SyncInterval:         30 * time.Second,
+				GoogleOAuthTokenFile:  "/non/existent/file.json",
+				SyncBatchSize:         10,
+				SyncInterval:          30 * time.Second,
 			},
 			wantErr: true,
 		},
@@ -351,19 +351,19 @@ func TestConfig_ValidateWithFiles(t *testing.T) {
 func TestLoad(t *testing.T) {
 	// Save original env vars
 	originalVars := map[string]string{
-		"PORT":               os.Getenv("PORT"),
-		"DATA_BACKEND":       os.Getenv("DATA_BACKEND"),
-		"SQLITE_DB_PATH":     os.Getenv("SQLITE_DB_PATH"),
-		"AMQP_URL":           os.Getenv("AMQP_URL"),
-		"SYNC_BATCH_SIZE":    os.Getenv("SYNC_BATCH_SIZE"),
-		"SYNC_INTERVAL":      os.Getenv("SYNC_INTERVAL"),
+		"PORT":            os.Getenv("PORT"),
+		"DATA_BACKEND":    os.Getenv("DATA_BACKEND"),
+		"SQLITE_DB_PATH":  os.Getenv("SQLITE_DB_PATH"),
+		"AMQP_URL":        os.Getenv("AMQP_URL"),
+		"SYNC_BATCH_SIZE": os.Getenv("SYNC_BATCH_SIZE"),
+		"SYNC_INTERVAL":   os.Getenv("SYNC_INTERVAL"),
 	}
-	
+
 	// Clean environment
 	for key := range originalVars {
 		os.Unsetenv(key)
 	}
-	
+
 	// Restore env vars at end of test
 	defer func() {
 		for key, value := range originalVars {
@@ -377,7 +377,7 @@ func TestLoad(t *testing.T) {
 
 	t.Run("default values", func(t *testing.T) {
 		cfg := Load()
-		
+
 		if cfg.Port != "8081" {
 			t.Errorf("Load() Port = %v, want 8081", cfg.Port)
 		}
@@ -402,9 +402,9 @@ func TestLoad(t *testing.T) {
 		os.Setenv("AMQP_URL", "amqp://test:test@localhost:5672/")
 		os.Setenv("SYNC_BATCH_SIZE", "25")
 		os.Setenv("SYNC_INTERVAL", "45s")
-		
+
 		cfg := Load()
-		
+
 		if cfg.Port != "9090" {
 			t.Errorf("Load() Port = %v, want 9090", cfg.Port)
 		}
@@ -428,9 +428,9 @@ func TestLoad(t *testing.T) {
 	t.Run("invalid environment variables use defaults", func(t *testing.T) {
 		os.Setenv("SYNC_BATCH_SIZE", "invalid")
 		os.Setenv("SYNC_INTERVAL", "invalid")
-		
+
 		cfg := Load()
-		
+
 		if cfg.SyncBatchSize != 10 {
 			t.Errorf("Load() SyncBatchSize = %v, want 10 (default for invalid input)", cfg.SyncBatchSize)
 		}

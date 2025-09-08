@@ -117,9 +117,9 @@ func TestIntegration_GoogleSheetsFlow(t *testing.T) {
 			return
 		}
 
-		t.Logf("Month overview for %d/%d: Total=€%.2f, Categories=%d", 
-			overview.Year, overview.Month, 
-			float64(overview.Total.Cents)/100, 
+		t.Logf("Month overview for %d/%d: Total=€%.2f, Categories=%d",
+			overview.Year, overview.Month,
+			float64(overview.Total.Cents)/100,
 			len(overview.ByCategory))
 
 		// Validate overview structure
@@ -143,7 +143,7 @@ func TestIntegration_GoogleSheetsFlow(t *testing.T) {
 		}
 
 		if len(overview.ByCategory) > 0 && overview.Total.Cents != categorySum {
-			t.Errorf("Total (%d cents) doesn't match sum of categories (%d cents)", 
+			t.Errorf("Total (%d cents) doesn't match sum of categories (%d cents)",
 				overview.Total.Cents, categorySum)
 		}
 	})
@@ -291,7 +291,7 @@ func TestIntegration_SheetNaming(t *testing.T) {
 	for _, tt := range tests {
 		got := yearPrefixedName(tt.baseName, tt.year)
 		if got != tt.expected {
-			t.Errorf("yearPrefixedName(%q, %d) = %q, want %q", 
+			t.Errorf("yearPrefixedName(%q, %d) = %q, want %q",
 				tt.baseName, tt.year, got, tt.expected)
 		}
 	}
@@ -306,11 +306,11 @@ func TestIntegration_ConfigurationVariations(t *testing.T) {
 
 	// Save original environment
 	origVars := map[string]string{
-		"GOOGLE_SHEET_NAME":              os.Getenv("GOOGLE_SHEET_NAME"),
-		"GOOGLE_CATEGORIES_SHEET_NAME":   os.Getenv("GOOGLE_CATEGORIES_SHEET_NAME"),
+		"GOOGLE_SHEET_NAME":               os.Getenv("GOOGLE_SHEET_NAME"),
+		"GOOGLE_CATEGORIES_SHEET_NAME":    os.Getenv("GOOGLE_CATEGORIES_SHEET_NAME"),
 		"GOOGLE_SUBCATEGORIES_SHEET_NAME": os.Getenv("GOOGLE_SUBCATEGORIES_SHEET_NAME"),
-		"DASHBOARD_SHEET_NAME":           os.Getenv("DASHBOARD_SHEET_NAME"),
-		"DASHBOARD_SHEET_PREFIX":         os.Getenv("DASHBOARD_SHEET_PREFIX"),
+		"DASHBOARD_SHEET_NAME":            os.Getenv("DASHBOARD_SHEET_NAME"),
+		"DASHBOARD_SHEET_PREFIX":          os.Getenv("DASHBOARD_SHEET_PREFIX"),
 	}
 	defer func() {
 		for k, v := range origVars {
@@ -329,20 +329,20 @@ func TestIntegration_ConfigurationVariations(t *testing.T) {
 		{
 			name: "DefaultNames",
 			config: map[string]string{
-				"GOOGLE_SHEET_NAME":              "",
-				"GOOGLE_CATEGORIES_SHEET_NAME":   "",
+				"GOOGLE_SHEET_NAME":               "",
+				"GOOGLE_CATEGORIES_SHEET_NAME":    "",
 				"GOOGLE_SUBCATEGORIES_SHEET_NAME": "",
-				"DASHBOARD_SHEET_NAME":           "",
-				"DASHBOARD_SHEET_PREFIX":         "",
+				"DASHBOARD_SHEET_NAME":            "",
+				"DASHBOARD_SHEET_PREFIX":          "",
 			},
 		},
 		{
 			name: "CustomNames",
 			config: map[string]string{
-				"GOOGLE_SHEET_NAME":              "MyExpenses",
-				"GOOGLE_CATEGORIES_SHEET_NAME":   "MyCategories",
+				"GOOGLE_SHEET_NAME":               "MyExpenses",
+				"GOOGLE_CATEGORIES_SHEET_NAME":    "MyCategories",
 				"GOOGLE_SUBCATEGORIES_SHEET_NAME": "MySubcategories",
-				"DASHBOARD_SHEET_NAME":           "MyDashboard",
+				"DASHBOARD_SHEET_NAME":            "MyDashboard",
 			},
 		},
 		{
@@ -377,7 +377,7 @@ func TestIntegration_ConfigurationVariations(t *testing.T) {
 
 			// Verify client was created with expected sheet names
 			currentYear := time.Now().Year()
-			
+
 			if tc.config["GOOGLE_SHEET_NAME"] != "" {
 				expected := yearPrefixedName(tc.config["GOOGLE_SHEET_NAME"], currentYear)
 				if client.expensesSheet != expected {

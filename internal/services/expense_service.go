@@ -41,7 +41,7 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, e core.Expense) (str
 
 	// Publish async sync message (non-blocking, version 1 for new expense)
 	if err := s.publishSyncMessage(ctx, id, 1); err != nil {
-		slog.ErrorContext(ctx, "Failed to publish sync message", 
+		slog.ErrorContext(ctx, "Failed to publish sync message",
 			"id", id, "error", err)
 		// Don't fail the request - expense is saved locally
 	}
@@ -61,22 +61,22 @@ func (s *ExpenseService) publishSyncMessage(ctx context.Context, id, version int
 // Close closes both storage and AMQP connections
 func (s *ExpenseService) Close() error {
 	var errs []error
-	
+
 	if s.storage != nil {
 		if err := s.storage.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("storage: %w", err))
 		}
 	}
-	
+
 	if s.amqpClient != nil {
 		if err := s.amqpClient.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("amqp: %w", err))
 		}
 	}
-	
+
 	if len(errs) > 0 {
 		return fmt.Errorf("close expense service: %v", errs)
 	}
-	
+
 	return nil
 }

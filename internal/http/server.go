@@ -1,7 +1,6 @@
 package http
 
 import (
-	"container/list"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -24,306 +23,183 @@ import (
 	appweb "spese/web"
 )
 
-// LRU cache with TTL and size-based eviction
-type lruCache[T any] struct {
-	mu       sync.Mutex
-	maxSize  int
-	ttl      time.Duration
-	items    map[string]*list.Element
-	lru      *list.List
-}
-
-type cacheItem[T any] struct {
-	key       string
-	data      T
-	expiresAt time.Time
-}
-
-func newLRUCache[T any](maxSize int, ttl time.Duration) *lruCache[T] {
-	return &lruCache[T]{
-		maxSize: maxSize,
-		ttl:     ttl,
-		items:   make(map[string]*list.Element),
-		lru:     list.New(),
-	}
-}
-
-func (c *lruCache[T]) Get(key string) (T, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	var zero T
-	elem, exists := c.items[key]
-	if !exists {
-		return zero, false
-	}
-
-	item := elem.Value.(*cacheItem[T])
-	
-	// Check if expired
-	if time.Now().After(item.expiresAt) {
-		c.removeElement(elem)
-		return zero, false
-	}
-
-	// Move to front (most recently used)
-	c.lru.MoveToFront(elem)
-	return item.data, true
-}
-
-func (c *lruCache[T]) Set(key string, data T) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	now := time.Now()
-	item := &cacheItem[T]{
-		key:       key,
-		data:      data,
-		expiresAt: now.Add(c.ttl),
-	}
-
-	// Check if key already exists
-	if elem, exists := c.items[key]; exists {
-		elem.Value = item
-		c.lru.MoveToFront(elem)
-		return
-	}
-
-	// Add new item
-	elem := c.lru.PushFront(item)
-	c.items[key] = elem
-
-	// Evict if over capacity
-	if c.lru.Len() > c.maxSize {
-		oldest := c.lru.Back()
-		if oldest != nil {
-			c.removeElement(oldest)
-		}
-	}
-}
-
-func (c *lruCache[T]) Delete(key string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if elem, exists := c.items[key]; exists {
-		c.removeElement(elem)
-	}
-}
-
-func (c *lruCache[T]) removeElement(elem *list.Element) {
-	item := elem.Value.(*cacheItem[T])
-	delete(c.items, item.key)
-	c.lru.Remove(elem)
-}
-
-// CleanExpired removes all expired entries
-func (c *lruCache[T]) CleanExpired() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	now := time.Now()
-	var toRemove []*list.Element
-	
-	for elem := c.lru.Front(); elem != nil; elem = elem.Next() {
-		item := elem.Value.(*cacheItem[T])
-		if now.After(item.expiresAt) {
-			toRemove = append(toRemove, elem)
-		}
-	}
-
-	for _, elem := range toRemove {
-		c.removeElement(elem)
-	}
-
-	return len(toRemove)
-}
-
 type Server struct {
-    http.Server
-    templates   *template.Template
-    expWriter   sheets.ExpenseWriter
-    taxReader   sheets.TaxonomyReader
-    dashReader  sheets.DashboardReader
-    expLister   sheets.ExpenseLister
-    rateLimiter *rateLimiter
+	http.Server
+	templates   *template.Template
+	expWriter   sheets.ExpenseWriter
+	taxReader   sheets.TaxonomyReader
+	dashReader  sheets.DashboardReader
+	expLister   sheets.ExpenseLister
+	rateLimiter *rateLimiter
 
-    // LRU cache for month overviews with eviction policy
-    overviewCache *lruCache[core.MonthOverview]
-    itemsCache    *lruCache[[]core.Expense]
-    
-    // Cache cleanup management
-    stopCacheCleanup chan struct{}
-    shutdownOnce     sync.Once
-    
-    // Security and application metrics
-    metrics    *securityMetrics
-    appMetrics *applicationMetrics
+	shutdownOnce sync.Once
+
+	// Security and application metrics
+	metrics    *securityMetrics
+	appMetrics *applicationMetrics
 }
 
 // securityMetrics tracks security-related events
 type securityMetrics struct {
-    rateLimitHits     int64
-    invalidIPAttempts int64
-    suspiciousRequests int64
+	rateLimitHits      int64
+	invalidIPAttempts  int64
+	suspiciousRequests int64
 }
 
 // applicationMetrics tracks application performance and usage
 type applicationMetrics struct {
-    totalRequests       int64
-    totalExpenses       int64
-    cacheHits          int64
-    cacheMisses        int64
-    averageResponseTime int64  // in microseconds
-    uptime             time.Time
+	totalRequests       int64
+	totalExpenses       int64
+	averageResponseTime int64 // in microseconds
+	uptime              time.Time
 }
 
 // Trusted proxy networks (common reverse proxies)
 var trustedProxies = []*net.IPNet{
-    parsecidr("127.0.0.0/8"),   // localhost
-    parsecidr("10.0.0.0/8"),    // private networks
-    parsecidr("172.16.0.0/12"), // private networks  
-    parsecidr("192.168.0.0/16"), // private networks
+	parsecidr("127.0.0.0/8"),    // localhost
+	parsecidr("10.0.0.0/8"),     // private networks
+	parsecidr("172.16.0.0/12"),  // private networks
+	parsecidr("192.168.0.0/16"), // private networks
 }
 
 // parsecidr is a helper to parse CIDR during initialization
 func parsecidr(cidr string) *net.IPNet {
-    _, network, err := net.ParseCIDR(cidr)
-    if err != nil {
-        panic(fmt.Sprintf("failed to parse trusted proxy CIDR %s: %v", cidr, err))
-    }
-    return network
+	_, network, err := net.ParseCIDR(cidr)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse trusted proxy CIDR %s: %v", cidr, err))
+	}
+	return network
 }
 
 // isTrustedProxy checks if an IP is from a trusted proxy
 func isTrustedProxy(ip net.IP) bool {
-    for _, network := range trustedProxies {
-        if network.Contains(ip) {
-            return true
-        }
-    }
-    return false
+	for _, network := range trustedProxies {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // extractClientIP extracts the real client IP, validating forwarded headers
 func extractClientIP(r *http.Request) string {
-    // Start with the direct connection IP
-    directIP, _, err := net.SplitHostPort(r.RemoteAddr)
-    if err != nil {
-        // If parsing fails, use RemoteAddr as-is (fallback)
-        directIP = r.RemoteAddr
-    }
-    
-    parsedDirectIP := net.ParseIP(directIP)
-    if parsedDirectIP == nil {
-        return directIP // Fallback to original if parsing fails
-    }
-    
-    // If direct connection is from trusted proxy, check forwarded headers
-    if isTrustedProxy(parsedDirectIP) {
-        // Check X-Forwarded-For header (most common)
-        if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-            // X-Forwarded-For can contain multiple IPs, take the first one
-            ips := strings.Split(xff, ",")
-            if len(ips) > 0 {
-                clientIP := strings.TrimSpace(ips[0])
-                if parsedIP := net.ParseIP(clientIP); parsedIP != nil {
-                    return clientIP
-                }
-            }
-        }
-        
-        // Check X-Real-IP header (nginx)
-        if xri := r.Header.Get("X-Real-IP"); xri != "" {
-            if parsedIP := net.ParseIP(xri); parsedIP != nil {
-                return xri
-            }
-        }
-    }
-    
-    // Return direct IP if no valid forwarded IP found
-    return directIP
+	// Start with the direct connection IP
+	directIP, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		// If parsing fails, use RemoteAddr as-is (fallback)
+		directIP = r.RemoteAddr
+	}
+
+	parsedDirectIP := net.ParseIP(directIP)
+	if parsedDirectIP == nil {
+		return directIP // Fallback to original if parsing fails
+	}
+
+	// If direct connection is from trusted proxy, check forwarded headers
+	if isTrustedProxy(parsedDirectIP) {
+		// Check X-Forwarded-For header (most common)
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			// X-Forwarded-For can contain multiple IPs, take the first one
+			ips := strings.Split(xff, ",")
+			if len(ips) > 0 {
+				clientIP := strings.TrimSpace(ips[0])
+				if parsedIP := net.ParseIP(clientIP); parsedIP != nil {
+					return clientIP
+				}
+			}
+		}
+
+		// Check X-Real-IP header (nginx)
+		if xri := r.Header.Get("X-Real-IP"); xri != "" {
+			if parsedIP := net.ParseIP(xri); parsedIP != nil {
+				return xri
+			}
+		}
+	}
+
+	// Return direct IP if no valid forwarded IP found
+	return directIP
 }
 
 // GetSecurityMetrics returns current security metrics (useful for monitoring)
 func (s *Server) GetSecurityMetrics() (rateLimitHits, invalidIPAttempts, suspiciousRequests int64) {
-    return atomic.LoadInt64(&s.metrics.rateLimitHits),
-           atomic.LoadInt64(&s.metrics.invalidIPAttempts),
-           atomic.LoadInt64(&s.metrics.suspiciousRequests)
+	return atomic.LoadInt64(&s.metrics.rateLimitHits),
+		atomic.LoadInt64(&s.metrics.invalidIPAttempts),
+		atomic.LoadInt64(&s.metrics.suspiciousRequests)
 }
 
 // detectSuspiciousRequest analyzes request patterns for potential threats
 func detectSuspiciousRequest(r *http.Request, metrics *securityMetrics) bool {
-    suspicious := false
-    
-    // Check for common attack patterns in URL path
-    path := strings.ToLower(r.URL.Path)
-    suspiciousPatterns := []string{
-        "../", "..\\", ".env", "wp-admin", "phpmyadmin", 
-        "admin.php", "config.php", ".git", ".ssh",
-        "eval(", "javascript:", "<script", "union select",
-        "base64", "0x", "etc/passwd", "cmd.exe",
-    }
-    
-    for _, pattern := range suspiciousPatterns {
-        if strings.Contains(path, pattern) {
-            suspicious = true
-            break
-        }
-    }
-    
-    // Check for suspicious query parameters
-    query := strings.ToLower(r.URL.RawQuery)
-    for _, pattern := range suspiciousPatterns {
-        if strings.Contains(query, pattern) {
-            suspicious = true
-            break
-        }
-    }
-    
-    // Check User-Agent for common bot patterns
-    userAgent := strings.ToLower(r.Header.Get("User-Agent"))
-    suspiciousAgents := []string{
-        "sqlmap", "nmap", "nikto", "gobuster", "dirb", 
-        "curl", "wget", "python-requests", "scanner",
-        "bot", "crawler", "spider", "scraper",
-    }
-    
-    for _, agent := range suspiciousAgents {
-        if strings.Contains(userAgent, agent) {
-            suspicious = true
-            break
-        }
-    }
-    
-    // Check for unusual HTTP methods
-    unusualMethods := []string{"TRACE", "TRACK", "DEBUG", "CONNECT"}
-    for _, method := range unusualMethods {
-        if r.Method == method {
-            suspicious = true
-            break
-        }
-    }
-    
-    // Check for excessively long URLs (possible overflow attempt)
-    if len(r.URL.String()) > 2048 {
-        suspicious = true
-    }
-    
-    // Check for suspicious headers
-    if r.Header.Get("X-Forwarded-For") != "" && r.Header.Get("X-Real-IP") != "" {
-        // Multiple forwarding headers might indicate header manipulation
-        xff := r.Header.Get("X-Forwarded-For")
-        if strings.Count(xff, ",") > 5 { // More than 5 proxy hops is suspicious
-            suspicious = true
-        }
-    }
-    
-    if suspicious && metrics != nil {
-        atomic.AddInt64(&metrics.suspiciousRequests, 1)
-    }
-    
-    return suspicious
+	suspicious := false
+
+	// Check for common attack patterns in URL path
+	path := strings.ToLower(r.URL.Path)
+	suspiciousPatterns := []string{
+		"../", "..\\", ".env", "wp-admin", "phpmyadmin",
+		"admin.php", "config.php", ".git", ".ssh",
+		"eval(", "javascript:", "<script", "union select",
+		"base64", "0x", "etc/passwd", "cmd.exe",
+	}
+
+	for _, pattern := range suspiciousPatterns {
+		if strings.Contains(path, pattern) {
+			suspicious = true
+			break
+		}
+	}
+
+	// Check for suspicious query parameters
+	query := strings.ToLower(r.URL.RawQuery)
+	for _, pattern := range suspiciousPatterns {
+		if strings.Contains(query, pattern) {
+			suspicious = true
+			break
+		}
+	}
+
+	// Check User-Agent for common bot patterns
+	userAgent := strings.ToLower(r.Header.Get("User-Agent"))
+	suspiciousAgents := []string{
+		"sqlmap", "nmap", "nikto", "gobuster", "dirb",
+		"curl", "wget", "python-requests", "scanner",
+		"bot", "crawler", "spider", "scraper",
+	}
+
+	for _, agent := range suspiciousAgents {
+		if strings.Contains(userAgent, agent) {
+			suspicious = true
+			break
+		}
+	}
+
+	// Check for unusual HTTP methods
+	unusualMethods := []string{"TRACE", "TRACK", "DEBUG", "CONNECT"}
+	for _, method := range unusualMethods {
+		if r.Method == method {
+			suspicious = true
+			break
+		}
+	}
+
+	// Check for excessively long URLs (possible overflow attempt)
+	if len(r.URL.String()) > 2048 {
+		suspicious = true
+	}
+
+	// Check for suspicious headers
+	if r.Header.Get("X-Forwarded-For") != "" && r.Header.Get("X-Real-IP") != "" {
+		// Multiple forwarding headers might indicate header manipulation
+		xff := r.Header.Get("X-Forwarded-For")
+		if strings.Count(xff, ",") > 5 { // More than 5 proxy hops is suspicious
+			suspicious = true
+		}
+	}
+
+	if suspicious && metrics != nil {
+		atomic.AddInt64(&metrics.suspiciousRequests, 1)
+	}
+
+	return suspicious
 }
 
 // Simple in-memory rate limiter
@@ -385,47 +261,21 @@ func (rl *rateLimiter) stop() {
 	})
 }
 
-// startCacheCleanup runs periodic cleanup for both caches
-func (s *Server) startCacheCleanup() {
-	ticker := time.NewTicker(10 * time.Minute) // Cleanup every 10 minutes
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			overviewCleaned := s.overviewCache.CleanExpired()
-			itemsCleaned := s.itemsCache.CleanExpired()
-			if overviewCleaned > 0 || itemsCleaned > 0 {
-				slog.Debug("Cache cleanup completed", 
-					"overview_entries_removed", overviewCleaned,
-					"items_entries_removed", itemsCleaned)
-			}
-		case <-s.stopCacheCleanup:
-			return
-		}
-	}
-}
-
 // Shutdown gracefully shuts down the server and cleanup routines
 func (s *Server) Shutdown(ctx context.Context) error {
 	var shutdownErr error
-	
+
 	// Ensure shutdown logic runs only once
 	s.shutdownOnce.Do(func() {
-		// Stop cache cleanup goroutine
-		if s.stopCacheCleanup != nil {
-			close(s.stopCacheCleanup)
-		}
-		
-		// Stop rate limiter cleanup goroutine  
+		// Stop rate limiter cleanup goroutine
 		if s.rateLimiter != nil {
 			s.rateLimiter.stop()
 		}
-		
+
 		// Shutdown HTTP server
 		shutdownErr = s.Server.Shutdown(ctx)
 	})
-	
+
 	return shutdownErr
 }
 
@@ -469,27 +319,21 @@ func (rl *rateLimiter) allow(clientIP string, metrics *securityMetrics) bool {
 
 // NewServer configures routes and templates, returning a ready-to-run http.Server.
 func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, dr sheets.DashboardReader, lr sheets.ExpenseLister) *Server {
-    mux := http.NewServeMux()
+	mux := http.NewServeMux()
 
-    s := &Server{
-        Server: http.Server{
-            Addr:    addr,
-            Handler: mux,
-        },
-        expWriter:     ew,
-        taxReader:     tr,
-        dashReader:    dr,
-        expLister:     lr,
-        rateLimiter:      newRateLimiter(),
-        overviewCache:    newLRUCache[core.MonthOverview](100, 5*time.Minute), // Max 100 entries, 5min TTL
-        itemsCache:       newLRUCache[[]core.Expense](200, 5*time.Minute),     // Max 200 entries, 5min TTL
-        stopCacheCleanup: make(chan struct{}),
-        metrics:          &securityMetrics{},
-        appMetrics:       &applicationMetrics{uptime: time.Now()},
-    }
-
-    // Start periodic cache cleanup
-    go s.startCacheCleanup()
+	s := &Server{
+		Server: http.Server{
+			Addr:    addr,
+			Handler: mux,
+		},
+		expWriter:   ew,
+		taxReader:   tr,
+		dashReader:  dr,
+		expLister:   lr,
+		rateLimiter: newRateLimiter(),
+		metrics:     &securityMetrics{},
+		appMetrics:  &applicationMetrics{uptime: time.Now()},
+	}
 
 	// Parse embedded templates at startup.
 	t, err := template.ParseFS(appweb.TemplatesFS, "templates/*.html")
@@ -512,9 +356,9 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 
 	// Add security middleware
 	mux.HandleFunc("/", s.withSecurityHeaders(s.handleIndex))
-	mux.HandleFunc("/healthz", s.handleHealth)   // Updated to server method
-	mux.HandleFunc("/readyz", s.handleReady)     // Updated to server method  
-	mux.HandleFunc("/metrics", s.handleMetrics)  // Metrics endpoint (no auth for now)
+	mux.HandleFunc("/healthz", s.handleHealth)  // Updated to server method
+	mux.HandleFunc("/readyz", s.handleReady)    // Updated to server method
+	mux.HandleFunc("/metrics", s.handleMetrics) // Metrics endpoint (no auth for now)
 	mux.HandleFunc("/expenses", s.withSecurityHeaders(s.handleCreateExpense))
 	// UI partials
 	mux.HandleFunc("/ui/month-overview", s.withSecurityHeaders(s.handleMonthOverview))
@@ -523,41 +367,40 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	return s
 }
 
-
 // withSecurityHeaders adds security headers, rate limiting, and request logging to responses
 func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		
+
 		// Extract real client IP with proper validation
 		clientIP := extractClientIP(r)
-		
+
 		// Generate request ID for tracing
 		requestID := generateRequestID()
-		
+
 		// Detect suspicious request patterns
 		if detectSuspiciousRequest(r, s.metrics) {
-			slog.WarnContext(r.Context(), "Suspicious request detected", 
+			slog.WarnContext(r.Context(), "Suspicious request detected",
 				"request_id", requestID,
-				"client_ip", clientIP, 
-				"method", r.Method, 
+				"client_ip", clientIP,
+				"method", r.Method,
 				"path", r.URL.Path,
 				"query", r.URL.RawQuery,
 				"user_agent", r.Header.Get("User-Agent"),
 				"action", "security_threat_detected")
 		}
-		
+
 		// Add request context with metadata and request ID
 		ctx := context.WithValue(r.Context(), "request_id", requestID)
 		r = r.WithContext(ctx)
-		
+
 		// Enhanced structured request logging
-		slog.InfoContext(ctx, "HTTP request started", 
+		slog.InfoContext(ctx, "HTTP request started",
 			"request_id", requestID,
-			"method", r.Method, 
-			"path", r.URL.Path, 
+			"method", r.Method,
+			"path", r.URL.Path,
 			"query", r.URL.RawQuery,
-			"client_ip", clientIP, 
+			"client_ip", clientIP,
 			"user_agent", r.Header.Get("User-Agent"),
 			"referer", r.Header.Get("Referer"),
 			"content_length", r.ContentLength,
@@ -565,12 +408,12 @@ func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 
 		// Apply rate limiting to POST requests (expense creation)
 		if r.Method == http.MethodPost && !s.rateLimiter.allow(clientIP, s.metrics) {
-			slog.WarnContext(ctx, "Rate limit exceeded", 
-			"request_id", requestID,
-			"client_ip", clientIP, 
-			"method", r.Method, 
-			"path", r.URL.Path,
-			"action", "rate_limit_blocked")
+			slog.WarnContext(ctx, "Rate limit exceeded",
+				"request_id", requestID,
+				"client_ip", clientIP,
+				"method", r.Method,
+				"path", r.URL.Path,
+				"action", "rate_limit_blocked")
 			w.Header().Set("Retry-After", "60")
 			http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
 			return
@@ -580,7 +423,7 @@ func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
-		
+
 		// Enhanced Content Security Policy with stricter rules
 		csp := "default-src 'self'; " +
 			"script-src 'self' https://unpkg.com; " +
@@ -594,33 +437,33 @@ func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 			"base-uri 'self'; " +
 			"form-action 'self'"
 		w.Header().Set("Content-Security-Policy", csp)
-		
+
 		// Additional modern security headers
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=(), payment=()")
 		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
 		w.Header().Set("Cross-Origin-Embedder-Policy", "require-corp")
 		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
-		
+
 		// HSTS header (only for HTTPS)
 		if r.TLS != nil {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
 		}
-		
+
 		// Track total requests
 		atomic.AddInt64(&s.appMetrics.totalRequests, 1)
-		
+
 		// Create a custom response writer to capture status code
 		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		next(rw, r)
-		
+
 		// Enhanced request completion logging
 		duration := time.Since(start)
 		durationMs := duration.Milliseconds()
-		
+
 		// Update average response time
 		atomic.StoreInt64(&s.appMetrics.averageResponseTime, durationMs*1000) // convert to microseconds
-		
+
 		// Use appropriate log level based on status code
 		logLevel := slog.LevelInfo
 		if rw.statusCode >= 400 && rw.statusCode < 500 {
@@ -628,11 +471,11 @@ func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 		} else if rw.statusCode >= 500 {
 			logLevel = slog.LevelError
 		}
-		
-		slog.Log(ctx, logLevel, "HTTP request completed", 
+
+		slog.Log(ctx, logLevel, "HTTP request completed",
 			"request_id", requestID,
-			"method", r.Method, 
-			"path", r.URL.Path, 
+			"method", r.Method,
+			"path", r.URL.Path,
 			"query", r.URL.RawQuery,
 			"status_code", rw.statusCode,
 			"duration_ms", durationMs,
@@ -666,14 +509,14 @@ func generateRequestID() string {
 // handleHealth performs basic liveness check
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	// Basic health check - service is alive
 	health := map[string]interface{}{
 		"status":    "ok",
 		"timestamp": time.Now().Format(time.RFC3339),
 		"uptime":    time.Since(s.appMetrics.uptime).String(),
 	}
-	
+
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(health)
 }
@@ -681,14 +524,14 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 // handleReady performs readiness check with dependency verification
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	
+
 	status := "ready"
 	httpStatus := http.StatusOK
 	checks := make(map[string]interface{})
-	
+
 	// Check templates
 	if s.templates == nil {
 		checks["templates"] = "failed: templates not loaded"
@@ -697,7 +540,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	} else {
 		checks["templates"] = "ok"
 	}
-	
+
 	// Check expense writer dependency
 	if s.expWriter != nil {
 		// For sheets backend, try a lightweight operation
@@ -718,35 +561,26 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		checks["expense_writer"] = "not_configured"
-		status = "not_ready"  
+		status = "not_ready"
 		httpStatus = http.StatusServiceUnavailable
 	}
-	
-	// Check cache health
-	overviewCacheSize := len(s.overviewCache.items)
-	itemsCacheSize := len(s.itemsCache.items)
-	checks["cache"] = map[string]interface{}{
-		"overview_entries": overviewCacheSize,
-		"items_entries":   itemsCacheSize,
-		"status":          "ok",
-	}
-	
+
 	// Check rate limiter
 	s.rateLimiter.mu.Lock()
 	activeClients := len(s.rateLimiter.clients)
 	s.rateLimiter.mu.Unlock()
-	
+
 	checks["rate_limiter"] = map[string]interface{}{
 		"active_clients": activeClients,
-		"status":        "ok",
+		"status":         "ok",
 	}
-	
+
 	response := map[string]interface{}{
 		"status":    status,
 		"timestamp": time.Now().Format(time.RFC3339),
 		"checks":    checks,
 	}
-	
+
 	w.WriteHeader(httpStatus)
 	json.NewEncoder(w).Encode(response)
 }
@@ -754,62 +588,43 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 // handleMetrics provides application and security metrics in plain text format
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	
+
 	// Security metrics
 	rateLimitHits, _, suspiciousRequests := s.GetSecurityMetrics()
-	
+
 	// Application metrics
 	totalRequests := atomic.LoadInt64(&s.appMetrics.totalRequests)
 	totalExpenses := atomic.LoadInt64(&s.appMetrics.totalExpenses)
-	cacheHits := atomic.LoadInt64(&s.appMetrics.cacheHits)
-	cacheMisses := atomic.LoadInt64(&s.appMetrics.cacheMisses)
 	uptime := time.Since(s.appMetrics.uptime)
-	
+
 	// Rate limiter statistics
 	s.rateLimiter.mu.Lock()
 	activeClients := len(s.rateLimiter.clients)
 	s.rateLimiter.mu.Unlock()
-	
-	// Cache statistics
-	overviewCacheSize := len(s.overviewCache.items)
-	itemsCacheSize := len(s.itemsCache.items)
-	
+
 	w.WriteHeader(http.StatusOK)
-	
+
 	// Write metrics in Prometheus-like format
 	fmt.Fprintf(w, "# HELP http_requests_total Total number of HTTP requests\n")
 	fmt.Fprintf(w, "# TYPE http_requests_total counter\n")
 	fmt.Fprintf(w, "http_requests_total %d\n\n", totalRequests)
-	
+
 	fmt.Fprintf(w, "# HELP expenses_total Total number of expenses created\n")
 	fmt.Fprintf(w, "# TYPE expenses_total counter\n")
 	fmt.Fprintf(w, "expenses_total %d\n\n", totalExpenses)
-	
-	fmt.Fprintf(w, "# HELP cache_hits_total Total cache hits\n")
-	fmt.Fprintf(w, "# TYPE cache_hits_total counter\n")
-	fmt.Fprintf(w, "cache_hits_total %d\n\n", cacheHits)
-	
-	fmt.Fprintf(w, "# HELP cache_misses_total Total cache misses\n")
-	fmt.Fprintf(w, "# TYPE cache_misses_total counter\n")
-	fmt.Fprintf(w, "cache_misses_total %d\n\n", cacheMisses)
-	
-	fmt.Fprintf(w, "# HELP cache_entries Current cache entries\n")
-	fmt.Fprintf(w, "# TYPE cache_entries gauge\n")
-	fmt.Fprintf(w, "cache_entries{type=\"overview\"} %d\n", overviewCacheSize)
-	fmt.Fprintf(w, "cache_entries{type=\"items\"} %d\n\n", itemsCacheSize)
-	
+
 	fmt.Fprintf(w, "# HELP rate_limit_hits_total Total rate limit hits\n")
 	fmt.Fprintf(w, "# TYPE rate_limit_hits_total counter\n")
 	fmt.Fprintf(w, "rate_limit_hits_total %d\n\n", rateLimitHits)
-	
+
 	fmt.Fprintf(w, "# HELP suspicious_requests_total Total suspicious requests detected\n")
 	fmt.Fprintf(w, "# TYPE suspicious_requests_total counter\n")
 	fmt.Fprintf(w, "suspicious_requests_total %d\n\n", suspiciousRequests)
-	
+
 	fmt.Fprintf(w, "# HELP active_rate_limit_clients Currently tracked rate limit clients\n")
 	fmt.Fprintf(w, "# TYPE active_rate_limit_clients gauge\n")
 	fmt.Fprintf(w, "active_rate_limit_clients %d\n\n", activeClients)
-	
+
 	fmt.Fprintf(w, "# HELP uptime_seconds Application uptime in seconds\n")
 	fmt.Fprintf(w, "# TYPE uptime_seconds gauge\n")
 	fmt.Fprintf(w, "uptime_seconds %.0f\n\n", uptime.Seconds())
@@ -817,7 +632,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if s.templates == nil {
-		slog.ErrorContext(r.Context(), "Templates not loaded", 
+		slog.ErrorContext(r.Context(), "Templates not loaded",
 			"path", r.URL.Path,
 			"component", "template_engine",
 			"error_type", "configuration_error")
@@ -826,11 +641,11 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
-	
+
 	// For hierarchical categories, load only primaries initially
 	var cats, subs []string
 	var err error
-	
+
 	if _, ok := s.taxReader.(*adapters.SQLiteAdapter); ok {
 		// For SQLite adapter, get only primary categories initially
 		// Secondary categories will be loaded dynamically via HTMX
@@ -847,7 +662,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 			slog.ErrorContext(r.Context(), "Taxonomy list error", "error", err)
 		}
 	}
-	
+
 	data := struct {
 		Day        int
 		Month      int
@@ -920,9 +735,9 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 
 	ref, err := s.expWriter.Append(r.Context(), exp)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "Failed to save expense", 
-			"error", err, 
-			"expense_description", exp.Description, 
+		slog.ErrorContext(r.Context(), "Failed to save expense",
+			"error", err,
+			"expense_description", exp.Description,
 			"amount_cents", exp.Amount.Cents,
 			"primary_category", exp.Primary,
 			"secondary_category", exp.Secondary,
@@ -932,10 +747,10 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`<div class="error">Error saving expense</div>`))
 		return
 	}
-	
+
 	// Track successful expense creation
 	atomic.AddInt64(&s.appMetrics.totalExpenses, 1)
-	
+
 	// Log successful expense creation
 	slog.InfoContext(r.Context(), "Expense created successfully",
 		"expense_description", exp.Description,
@@ -945,10 +760,8 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		"sheets_ref", ref,
 		"component", "expense_handler",
 		"operation", "create")
-    // Invalidate cache for current year+month and trigger client refresh
-    year := time.Now().Year()
-    s.invalidateOverview(year, month)
-    s.invalidateExpenses(year, month)
+	// Trigger client refresh
+	year := time.Now().Year()
 	w.Header().Set("HX-Trigger", `{"expense:created": {"year": `+strconv.Itoa(year)+`, "month": `+strconv.Itoa(month)+`}}`)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`<div class="success">Spesa registrata (#` + template.HTMLEscapeString(ref) + `): ` +
@@ -970,86 +783,39 @@ func sanitizeInput(s string) string {
 	return result
 }
 
-func (s *Server) cacheKey(year, month int) string {
-	return strconv.Itoa(year) + "-" + strconv.Itoa(month)
-}
-
-func (s *Server) invalidateOverview(year, month int) {
-    s.overviewCache.Delete(s.cacheKey(year, month))
-}
-
-func (s *Server) invalidateExpenses(year, month int) {
-    s.itemsCache.Delete(s.cacheKey(year, month))
-}
-
 func (s *Server) getOverview(ctx context.Context, year, month int) (core.MonthOverview, error) {
-    key := s.cacheKey(year, month)
-    
-    // Check cache first
-    if data, found := s.overviewCache.Get(key); found {
-        slog.DebugContext(ctx, "Overview cache hit", "year", year, "month", month)
-        atomic.AddInt64(&s.appMetrics.cacheHits, 1)
-        return data, nil
-    }
-    
-    // Track cache miss
-    atomic.AddInt64(&s.appMetrics.cacheMisses, 1)
-    
-    if s.dashReader == nil {
-        return core.MonthOverview{Year: year, Month: month}, nil
-    }
-    // Add a small timeout to avoid hanging partials
-    cctx, cancel := context.WithTimeout(ctx, 7*time.Second)
-    defer cancel()
-    data, err := s.dashReader.ReadMonthOverview(cctx, year, month)
-    if err != nil {
-        return core.MonthOverview{}, fmt.Errorf("read month overview (year=%d, month=%d): %w", year, month, err)
-    }
-    
-    // Cache the result
-    s.overviewCache.Set(key, data)
-    slog.DebugContext(ctx, "Overview cached", "year", year, "month", month, "total_cents", data.Total.Cents, "categories", len(data.ByCategory))
-    return data, nil
+	if s.dashReader == nil {
+		return core.MonthOverview{Year: year, Month: month}, nil
+	}
+	// Add a small timeout to avoid hanging partials
+	cctx, cancel := context.WithTimeout(ctx, 7*time.Second)
+	defer cancel()
+	data, err := s.dashReader.ReadMonthOverview(cctx, year, month)
+	if err != nil {
+		return core.MonthOverview{}, fmt.Errorf("read month overview (year=%d, month=%d): %w", year, month, err)
+	}
+	return data, nil
 }
 
 func (s *Server) getExpenses(ctx context.Context, year, month int) ([]core.Expense, error) {
-    key := s.cacheKey(year, month)
-    
-    // Check cache first
-    if items, found := s.itemsCache.Get(key); found {
-        slog.DebugContext(ctx, "Expenses cache hit", "year", year, "month", month, "count", len(items))
-        atomic.AddInt64(&s.appMetrics.cacheHits, 1)
-        // Return a copy to prevent external mutation
-        result := make([]core.Expense, len(items))
-        copy(result, items)
-        return result, nil
-    }
-    
-    // Track cache miss
-    atomic.AddInt64(&s.appMetrics.cacheMisses, 1)
-    
-    if s.expLister == nil {
-        return nil, nil
-    }
-    cctx, cancel := context.WithTimeout(ctx, 7*time.Second)
-    defer cancel()
-    items, err := s.expLister.ListExpenses(cctx, year, month)
-    if err != nil {
-        return nil, fmt.Errorf("list month expenses (year=%d, month=%d): %w", year, month, err)
-    }
-    
-    // Cache the result
-    s.itemsCache.Set(key, items)
-    slog.DebugContext(ctx, "Expenses cached", "year", year, "month", month, "count", len(items))
-    return items, nil
+	if s.expLister == nil {
+		return nil, nil
+	}
+	cctx, cancel := context.WithTimeout(ctx, 7*time.Second)
+	defer cancel()
+	items, err := s.expLister.ListExpenses(cctx, year, month)
+	if err != nil {
+		return nil, fmt.Errorf("list month expenses (year=%d, month=%d): %w", year, month, err)
+	}
+	return items, nil
 }
 
 // handleMonthOverview renders the monthly overview partial.
 func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
-    w.Header().Set("Content-Type", "text/html; charset=utf-8")
-    now := time.Now()
-    year := now.Year()
-    month := int(now.Month())
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	now := time.Now()
+	year := now.Year()
+	month := int(now.Month())
 	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
 		if y, err := strconv.Atoi(v); err == nil {
 			year = y
@@ -1060,21 +826,21 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 			month = m
 		}
 	}
-    // Validate month range
-    if month < 1 || month > 12 {
-        slog.WarnContext(r.Context(), "Invalid month parameter", "year", year, "month", month, "corrected_to", int(now.Month()))
-        month = int(now.Month())
-    }
-    ov, err := s.getOverview(r.Context(), year, month)
-    if err != nil {
-        slog.ErrorContext(r.Context(), "Month overview error", "error", err, "year", year, "month", month)
-        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Error loading overview</div></section>`))
-        return
-    }
-    if s.templates == nil {
-        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Totale: ` + formatEuros(ov.Total.Cents) + `</div></section>`))
-        return
-    }
+	// Validate month range
+	if month < 1 || month > 12 {
+		slog.WarnContext(r.Context(), "Invalid month parameter", "year", year, "month", month, "corrected_to", int(now.Month()))
+		month = int(now.Month())
+	}
+	ov, err := s.getOverview(r.Context(), year, month)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Month overview error", "error", err, "year", year, "month", month)
+		_, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Error loading overview</div></section>`))
+		return
+	}
+	if s.templates == nil {
+		_, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Totale: ` + formatEuros(ov.Total.Cents) + `</div></section>`))
+		return
+	}
 	// Pass data to template
 	// Compute max category for progress scaling and legend
 	var maxCents int64
@@ -1089,24 +855,24 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 		Name, Amount string
 		Width        int
 	}
-    data := struct {
-        Year    int
-        Month   int
-        Total   string
-        MaxName string
-        Max     string
-        Rows    []row
-        // Expenses detail list
-        Items []struct{
-            Day  int
-            Desc string
-            Amt  string
-            Cat  string
-            Sub  string
-        }
-    }{Year: ov.Year, Month: ov.Month, Total: formatEuros(ov.Total.Cents), MaxName: maxName, Max: formatEuros(maxCents)}
-    for _, r := range ov.ByCategory {
-        width := 0
+	data := struct {
+		Year    int
+		Month   int
+		Total   string
+		MaxName string
+		Max     string
+		Rows    []row
+		// Expenses detail list
+		Items []struct {
+			Day  int
+			Desc string
+			Amt  string
+			Cat  string
+			Sub  string
+		}
+	}{Year: ov.Year, Month: ov.Month, Total: formatEuros(ov.Total.Cents), MaxName: maxName, Max: formatEuros(maxCents)}
+	for _, r := range ov.ByCategory {
+		width := 0
 		if maxCents > 0 && r.Amount.Cents > 0 {
 			width = int((r.Amount.Cents*100 + maxCents/2) / maxCents) // rounded percent
 			if width > 0 && width < 2 {                               // ensure visibility for very small values
@@ -1116,30 +882,30 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 				width = 100
 			}
 		}
-        data.Rows = append(data.Rows, row{Name: r.Name, Amount: formatEuros(r.Amount.Cents), Width: width})
-    }
-    // Fetch detailed items (cached)
-    if s.expLister != nil {
-        items, err := s.getExpenses(r.Context(), year, month)
-        if err != nil {
-            slog.ErrorContext(r.Context(), "List expenses error", "error", err, "year", year, "month", month)
-        } else {
-            for _, e := range items {
-                data.Items = append(data.Items, struct{
-                    Day  int
-                    Desc string
-                    Amt  string
-                    Cat  string
-                    Sub  string
-                }{Day: e.Date.Day, Desc: template.HTMLEscapeString(e.Description), Amt: formatEuros(e.Amount.Cents), Cat: e.Primary, Sub: e.Secondary})
-            }
-        }
-    }
-    if err := s.templates.ExecuteTemplate(w, "month_overview.html", data); err != nil {
-        slog.ErrorContext(r.Context(), "Template execution error", "error", err, "template", "month_overview.html", "year", year, "month", month)
-        _, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Error rendering overview</div></section>`))
-        return
-    }
+		data.Rows = append(data.Rows, row{Name: r.Name, Amount: formatEuros(r.Amount.Cents), Width: width})
+	}
+	// Fetch detailed items (cached)
+	if s.expLister != nil {
+		items, err := s.getExpenses(r.Context(), year, month)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "List expenses error", "error", err, "year", year, "month", month)
+		} else {
+			for _, e := range items {
+				data.Items = append(data.Items, struct {
+					Day  int
+					Desc string
+					Amt  string
+					Cat  string
+					Sub  string
+				}{Day: e.Date.Day, Desc: template.HTMLEscapeString(e.Description), Amt: formatEuros(e.Amount.Cents), Cat: e.Primary, Sub: e.Secondary})
+			}
+		}
+	}
+	if err := s.templates.ExecuteTemplate(w, "month_overview.html", data); err != nil {
+		slog.ErrorContext(r.Context(), "Template execution error", "error", err, "template", "month_overview.html", "year", year, "month", month)
+		_, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Error rendering overview</div></section>`))
+		return
+	}
 }
 
 // handleGetSecondaryCategories returns secondary categories for a given primary category as HTML options
@@ -1149,7 +915,7 @@ func (s *Server) handleGetSecondaryCategories(w http.ResponseWriter, r *http.Req
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// Get primary category from query parameter
 	primaryCategory := strings.TrimSpace(r.URL.Query().Get("primary"))
 	if primaryCategory == "" {
@@ -1158,55 +924,55 @@ func (s *Server) handleGetSecondaryCategories(w http.ResponseWriter, r *http.Req
 		_, _ = w.Write([]byte(`<option value="">Seleziona prima la categoria primaria</option>`))
 		return
 	}
-	
+
 	// Check if we have access to the SQLite repository through the adapter
 	if sqliteAdapter, ok := s.taxReader.(*adapters.SQLiteAdapter); ok {
 		// Use the hierarchical filtering method
 		secondaries, err := sqliteAdapter.GetSecondariesByPrimary(r.Context(), primaryCategory)
 		if err != nil {
-			slog.ErrorContext(r.Context(), "Failed to get secondary categories for primary", 
+			slog.ErrorContext(r.Context(), "Failed to get secondary categories for primary",
 				"primary", primaryCategory, "error", err)
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.WriteHeader(http.StatusInternalServerError) 
+			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte(`<option value="">Errore nel caricamento</option>`))
 			return
 		}
-		
+
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		
+
 		// Write empty option first
 		_, _ = w.Write([]byte(`<option value="">Seleziona sottocategoria</option>`))
-		
+
 		// Write filtered secondary categories as options
 		for _, secondary := range secondaries {
 			escapedSecondary := template.HTMLEscapeString(secondary)
 			_, _ = w.Write([]byte(fmt.Sprintf(`<option value="%s">%s</option>`, escapedSecondary, escapedSecondary)))
 		}
-		
-		slog.InfoContext(r.Context(), "Returned filtered secondary categories", 
-			"primary", primaryCategory, 
+
+		slog.InfoContext(r.Context(), "Returned filtered secondary categories",
+			"primary", primaryCategory,
 			"count", len(secondaries))
 		return
 	}
-	
+
 	// Fallback for other adapters (memory, google sheets)
 	_, secondaries, err := s.taxReader.List(r.Context())
 	if err != nil {
-		slog.ErrorContext(r.Context(), "Failed to get secondary categories", 
+		slog.ErrorContext(r.Context(), "Failed to get secondary categories",
 			"primary", primaryCategory, "error", err)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(`<option value="">Errore nel caricamento</option>`))
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	
-	// Write empty option first  
+
+	// Write empty option first
 	_, _ = w.Write([]byte(`<option value="">Seleziona sottocategoria</option>`))
-	
+
 	// Write all secondary categories as options
 	for _, secondary := range secondaries {
 		escapedSecondary := template.HTMLEscapeString(secondary)

@@ -217,7 +217,7 @@ func TestYearPrefixedName(t *testing.T) {
 	for _, tt := range tests {
 		got := yearPrefixedName(tt.baseName, tt.year)
 		if got != tt.expected {
-			t.Errorf("yearPrefixedName(%q, %d) = %q, want %q", 
+			t.Errorf("yearPrefixedName(%q, %d) = %q, want %q",
 				tt.baseName, tt.year, got, tt.expected)
 		}
 	}
@@ -239,9 +239,9 @@ func TestDashboardSheetNaming(t *testing.T) {
 	os.Setenv("GOOGLE_SPREADSHEET_ID", "test-id")
 
 	tests := []struct {
-		name       string
-		dashName   string
-		dashPrefix string
+		name           string
+		dashName       string
+		dashPrefix     string
 		expectedBase   string
 		expectedPrefix string
 	}{
@@ -306,9 +306,9 @@ func TestDashboardSheetNaming(t *testing.T) {
 // Test default sheet names
 func TestDefaultSheetNames(t *testing.T) {
 	origVars := map[string]string{
-		"GOOGLE_SPREADSHEET_ID":          os.Getenv("GOOGLE_SPREADSHEET_ID"),
-		"GOOGLE_SHEET_NAME":              os.Getenv("GOOGLE_SHEET_NAME"),
-		"GOOGLE_CATEGORIES_SHEET_NAME":   os.Getenv("GOOGLE_CATEGORIES_SHEET_NAME"),
+		"GOOGLE_SPREADSHEET_ID":           os.Getenv("GOOGLE_SPREADSHEET_ID"),
+		"GOOGLE_SHEET_NAME":               os.Getenv("GOOGLE_SHEET_NAME"),
+		"GOOGLE_CATEGORIES_SHEET_NAME":    os.Getenv("GOOGLE_CATEGORIES_SHEET_NAME"),
 		"GOOGLE_SUBCATEGORIES_SHEET_NAME": os.Getenv("GOOGLE_SUBCATEGORIES_SHEET_NAME"),
 	}
 	defer func() {

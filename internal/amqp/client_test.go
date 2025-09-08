@@ -19,7 +19,7 @@ func TestExponentialBackoff(t *testing.T) {
 		{2, 4 * time.Second},
 		{3, 8 * time.Second},
 		{4, 16 * time.Second},
-		{5, 30 * time.Second}, // capped at 30s
+		{5, 30 * time.Second},  // capped at 30s
 		{10, 30 * time.Second}, // capped at 30s
 		{15, 30 * time.Second}, // capped at 30s
 	}
@@ -109,9 +109,9 @@ func TestClient_CircuitBreaker(t *testing.T) {
 		// Set some failures first
 		atomic.StoreInt64(&client.failureCount, 3)
 		atomic.StoreInt32(&client.state, StateOpen)
-		
+
 		client.recordSuccess()
-		
+
 		if client.isCircuitOpen() {
 			t.Error("Circuit breaker should be closed after success")
 		}
@@ -127,12 +127,12 @@ func TestClient_CircuitBreaker(t *testing.T) {
 		// Reset state
 		atomic.StoreInt64(&client.failureCount, 0)
 		atomic.StoreInt32(&client.state, StateClosed)
-		
+
 		// Record failures up to the threshold
 		for i := 0; i < maxFailures; i++ {
 			client.recordFailure()
 		}
-		
+
 		if !client.isCircuitOpen() {
 			t.Error("Circuit breaker should be open after max failures")
 		}
@@ -145,7 +145,7 @@ func TestClient_CircuitBreaker(t *testing.T) {
 		// Set circuit to open state with old timestamp
 		atomic.StoreInt32(&client.state, StateOpen)
 		client.lastFailure = time.Now().Add(-openTimeout - time.Second)
-		
+
 		// Circuit should transition to half-open
 		if client.isCircuitOpen() {
 			t.Error("Circuit should transition to half-open after timeout")
@@ -159,7 +159,7 @@ func TestClient_CircuitBreaker(t *testing.T) {
 		// Set circuit to open state with recent timestamp
 		atomic.StoreInt32(&client.state, StateOpen)
 		client.lastFailure = time.Now()
-		
+
 		// Circuit should remain open
 		if !client.isCircuitOpen() {
 			t.Error("Circuit should remain open within timeout")
@@ -181,10 +181,10 @@ func TestClient_PublishExpenseSync_CircuitBreaker(t *testing.T) {
 		// Set circuit to open state
 		atomic.StoreInt32(&client.state, StateOpen)
 		client.lastFailure = time.Now()
-		
+
 		ctx := context.Background()
 		err := client.PublishExpenseSync(ctx, 123, 1)
-		
+
 		if err == nil {
 			t.Error("PublishExpenseSync should fail when circuit is open")
 		}
@@ -197,12 +197,12 @@ func TestClient_PublishExpenseSync_CircuitBreaker(t *testing.T) {
 		// Reset circuit to closed state
 		atomic.StoreInt32(&client.state, StateClosed)
 		atomic.StoreInt64(&client.failureCount, 0)
-		
+
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
-		
+
 		err := client.PublishExpenseSync(ctx, 123, 1)
-		
+
 		if err != context.Canceled {
 			t.Errorf("PublishExpenseSync should return context.Canceled when context is cancelled, got: %v", err)
 		}
@@ -212,9 +212,9 @@ func TestClient_PublishExpenseSync_CircuitBreaker(t *testing.T) {
 func TestNewExpenseSyncMessage(t *testing.T) {
 	id := int64(12345)
 	version := int64(2)
-	
+
 	msg := NewExpenseSyncMessage(id, version)
-	
+
 	if msg.ID != id {
 		t.Errorf("NewExpenseSyncMessage() ID = %v, want %v", msg.ID, id)
 	}
@@ -262,7 +262,7 @@ func TestExpenseSyncMessage_JSON(t *testing.T) {
 
 func TestExpenseSyncMessage_InvalidJSON(t *testing.T) {
 	invalidJSON := []byte(`{"id": "not_a_number", "version": 1}`)
-	
+
 	_, err := ExpenseSyncMessageFromJSON(invalidJSON)
 	if err == nil {
 		t.Error("ExpenseSyncMessageFromJSON() should fail with invalid JSON")
@@ -280,4 +280,3 @@ func contains(s, substr string) bool {
 		return false
 	}())
 }
-

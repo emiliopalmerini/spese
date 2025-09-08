@@ -29,20 +29,20 @@ func main() {
 
 	// Load configuration
 	cfg := config.Load()
-	
+
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
 		logger.Error("Configuration validation failed", "error", err)
 		os.Exit(1)
 	}
 
-    var (
-        expWriter  ports.ExpenseWriter
-        taxReader  ports.TaxonomyReader
-        dashReader ports.DashboardReader
-        expLister  ports.ExpenseLister
-        cleanup    func() error
-    )
+	var (
+		expWriter  ports.ExpenseWriter
+		taxReader  ports.TaxonomyReader
+		dashReader ports.DashboardReader
+		expLister  ports.ExpenseLister
+		cleanup    func() error
+	)
 
 	switch cfg.DataBackend {
 	case "sqlite":
@@ -67,10 +67,10 @@ func main() {
 		// Create expense service and adapter
 		expenseService := services.NewExpenseService(sqliteRepo, amqpClient)
 		adapter := adapters.NewSQLiteAdapter(sqliteRepo, expenseService)
-		
+
 		expWriter, taxReader, dashReader, expLister = adapter, adapter, adapter, adapter
 		cleanup = expenseService.Close
-		
+
 		logger.Info("Initialized SQLite backend", "db_path", cfg.SQLiteDBPath, "amqp_enabled", amqpClient != nil)
 
 	case "sheets":
@@ -79,16 +79,16 @@ func main() {
 			logger.Error("Failed to initialize Google Sheets client", "error", err)
 			os.Exit(1)
 		}
-        expWriter, taxReader, dashReader, expLister = cli, cli, cli, cli
+		expWriter, taxReader, dashReader, expLister = cli, cli, cli, cli
 		logger.Info("Initialized Google Sheets backend")
 
 	default:
 		store := mem.NewFromFiles("data")
-        expWriter, taxReader, dashReader, expLister = store, store, store, store
+		expWriter, taxReader, dashReader, expLister = store, store, store, store
 		logger.Info("Initialized memory backend", "backend", cfg.DataBackend)
 	}
 
-    srv := apphttp.NewServer(":"+cfg.Port, expWriter, taxReader, dashReader, expLister)
+	srv := apphttp.NewServer(":"+cfg.Port, expWriter, taxReader, dashReader, expLister)
 
 	// Configure server timeouts and limits
 	srv.ReadTimeout = 10 * time.Second

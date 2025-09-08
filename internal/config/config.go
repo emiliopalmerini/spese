@@ -13,15 +13,15 @@ import (
 type Config struct {
 	// HTTP Server
 	Port string
-	
+
 	// Database
 	SQLiteDBPath string
-	
+
 	// AMQP
 	AMQPURL      string
 	AMQPExchange string
 	AMQPQueue    string
-	
+
 	// Google Sheets (existing)
 	GoogleSpreadsheetID   string
 	GoogleSheetName       string
@@ -29,11 +29,11 @@ type Config struct {
 	GoogleOAuthTokenFile  string
 	GoogleOAuthClientJSON string
 	GoogleOAuthTokenJSON  string
-	
+
 	// Worker
 	SyncBatchSize int
 	SyncInterval  time.Duration
-	
+
 	// Backend selection
 	DataBackend string
 }
@@ -42,24 +42,24 @@ func Load() *Config {
 	cfg := &Config{
 		Port:         getEnv("PORT", "8081"),
 		SQLiteDBPath: getEnv("SQLITE_DB_PATH", "./data/spese.db"),
-		
+
 		AMQPURL:      getEnv("AMQP_URL", "amqp://guest:guest@localhost:5672/"),
 		AMQPExchange: getEnv("AMQP_EXCHANGE", "spese"),
 		AMQPQueue:    getEnv("AMQP_QUEUE", "sync_expenses"),
-		
+
 		GoogleSpreadsheetID:   getEnv("GOOGLE_SPREADSHEET_ID", ""),
 		GoogleSheetName:       getEnv("GOOGLE_SHEET_NAME", ""),
 		GoogleOAuthClientFile: getEnv("GOOGLE_OAUTH_CLIENT_FILE", ""),
 		GoogleOAuthTokenFile:  getEnv("GOOGLE_OAUTH_TOKEN_FILE", ""),
 		GoogleOAuthClientJSON: getEnv("GOOGLE_OAUTH_CLIENT_JSON", ""),
 		GoogleOAuthTokenJSON:  getEnv("GOOGLE_OAUTH_TOKEN_JSON", ""),
-		
+
 		SyncBatchSize: getEnvInt("SYNC_BATCH_SIZE", 10),
 		SyncInterval:  getEnvDuration("SYNC_INTERVAL", 30*time.Second),
-		
+
 		DataBackend: getEnv("DATA_BACKEND", "memory"),
 	}
-	
+
 	return cfg
 }
 
@@ -131,28 +131,28 @@ func (c *Config) Validate() error {
 		if c.GoogleSheetName == "" {
 			errors = append(errors, "Google Sheet name is required when using sheets backend")
 		}
-		
+
 		// Must have either client file or JSON
 		hasClientFile := c.GoogleOAuthClientFile != ""
 		hasClientJSON := c.GoogleOAuthClientJSON != ""
 		if !hasClientFile && !hasClientJSON {
 			errors = append(errors, "either GOOGLE_OAUTH_CLIENT_FILE or GOOGLE_OAUTH_CLIENT_JSON must be provided for sheets backend")
 		}
-		
+
 		// Must have either token file or JSON
 		hasTokenFile := c.GoogleOAuthTokenFile != ""
 		hasTokenJSON := c.GoogleOAuthTokenJSON != ""
 		if !hasTokenFile && !hasTokenJSON {
 			errors = append(errors, "either GOOGLE_OAUTH_TOKEN_FILE or GOOGLE_OAUTH_TOKEN_JSON must be provided for sheets backend")
 		}
-		
+
 		// Check if client file exists (if specified)
 		if hasClientFile {
 			if _, err := os.Stat(c.GoogleOAuthClientFile); os.IsNotExist(err) {
 				errors = append(errors, fmt.Sprintf("Google OAuth client file does not exist: %s", c.GoogleOAuthClientFile))
 			}
 		}
-		
+
 		// Check if token file exists (if specified)
 		if hasTokenFile {
 			if _, err := os.Stat(c.GoogleOAuthTokenFile); os.IsNotExist(err) {

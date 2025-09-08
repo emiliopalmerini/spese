@@ -252,10 +252,10 @@ The application follows hexagonal architecture with clear port definitions:
 ## HTTP Layer (internal/http)
 
 HTMX-based frontend with server-side rendering:
-- `server.go`: Main HTTP server with middleware, caching, rate limiting
+- `server.go`: Main HTTP server with middleware, rate limiting
 - Templates in `web/templates/`: Base layout + HTMX partials
 - Security headers, input sanitization, structured logging
-- LRU cache for monthly overviews (5min TTL, 100 entries max)
+- Direct SQLite queries with no caching (SQLite is fast for local storage)
 
 ## Google Sheets Integration
 

@@ -14,10 +14,10 @@ import (
 
 // SyncWorker handles synchronization of expenses from SQLite to Google Sheets
 type SyncWorker struct {
-	storage     *storage.SQLiteRepository
-	sheets      sheets.ExpenseWriter
-	taxonomy    sheets.TaxonomyReader
-	batchSize   int
+	storage   *storage.SQLiteRepository
+	sheets    sheets.ExpenseWriter
+	taxonomy  sheets.TaxonomyReader
+	batchSize int
 }
 
 func NewSyncWorker(storage *storage.SQLiteRepository, sheets sheets.ExpenseWriter, taxonomy sheets.TaxonomyReader, batchSize int) *SyncWorker {
@@ -31,9 +31,9 @@ func NewSyncWorker(storage *storage.SQLiteRepository, sheets sheets.ExpenseWrite
 
 // HandleSyncMessage processes a single expense sync message from AMQP
 func (w *SyncWorker) HandleSyncMessage(ctx context.Context, msg *amqp.ExpenseSyncMessage) error {
-	
-	slog.InfoContext(ctx, "Processing sync message", 
-		"id", msg.ID, 
+
+	slog.InfoContext(ctx, "Processing sync message",
+		"id", msg.ID,
 		"version", msg.Version)
 
 	// Get the expense from SQLite by ID
@@ -122,7 +122,7 @@ func (w *SyncWorker) StartupSyncCheck(ctx context.Context) error {
 		return nil
 	}
 
-	slog.InfoContext(ctx, "Found pending expenses on startup, processing...", 
+	slog.InfoContext(ctx, "Found pending expenses on startup, processing...",
 		"count", len(pendingExpenses))
 
 	successCount := 0
@@ -132,7 +132,7 @@ func (w *SyncWorker) StartupSyncCheck(ctx context.Context) error {
 		// Get full expense data
 		expense, err := w.storage.GetExpense(ctx, pending.ID)
 		if err != nil {
-			slog.ErrorContext(ctx, "Failed to get expense for startup sync", 
+			slog.ErrorContext(ctx, "Failed to get expense for startup sync",
 				"id", pending.ID, "error", err)
 			if err := w.storage.MarkSyncError(ctx, pending.ID); err != nil {
 				slog.ErrorContext(ctx, "Failed to mark sync error", "id", pending.ID, "error", err)
@@ -154,7 +154,7 @@ func (w *SyncWorker) StartupSyncCheck(ctx context.Context) error {
 		}
 
 		if err := w.syncExpenseToSheets(ctx, pending.ID, coreExpense); err != nil {
-			slog.ErrorContext(ctx, "Failed to sync expense during startup", 
+			slog.ErrorContext(ctx, "Failed to sync expense during startup",
 				"id", pending.ID, "error", err)
 			errorCount++
 			continue
@@ -163,9 +163,9 @@ func (w *SyncWorker) StartupSyncCheck(ctx context.Context) error {
 		successCount++
 	}
 
-	slog.InfoContext(ctx, "Startup sync completed", 
+	slog.InfoContext(ctx, "Startup sync completed",
 		"total", len(pendingExpenses),
-		"synced", successCount, 
+		"synced", successCount,
 		"errors", errorCount)
 
 	return nil
@@ -198,19 +198,19 @@ func (w *SyncWorker) SyncCategoriesIfNeeded(ctx context.Context) error {
 
 	cacheAge := time.Since(lastSync)
 	const maxCacheAge = 7 * 24 * time.Hour
-	
+
 	if cacheAge > maxCacheAge {
-		slog.InfoContext(ctx, "Categories cache is stale, refreshing from Google Sheets", 
+		slog.InfoContext(ctx, "Categories cache is stale, refreshing from Google Sheets",
 			"last_sync", lastSync.Format(time.RFC3339),
 			"age", cacheAge.Round(time.Hour))
 		return w.syncCategoriesFromSheets(ctx)
 	}
 
-	slog.InfoContext(ctx, "Categories cache is fresh", 
+	slog.InfoContext(ctx, "Categories cache is fresh",
 		"count", count,
 		"last_sync", lastSync.Format(time.RFC3339),
 		"age", cacheAge.Round(time.Hour))
-	
+
 	return nil
 }
 
@@ -218,12 +218,12 @@ func (w *SyncWorker) SyncCategoriesIfNeeded(ctx context.Context) error {
 // This can be called manually or triggered by an admin endpoint
 func (w *SyncWorker) ForceRefreshCategories(ctx context.Context) error {
 	slog.InfoContext(ctx, "Force refreshing categories from Google Sheets")
-	
+
 	// Clear existing cache
 	if err := w.storage.RefreshCategories(ctx); err != nil {
 		return fmt.Errorf("clear category cache: %w", err)
 	}
-	
+
 	// Reload from Google Sheets
 	return w.syncCategoriesFromSheets(ctx)
 }
@@ -252,7 +252,7 @@ func (w *SyncWorker) syncCategoriesFromSheets(ctx context.Context) error {
 		return fmt.Errorf("sync secondary categories: %w", err)
 	}
 
-	slog.InfoContext(ctx, "Categories successfully cached", 
+	slog.InfoContext(ctx, "Categories successfully cached",
 		"primary_count", len(primaryCategories),
 		"secondary_count", len(secondaryCategories))
 
@@ -276,8 +276,8 @@ func (w *SyncWorker) syncExpenseToSheets(ctx context.Context, id int64, expense 
 		// Don't return error here - the sync actually worked
 	}
 
-	slog.InfoContext(ctx, "Successfully synced expense", 
-		"id", id, 
+	slog.InfoContext(ctx, "Successfully synced expense",
+		"id", id,
 		"sheets_ref", ref,
 		"description", expense.Description,
 		"amount_cents", expense.Amount.Cents)

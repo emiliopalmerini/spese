@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"spese/internal/core"
-	
+
 	_ "modernc.org/sqlite"
 )
 
@@ -70,9 +70,9 @@ func (r *SQLiteRepository) Append(ctx context.Context, e core.Expense) (string, 
 		return "", fmt.Errorf("create expense: %w", err)
 	}
 
-	slog.InfoContext(ctx, "Expense saved to SQLite", 
-		"id", expense.ID, 
-		"description", expense.Description, 
+	slog.InfoContext(ctx, "Expense saved to SQLite",
+		"id", expense.ID,
+		"description", expense.Description,
 		"amount_cents", expense.AmountCents,
 		"day", expense.Day,
 		"month", expense.Month)
@@ -87,13 +87,13 @@ func (r *SQLiteRepository) List(ctx context.Context) ([]string, []string, error)
 	if err != nil {
 		return nil, nil, fmt.Errorf("get primary categories: %w", err)
 	}
-	
+
 	// Get all secondary categories from database
 	secondaryCategories, err := r.queries.GetSecondaryCategories(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("get secondary categories: %w", err)
 	}
-	
+
 	return primaryCategories, secondaryCategories, nil
 }
 
@@ -103,7 +103,7 @@ func (r *SQLiteRepository) GetSecondariesByPrimary(ctx context.Context, primaryC
 	if err != nil {
 		return nil, fmt.Errorf("get secondary categories for primary %s: %w", primaryCategory, err)
 	}
-	
+
 	return secondaryCategories, nil
 }
 
@@ -119,7 +119,7 @@ func (r *SQLiteRepository) ReadMonthOverview(ctx context.Context, year int, mont
 	if err != nil {
 		return overview, fmt.Errorf("get month total: %w", err)
 	}
-	
+
 	overview.Total = core.Money{Cents: total}
 
 	// Get category sums
@@ -218,7 +218,7 @@ func (r *SQLiteRepository) CreateCategory(ctx context.Context, name, categoryTyp
 	return nil
 }
 
-// DeleteCategory is deprecated - categories are managed via migrations  
+// DeleteCategory is deprecated - categories are managed via migrations
 func (r *SQLiteRepository) DeleteCategory(ctx context.Context, name, categoryType string) error {
 	slog.WarnContext(ctx, "DeleteCategory called but is deprecated - categories are managed via migrations")
 	return nil
@@ -245,7 +245,7 @@ func (r *SQLiteRepository) SyncCategories(ctx context.Context, categories []stri
 	} else if categoryType == "secondary" {
 		return r.syncSecondaryCategories(ctx, categories)
 	}
-	
+
 	return fmt.Errorf("unsupported category type: %s", categoryType)
 }
 
@@ -263,126 +263,126 @@ func (r *SQLiteRepository) syncSecondaryCategories(ctx context.Context, categori
 	// This maps categories from Google Sheets to our hierarchical structure
 	categoryMapping := map[string]string{
 		// Casa
-		"Mutuo": "Casa",
+		"Mutuo":              "Casa",
 		"Spese condominiali": "Casa",
-		"Internet": "Casa",
-		"Mobili": "Casa", 
-		"Assicurazioni": "Casa",
-		"Pulizia": "Casa",
-		"Elettricità": "Casa",
-		"Telefono": "Casa",
-		"Bollette": "Casa", // Legacy mapping
-		"Affitto": "Casa",  // Legacy mapping
-		
+		"Internet":           "Casa",
+		"Mobili":             "Casa",
+		"Assicurazioni":      "Casa",
+		"Pulizia":            "Casa",
+		"Elettricità":        "Casa",
+		"Telefono":           "Casa",
+		"Bollette":           "Casa", // Legacy mapping
+		"Affitto":            "Casa", // Legacy mapping
+
 		// Salute
 		"Assicurazione sanitaria": "Salute",
-		"Dottori": "Salute",
-		"Medicine": "Salute",
-		"Personale": "Salute",
-		"Sport": "Salute",
-		"Medico": "Salute", // Legacy mapping
-		"Farmacia": "Salute", // Legacy mapping
-		
+		"Dottori":                 "Salute",
+		"Medicine":                "Salute",
+		"Personale":               "Salute",
+		"Sport":                   "Salute",
+		"Medico":                  "Salute", // Legacy mapping
+		"Farmacia":                "Salute", // Legacy mapping
+
 		// Spesa
-		"Everli": "Spesa",
+		"Everli":                   "Spesa",
 		"Altre spese (non Everli)": "Spesa",
-		"Supermercato": "Spesa", // Legacy mapping
-		
+		"Supermercato":             "Spesa", // Legacy mapping
+
 		// Trasporti
-		"Trasporto locale": "Trasporti",
-		"Car sharing": "Trasporti",
-		"Spese automobile": "Trasporti",
-		"Servizi taxi": "Trasporti",
-		"Benzina": "Trasporti", // Legacy mapping
+		"Trasporto locale":   "Trasporti",
+		"Car sharing":        "Trasporti",
+		"Spese automobile":   "Trasporti",
+		"Servizi taxi":       "Trasporti",
+		"Benzina":            "Trasporti", // Legacy mapping
 		"Trasporto Pubblico": "Trasporti", // Legacy mapping
-		
+
 		// Fuori (come fuori a cena...)
-		"Ristoranti": "Fuori (come fuori a cena...)",
-		"Bar": "Fuori (come fuori a cena...)",
+		"Ristoranti":  "Fuori (come fuori a cena...)",
+		"Bar":         "Fuori (come fuori a cena...)",
 		"Cibo a casa": "Fuori (come fuori a cena...)",
-		"Ristorante": "Fuori (come fuori a cena...)", // Legacy mapping
-		
+		"Ristorante":  "Fuori (come fuori a cena...)", // Legacy mapping
+
 		// Viaggi
-		"Vacanza": "Viaggi",
+		"Vacanza":        "Viaggi",
 		"Vacanza estiva": "Viaggi",
-		
+
 		// Bimbi
-		"Cura bimbi": "Bimbi",
-		"Roba bimbi": "Bimbi",
+		"Cura bimbi":  "Bimbi",
+		"Roba bimbi":  "Bimbi",
 		"Corsi bimbi": "Bimbi",
 		"Baby sitter": "Bimbi",
-		
+
 		// Vestiti
-		"Vestiti e": "Vestiti",
-		"Vestiti g": "Vestiti", 
+		"Vestiti e":     "Vestiti",
+		"Vestiti g":     "Vestiti",
 		"Vestiti bimbi": "Vestiti",
 		"Abbigliamento": "Vestiti", // Legacy mapping
-		"Scarpe": "Vestiti", // Legacy mapping
-		
+		"Scarpe":        "Vestiti", // Legacy mapping
+
 		// Divertimento
-		"Tech": "Divertimento",
-		"Libri e": "Divertimento",
-		"Divertimento e": "Divertimento",
-		"Learning e": "Divertimento",
-		"Giochi e": "Divertimento",
-		"Giochi g": "Divertimento",
-		"Learning g": "Divertimento",
+		"Tech":                   "Divertimento",
+		"Libri e":                "Divertimento",
+		"Divertimento e":         "Divertimento",
+		"Learning e":             "Divertimento",
+		"Giochi e":               "Divertimento",
+		"Giochi g":               "Divertimento",
+		"Learning g":             "Divertimento",
 		"Divertimento familiare": "Divertimento",
-		"Altri divertimenti": "Divertimento",
-		"Cinema": "Divertimento", // Legacy mapping
-		"Hobby": "Divertimento", // Legacy mapping
-		
+		"Altri divertimenti":     "Divertimento",
+		"Cinema":                 "Divertimento", // Legacy mapping
+		"Hobby":                  "Divertimento", // Legacy mapping
+
 		// Regali
 		"Altri regali": "Regali",
-		"Compleanno": "Regali", // Legacy mapping
-		"Natale": "Regali", // Legacy mapping
-		
+		"Compleanno":   "Regali", // Legacy mapping
+		"Natale":       "Regali", // Legacy mapping
+
 		// Tasse e Percentuali
-		"Brokers": "Tasse e Percentuali",
-		"Banche": "Tasse e Percentuali",
-		"Consulting": "Tasse e Percentuali",
+		"Brokers":                   "Tasse e Percentuali",
+		"Banche":                    "Tasse e Percentuali",
+		"Consulting":                "Tasse e Percentuali",
 		"Altre tasse e percentuali": "Tasse e Percentuali",
-		"IRPEF": "Tasse e Percentuali", // Legacy mapping
-		"IMU": "Tasse e Percentuali", // Legacy mapping
-		
+		"IRPEF":                     "Tasse e Percentuali", // Legacy mapping
+		"IMU":                       "Tasse e Percentuali", // Legacy mapping
+
 		// Altre spese
 		"Tasse statali": "Altre spese",
-		"2DM": "Altre spese",
-		"Unknown": "Altre spese",
-		"Varie": "Altre spese", // Legacy mapping
-		"Azioni": "Altre spese", // Legacy mapping  
-		"Crypto": "Altre spese", // Legacy mapping
-		
+		"2DM":           "Altre spese",
+		"Unknown":       "Altre spese",
+		"Varie":         "Altre spese", // Legacy mapping
+		"Azioni":        "Altre spese", // Legacy mapping
+		"Crypto":        "Altre spese", // Legacy mapping
+
 		// Lavoro
 		"Lavoro g": "Lavoro",
 		"Lavoro e": "Lavoro",
 	}
-	
+
 	slog.InfoContext(ctx, "Syncing secondary categories from Google Sheets", "count", len(categories))
-	
+
 	// For each category from Google Sheets, map it to the appropriate primary
 	syncedCount := 0
 	for _, category := range categories {
 		if category == "" {
 			continue
 		}
-		
+
 		primaryCategory, exists := categoryMapping[category]
 		if !exists {
-			slog.WarnContext(ctx, "Unknown secondary category from Google Sheets", 
-				"category", category, 
+			slog.WarnContext(ctx, "Unknown secondary category from Google Sheets",
+				"category", category,
 				"action", "skipping")
 			continue
 		}
-		
+
 		// Check if this secondary category already exists in our database
 		existingSecondaries, err := r.GetSecondariesByPrimary(ctx, primaryCategory)
 		if err != nil {
-			slog.ErrorContext(ctx, "Failed to check existing secondary categories", 
+			slog.ErrorContext(ctx, "Failed to check existing secondary categories",
 				"primary", primaryCategory, "error", err)
 			continue
 		}
-		
+
 		// Check if it already exists
 		categoryExists := false
 		for _, existing := range existingSecondaries {
@@ -391,22 +391,22 @@ func (r *SQLiteRepository) syncSecondaryCategories(ctx context.Context, categori
 				break
 			}
 		}
-		
+
 		if categoryExists {
-			slog.DebugContext(ctx, "Secondary category already exists", 
+			slog.DebugContext(ctx, "Secondary category already exists",
 				"category", category, "primary", primaryCategory)
 			continue
 		}
-		
+
 		slog.InfoContext(ctx, "Adding new secondary category from Google Sheets",
 			"category", category, "primary", primaryCategory)
 		syncedCount++
 	}
-	
-	slog.InfoContext(ctx, "Secondary categories sync completed", 
+
+	slog.InfoContext(ctx, "Secondary categories sync completed",
 		"total_from_sheets", len(categories),
 		"synced", syncedCount)
-	
+
 	return nil
 }
 
@@ -417,13 +417,13 @@ func (r *SQLiteRepository) GetCategoryCount(ctx context.Context) (int64, error) 
 	if err != nil {
 		return 0, fmt.Errorf("get primary categories: %w", err)
 	}
-	
-	// Count secondary categories  
+
+	// Count secondary categories
 	secondaries, err := r.queries.GetSecondaryCategories(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("get secondary categories: %w", err)
 	}
-	
+
 	return int64(len(primaries) + len(secondaries)), nil
 }
 
@@ -440,13 +440,13 @@ func (r *SQLiteRepository) RefreshCategories(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("refresh secondary categories: %w", err)
 	}
-	
+
 	// Clear primary categories
 	err = r.queries.RefreshPrimaryCategories(ctx)
 	if err != nil {
 		return fmt.Errorf("refresh primary categories: %w", err)
 	}
-	
+
 	slog.InfoContext(ctx, "Categories cache cleared")
 	return nil
 }

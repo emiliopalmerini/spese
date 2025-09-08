@@ -17,12 +17,12 @@ const (
 	StateClosed   = 0
 	StateOpen     = 1
 	StateHalfOpen = 2
-	
+
 	// Circuit breaker configuration
-	maxFailures     = 5
-	openTimeout     = 30 * time.Second
-	maxRetries      = 3
-	baseRetryDelay  = 1 * time.Second
+	maxFailures    = 5
+	openTimeout    = 30 * time.Second
+	maxRetries     = 3
+	baseRetryDelay = 1 * time.Second
 )
 
 type Client struct {
@@ -31,7 +31,7 @@ type Client struct {
 	exchangeName string
 	queueName    string
 	url          string
-	
+
 	// Circuit breaker state
 	failureCount int64
 	lastFailure  time.Time
@@ -160,13 +160,13 @@ func (c *Client) reconnect(ctx context.Context) error {
 		}
 
 		slog.InfoContext(ctx, "Attempting to reconnect to AMQP", "attempt", attempt+1)
-		
+
 		conn, err := amqp091.Dial(c.url)
 		if err != nil {
 			delay := exponentialBackoff(attempt)
-			slog.WarnContext(ctx, "AMQP reconnection failed, retrying", 
+			slog.WarnContext(ctx, "AMQP reconnection failed, retrying",
 				"error", err, "attempt", attempt+1, "retry_delay", delay)
-			
+
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -179,9 +179,9 @@ func (c *Client) reconnect(ctx context.Context) error {
 		if err != nil {
 			conn.Close()
 			delay := exponentialBackoff(attempt)
-			slog.WarnContext(ctx, "AMQP channel creation failed, retrying", 
+			slog.WarnContext(ctx, "AMQP channel creation failed, retrying",
 				"error", err, "attempt", attempt+1, "retry_delay", delay)
-			
+
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -206,9 +206,9 @@ func (c *Client) reconnect(ctx context.Context) error {
 			conn.Close()
 			channel.Close()
 			delay := exponentialBackoff(attempt)
-			slog.WarnContext(ctx, "AMQP setup failed, retrying", 
+			slog.WarnContext(ctx, "AMQP setup failed, retrying",
 				"error", err, "attempt", attempt+1, "retry_delay", delay)
-			
+
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -246,7 +246,7 @@ func (c *Client) PublishExpenseSync(ctx context.Context, id, version int64) erro
 		}
 
 		publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		
+
 		err = c.channel.PublishWithContext(
 			publishCtx,
 			c.exchangeName, // exchange
@@ -261,11 +261,11 @@ func (c *Client) PublishExpenseSync(ctx context.Context, id, version int64) erro
 			},
 		)
 		cancel()
-		
+
 		if err == nil {
 			c.recordSuccess()
-			slog.InfoContext(ctx, "Published expense sync message", 
-				"id", id, 
+			slog.InfoContext(ctx, "Published expense sync message",
+				"id", id,
 				"version", version,
 				"exchange", c.exchangeName,
 				"queue", c.queueName,
@@ -275,13 +275,13 @@ func (c *Client) PublishExpenseSync(ctx context.Context, id, version int64) erro
 
 		// Check if it's a connection error that requires reconnection
 		if isConnectionError(err) {
-			slog.WarnContext(ctx, "AMQP connection error, attempting reconnection", 
+			slog.WarnContext(ctx, "AMQP connection error, attempting reconnection",
 				"error", err, "attempt", attempt+1)
-			
+
 			if reconnectErr := c.reconnect(ctx); reconnectErr != nil {
 				slog.ErrorContext(ctx, "Failed to reconnect", "error", reconnectErr)
 				c.recordFailure()
-				
+
 				if attempt < maxRetries-1 {
 					delay := exponentialBackoff(attempt)
 					select {
@@ -298,9 +298,9 @@ func (c *Client) PublishExpenseSync(ctx context.Context, id, version int64) erro
 		} else {
 			// Non-connection error, record failure and retry with backoff
 			c.recordFailure()
-			slog.WarnContext(ctx, "Failed to publish message, retrying", 
+			slog.WarnContext(ctx, "Failed to publish message, retrying",
 				"error", err, "attempt", attempt+1, "id", id)
-			
+
 			if attempt < maxRetries-1 {
 				delay := exponentialBackoff(attempt)
 				select {
@@ -322,14 +322,14 @@ func isConnectionError(err error) bool {
 	if err == nil {
 		return false
 	}
-	
+
 	// Check for common AMQP connection errors
 	errStr := err.Error()
-	return strings.Contains(errStr, "connection") || 
-		   strings.Contains(errStr, "closed") || 
-		   strings.Contains(errStr, "EOF") ||
-		   strings.Contains(errStr, "broken pipe") ||
-		   strings.Contains(errStr, "use of closed network connection")
+	return strings.Contains(errStr, "connection") ||
+		strings.Contains(errStr, "closed") ||
+		strings.Contains(errStr, "EOF") ||
+		strings.Contains(errStr, "broken pipe") ||
+		strings.Contains(errStr, "use of closed network connection")
 }
 
 // ConsumeExpenseSync consumes expense sync messages
@@ -366,22 +366,22 @@ func (c *Client) ConsumeExpenseSync(ctx context.Context, handler func(context.Co
 				continue
 			}
 
-			slog.InfoContext(ctx, "Processing expense sync message", 
-				"id", msg.ID, 
+			slog.InfoContext(ctx, "Processing expense sync message",
+				"id", msg.ID,
 				"version", msg.Version)
 
 			if err := handler(ctx, msg); err != nil {
-				slog.ErrorContext(ctx, "Failed to handle message", 
-					"error", err, 
-					"id", msg.ID, 
+				slog.ErrorContext(ctx, "Failed to handle message",
+					"error", err,
+					"id", msg.ID,
 					"version", msg.Version)
 				delivery.Nack(false, true) // reject and requeue
 				continue
 			}
 
 			delivery.Ack(false) // acknowledge successful processing
-			slog.InfoContext(ctx, "Successfully processed expense sync message", 
-				"id", msg.ID, 
+			slog.InfoContext(ctx, "Successfully processed expense sync message",
+				"id", msg.ID,
 				"version", msg.Version)
 		}
 	}
