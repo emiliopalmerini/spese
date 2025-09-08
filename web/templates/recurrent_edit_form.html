@@ -1,103 +1,138 @@
 {{ define "recurrent_edit_form" }}
-<div class="recurrent-item" id="recurrent-{{ .ID }}">
-  <form hx-put="/recurrent/update?id={{ .ID }}" 
-        hx-target="#recurrent-{{ .ID }}" 
-        hx-swap="outerHTML"
-        hx-indicator="#edit-loading-{{ .ID }}"
-        class="recurrent-edit-form">
-    
-    <div class="edit-field">
-      <input type="text" 
-             name="description" 
-             value="{{ .Description }}" 
-             placeholder="Descrizione"
-             maxlength="200"
-             required
-             class="edit-input edit-input--desc">
+<div class="recurrent-item recurrent-item--editing" id="recurrent-{{ .ID }}">
+  <div class="edit-overlay">
+    <div class="edit-header">
+      <h4 class="edit-title">Modifica Spesa Ricorrente</h4>
+      <div class="edit-divider"></div>
     </div>
     
-    <div class="edit-field">
-      <input type="number" 
-             name="amount" 
-             value="{{ printf "%.2f" (divFloat .Amount.Cents 100) }}" 
-             step="0.01" 
-             min="0.01"
-             required
-             class="edit-input edit-input--amount">
-    </div>
-    
-    <div class="edit-field">
-      <select name="repetition_type" required class="edit-select">
-        <option value="daily" {{ if eq .Every "daily" }}selected{{ end }}>Giornaliera</option>
-        <option value="weekly" {{ if eq .Every "weekly" }}selected{{ end }}>Settimanale</option>
-        <option value="monthly" {{ if eq .Every "monthly" }}selected{{ end }}>Mensile</option>
-        <option value="yearly" {{ if eq .Every "yearly" }}selected{{ end }}>Annuale</option>
-      </select>
-    </div>
-    
-    <div class="edit-field">
-      <input type="date" 
-             name="start_date" 
-             value="{{ printf "%d-%02d-%02d" .StartDate.Year .StartDate.Month .StartDate.Day }}"
-             required
-             class="edit-input edit-input--date">
-    </div>
-    
-    <div class="edit-field">
-      <input type="date" 
-             name="end_date" 
-             value="{{ if .EndDate.Year }}{{ printf "%d-%02d-%02d" .EndDate.Year .EndDate.Month .EndDate.Day }}{{ end }}"
-             class="edit-input edit-input--date">
-    </div>
-    
-    <div class="edit-field">
-      <select name="primary" required class="edit-select"
-              hx-get="/api/categories/secondary"
-              hx-trigger="change"
-              hx-target="#secondary-{{ .ID }}"
-              hx-swap="innerHTML">
-        <option value="">Seleziona categoria</option>
-        {{ range .Categories }}
-          <option value="{{ . }}" {{ if eq . $.Primary }}selected{{ end }}>{{ . }}</option>
-        {{ end }}
-      </select>
-    </div>
-    
-    <div class="edit-field">
-      <select id="secondary-{{ .ID }}" name="secondary" required class="edit-select">
-        {{ if .Subcats }}
-          {{ range .Subcats }}
-            <option value="{{ . }}" {{ if eq . $.Secondary }}selected{{ end }}>{{ . }}</option>
-          {{ end }}
-        {{ else }}
-          <option value="{{ .Secondary }}" selected>{{ .Secondary }}</option>
-        {{ end }}
-      </select>
-    </div>
-    
-    <div class="edit-actions">
-      <button type="submit" class="action-icon action-icon--save" title="Salva modifiche">
-        <svg viewBox="0 0 24 24">
-          <path d="m9 12 2 2 4-4"/>
-          <path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"/>
-          <path d="M17 12c0 3-1 5-3 5s-3-2-3-5 1-5 3-5 3 2 3 5z"/>
-        </svg>
-      </button>
+    <form hx-put="/recurrent/update?id={{ .ID }}" 
+          hx-target="#recurrent-{{ .ID }}" 
+          hx-swap="outerHTML"
+          hx-indicator="#edit-loading-{{ .ID }}"
+          class="recurrent-edit-form">
       
-      <button type="button" 
-              class="action-icon action-icon--cancel" 
-              title="Annulla modifiche"
-              onclick="window.location.reload()">
-        <svg viewBox="0 0 24 24">
-          <line x1="18" y1="6" x2="6" y2="18"/>
-          <line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </div>
-    
-    <div id="edit-loading-{{ .ID }}" class="htmx-indicator edit-loading">
-      <span>Salvando...</span>
-    </div>
-  </form>
+      {{/* Primary row - Description and Amount */}}
+      <div class="edit-row edit-row--primary">
+        <div class="edit-field edit-field--description">
+          <label class="edit-label">Descrizione</label>
+          <input type="text" 
+                 name="description" 
+                 value="{{ .Description }}" 
+                 placeholder="es. Abbonamento Netflix"
+                 maxlength="200"
+                 required
+                 class="edit-input edit-input--desc">
+        </div>
+        
+        <div class="edit-field edit-field--amount">
+          <label class="edit-label">Importo</label>
+          <div class="edit-input-group">
+            <span class="edit-input-prefix">€</span>
+            <input type="number" 
+                   name="amount" 
+                   value="{{ printf "%.2f" (divFloat .Amount.Cents 100) }}" 
+                   step="0.01" 
+                   min="0.01"
+                   placeholder="0.00"
+                   required
+                   class="edit-input edit-input--amount">
+          </div>
+        </div>
+      </div>
+      
+      {{/* Secondary row - Frequency and Dates */}}
+      <div class="edit-row edit-row--secondary">
+        <div class="edit-field edit-field--frequency">
+          <label class="edit-label">Frequenza</label>
+          <select name="repetition_type" required class="edit-select">
+            <option value="daily" {{ if eq .Every "daily" }}selected{{ end }}>Giornaliera</option>
+            <option value="weekly" {{ if eq .Every "weekly" }}selected{{ end }}>Settimanale</option>
+            <option value="monthly" {{ if eq .Every "monthly" }}selected{{ end }}>Mensile</option>
+            <option value="yearly" {{ if eq .Every "yearly" }}selected{{ end }}>Annuale</option>
+          </select>
+        </div>
+        
+        <div class="edit-field edit-field--date-group">
+          <div class="edit-date-fields">
+            <div class="edit-field edit-field--date">
+              <label class="edit-label edit-label--compact">Dal</label>
+              <input type="date" 
+                     name="start_date" 
+                     value="{{ printf "%d-%02d-%02d" .StartDate.Year .StartDate.Month .StartDate.Day }}"
+                     required
+                     class="edit-input edit-input--date">
+            </div>
+            
+            <div class="edit-field edit-field--date">
+              <label class="edit-label edit-label--compact">Al</label>
+              <input type="date" 
+                     name="end_date" 
+                     value="{{ if .EndDate.Year }}{{ printf "%d-%02d-%02d" .EndDate.Year .EndDate.Month .EndDate.Day }}{{ end }}"
+                     placeholder="Opzionale"
+                     class="edit-input edit-input--date edit-input--optional">
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {{/* Tertiary row - Categories */}}
+      <div class="edit-row edit-row--tertiary">
+        <div class="edit-field edit-field--category">
+          <label class="edit-label">Categoria Primaria</label>
+          <select name="primary" required class="edit-select"
+                  hx-get="/api/categories/secondary"
+                  hx-trigger="change"
+                  hx-target="#secondary-{{ .ID }}"
+                  hx-swap="innerHTML">
+            <option value="">Seleziona categoria</option>
+            {{ range .Categories }}
+              <option value="{{ . }}" {{ if eq . $.Primary }}selected{{ end }}>{{ . }}</option>
+            {{ end }}
+          </select>
+        </div>
+        
+        <div class="edit-field edit-field--subcategory">
+          <label class="edit-label">Categoria Secondaria</label>
+          <select id="secondary-{{ .ID }}" name="secondary" required class="edit-select">
+            {{ if .Subcats }}
+              {{ range .Subcats }}
+                <option value="{{ . }}" {{ if eq . $.Secondary }}selected{{ end }}>{{ . }}</option>
+              {{ end }}
+            {{ else }}
+              <option value="{{ .Secondary }}" selected>{{ .Secondary }}</option>
+            {{ end }}
+          </select>
+        </div>
+      </div>
+      
+      {{/* Actions row */}}
+      <div class="edit-actions">
+        <div class="edit-actions-primary">
+          <button type="submit" class="edit-btn edit-btn--save">
+            <svg class="edit-btn-icon" viewBox="0 0 24 24">
+              <path d="m9 12 2 2 4-4"/>
+            </svg>
+            <span class="edit-btn-text">Salva</span>
+          </button>
+          
+          <button type="button" 
+                  class="edit-btn edit-btn--cancel" 
+                  onclick="window.location.reload()">
+            <svg class="edit-btn-icon" viewBox="0 0 24 24">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+            <span class="edit-btn-text">Annulla</span>
+          </button>
+        </div>
+        
+        <div id="edit-loading-{{ .ID }}" class="htmx-indicator edit-loading">
+          <div class="edit-loading-spinner"></div>
+          <span class="edit-loading-text">Salvataggio in corso…</span>
+        </div>
+      </div>
+    </form>
+  </div>
 </div>
 {{ end }}
