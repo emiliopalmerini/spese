@@ -1279,97 +1279,306 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
   }
 }
 
-/* Inline editing form styles */
-.recurrent-edit-form{
-  display:grid;
-  gap:var(--space-2);
-  align-items:center;
-  padding:var(--space-3);
-  background:var(--bg-light);
-  border:2px solid var(--primary);
-  border-radius:var(--radius);
-  grid-template-columns:1fr 1fr auto;
-  grid-template-areas:
-    "desc amount actions"
-    "freq dates actions"
-    "cat1 cat2 actions";
+/* ==============================================================
+   Enhanced Inline Editing Modal - Elegant & Refined
+============================================================== */
+
+/* Main editing state */
+.recurrent-item--editing{
+  border:none !important;
+  background:transparent !important;
+  padding:0 !important;
+}
+.recurrent-item--editing:hover{
+  background:transparent !important;
+  margin:0 !important;
+  padding:0 !important;
 }
 
+/* Elegant modal overlay */
+.edit-overlay{
+  background:var(--surface);
+  border:2px solid var(--text);
+  border-radius:var(--radius-card);
+  box-shadow:0 8px 32px rgba(0,0,0,0.12);
+  padding:0;
+  position:relative;
+  animation:modalSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalSlideIn {
+  from { 
+    opacity:0; 
+    transform:translateY(-8px) scale(0.96); 
+  }
+  to { 
+    opacity:1; 
+    transform:translateY(0) scale(1); 
+  }
+}
+
+/* Refined header */
+.edit-header{
+  padding:var(--space-4) var(--space-4) var(--space-3);
+  border-bottom:1px solid var(--line);
+}
+.edit-title{
+  margin:0;
+  font-size:1rem;
+  font-weight:600;
+  color:var(--text);
+  letter-spacing:-0.01em;
+}
+.edit-divider{
+  height:2px;
+  background:linear-gradient(90deg, var(--text) 0%, var(--border) 100%);
+  margin:var(--space-2) 0 0;
+  border-radius:1px;
+}
+
+/* Form structure */
+.recurrent-edit-form{
+  padding:var(--space-4);
+  display:flex;
+  flex-direction:column;
+  gap:var(--space-4);
+}
+
+/* Row-based layout */
+.edit-row{
+  display:flex;
+  gap:var(--space-4);
+  align-items:flex-start;
+}
+
+/* Field styling */
 .edit-field{
   display:flex;
-  align-items:center;
+  flex-direction:column;
+  gap:var(--space-1);
+  flex:1;
 }
 
+.edit-label{
+  font-size:0.875rem;
+  font-weight:500;
+  color:var(--text);
+  letter-spacing:0.01em;
+  margin:0;
+}
+.edit-label--compact{
+  font-size:0.8125rem;
+  font-weight:500;
+  color:var(--muted);
+}
+
+/* Enhanced inputs */
 .edit-input, .edit-select{
   width:100%;
-  padding:6px 8px;
-  border:1px solid var(--border);
+  padding:var(--control-pad-y) var(--control-pad-x);
+  border:2px solid var(--border);
   border-radius:var(--radius);
-  font-size:0.875rem;
   background:var(--surface);
   color:var(--text);
+  font-size:0.9375rem;
+  font-family:var(--font);
+  transition:all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .edit-input:focus, .edit-select:focus{
   outline:none;
-  border-color:var(--primary);
-  box-shadow:0 0 0 2px rgba(79, 70, 229, 0.1);
+  border-color:var(--text);
+  box-shadow:0 0 0 3px rgba(31, 41, 55, 0.08);
+  background:var(--surface);
+}
+.edit-input::placeholder{
+  color:var(--muted);
+  font-style:italic;
 }
 
-.edit-field:nth-child(2){grid-area:desc;} /* description */
-.edit-field:nth-child(3){grid-area:amount;} /* amount */
-.edit-field:nth-child(4){grid-area:freq;} /* frequency */
-.edit-field:nth-child(5){grid-area:dates;} /* start date */
-.edit-field:nth-child(6){display:none;} /* end date - hide for now */
-.edit-field:nth-child(7){grid-area:cat1;} /* primary category */
-.edit-field:nth-child(8){grid-area:cat2;} /* secondary category */
+/* Special input styling */
+.edit-input--desc{
+  font-weight:500;
+}
+.edit-input--optional{
+  border-style:dashed;
+  border-color:var(--muted);
+}
 
-.edit-actions{
-  grid-area:actions;
+/* Amount input with prefix */
+.edit-input-group{
+  position:relative;
   display:flex;
-  gap:var(--space-1);
-  justify-self:end;
+  align-items:center;
+}
+.edit-input-prefix{
+  position:absolute;
+  left:var(--control-pad-x);
+  color:var(--primary);
+  font-weight:600;
+  font-size:0.9375rem;
+  z-index:1;
+  pointer-events:none;
+}
+.edit-input--amount{
+  padding-left:calc(var(--control-pad-x) + 14px);
+  color:var(--primary);
+  font-weight:600;
+  font-variant-numeric:tabular-nums;
 }
 
-.action-icon--save{
-  background:var(--primary);
-  color:white;
+/* Date fields layout */
+.edit-field--date-group{
+  flex:1.2;
 }
-.action-icon--save:hover{
-  background:var(--primary-dark);
+.edit-date-fields{
+  display:flex;
+  gap:var(--space-2);
+}
+.edit-field--date{
+  flex:1;
 }
 
-.action-icon--cancel{
-  background:var(--muted);
-  color:white;
+/* Responsive field sizing */
+.edit-field--description{flex:2;}
+.edit-field--amount{flex:1;}
+.edit-field--frequency{flex:1.2;}
+.edit-field--category{flex:1;}
+.edit-field--subcategory{flex:1;}
+
+/* Enhanced action buttons */
+.edit-actions{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-top:var(--space-2);
+  padding-top:var(--space-4);
+  border-top:1px solid var(--line);
 }
-.action-icon--cancel:hover{
+
+.edit-actions-primary{
+  display:flex;
+  gap:var(--space-2);
+}
+
+.edit-btn{
+  display:flex;
+  align-items:center;
+  gap:var(--space-2);
+  padding:var(--space-2) var(--space-4);
+  border:2px solid transparent;
+  border-radius:var(--radius);
+  background:transparent;
+  color:var(--text);
+  font-size:0.875rem;
+  font-weight:500;
+  font-family:var(--font);
+  cursor:pointer;
+  transition:all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  min-height:40px;
+}
+
+.edit-btn--save{
   background:var(--text);
+  color:var(--surface);
+  border-color:var(--text);
+}
+.edit-btn--save:hover{
+  background:var(--muted);
+  border-color:var(--muted);
+  transform:translateY(-1px);
+  box-shadow:0 4px 12px rgba(0,0,0,0.15);
 }
 
+.edit-btn--cancel{
+  border-color:var(--border);
+  color:var(--muted);
+}
+.edit-btn--cancel:hover{
+  border-color:var(--muted);
+  color:var(--text);
+  background:var(--bg-light);
+}
+
+.edit-btn-icon{
+  width:16px;
+  height:16px;
+  stroke:currentColor;
+  fill:none;
+  stroke-width:2.5;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+
+.edit-btn-text{
+  font-weight:500;
+  letter-spacing:0.01em;
+}
+
+/* Elegant loading state */
 .edit-loading{
-  grid-column:1 / -1;
-  text-align:center;
-  padding:var(--space-2);
+  display:flex;
+  align-items:center;
+  gap:var(--space-2);
   color:var(--muted);
   font-size:0.875rem;
 }
 
-/* Mobile editing form */
-@media (max-width: 559px) {
-  .recurrent-edit-form{
-    grid-template-columns:1fr;
-    grid-template-areas:
-      "desc"
-      "amount"
-      "freq"
-      "dates"
-      "cat1"
-      "cat2"
-      "actions";
+.edit-loading-spinner{
+  width:16px;
+  height:16px;
+  border:2px solid var(--line);
+  border-top-color:var(--muted);
+  border-radius:50%;
+  animation:spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.edit-loading-text{
+  font-style:italic;
+  color:var(--muted);
+}
+
+/* Mobile responsive design */
+@media (max-width: 640px) {
+  .edit-overlay{
+    margin:0 calc(-1 * var(--space-4));
+    border-radius:0;
+    border-left:none;
+    border-right:none;
   }
+  
+  .edit-row{
+    flex-direction:column;
+    gap:var(--space-3);
+  }
+  
+  .edit-date-fields{
+    flex-direction:column;
+    gap:var(--space-2);
+  }
+  
   .edit-actions{
-    justify-self:center;
-    margin-top:var(--space-2);
+    flex-direction:column;
+    gap:var(--space-3);
+    align-items:stretch;
+  }
+  
+  .edit-actions-primary{
+    order:2;
+    justify-content:center;
+  }
+  
+  .edit-loading{
+    order:1;
+    justify-content:center;
+  }
+  
+  .edit-btn{
+    min-height:44px;
+    justify-content:center;
   }
 }
 
