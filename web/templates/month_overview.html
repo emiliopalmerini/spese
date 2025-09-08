@@ -4,14 +4,14 @@
   Expects: .Year, .Month, .Total, .Rows (category totals), .Items (expense details)
 */}}
 <section id="month-overview" class="month-overview">
-  <h2>Month Overview</h2>
+  <h2>Panoramica Mensile</h2>
   <div class="overview-body">
     {{/* Total amount display */}}
-    <div class="total">Month total: <strong>{{ .Total }}</strong></div>
+    <div class="total">Totale mensile: <strong>{{ .Total }}</strong></div>
     
     {{/* Scale legend (if available) */}}
     {{ if .MaxName }}
-    <div class="legend">Scale relative to: <em>{{ .MaxName }}</em> ({{ .Max }})</div>
+    <div class="legend">Scala relativa a: <em>{{ .MaxName }}</em> ({{ .Max }})</div>
     {{ end }}
     
     {{/* Category breakdown with bars */}}
@@ -27,13 +27,13 @@
         </div>
         {{ end }}
       {{ else }}
-        <div class="row placeholder">No data</div>
+        <div class="row placeholder">Nessun dato</div>
       {{ end }}
     </div>
     
     {{/* Expense details section */}}
     <div class="expenses">
-      <h3>Expense Details</h3>
+      <h3>Dettagli Spese</h3>
       {{ if .Items }}
         <div class="expenses__list">
           {{ range .Items }}
@@ -46,7 +46,7 @@
           {{ end }}
         </div>
       {{ else }}
-        <div class="row placeholder">No expenses recorded</div>
+        <div class="row placeholder">Nessuna spesa registrata</div>
       {{ end }}
     </div>
   </div>
