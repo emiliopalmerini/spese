@@ -1156,6 +1156,12 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
   padding-bottom:var(--space-3);
   border-radius:var(--radius);
 }
+.recurrent-item--editing:hover{
+  margin:0 calc(-1 * var(--space-4));
+  padding-left:var(--space-4);
+  padding-right:var(--space-4);
+  border-radius:var(--radius);
+}
 .recurrent-item:last-child{
   border-bottom:none;
 }
@@ -1289,6 +1295,7 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
   border-color:var(--text) !important;
   border-width:2px !important;
   animation:editModeIn 0.2s ease-out;
+  min-height:var(--space-16);
 }
 .recurrent-item--editing:hover{
   background:var(--bg-light) !important;
@@ -1300,12 +1307,13 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
   to { background:var(--bg-light); border-color:var(--text); }
 }
 
-/* Form maintains exact grid layout */
+/* Form maintains exact grid layout - identical to normal row */
 .recurrent-edit-inline{
   display:grid;
   gap:var(--space-2);
   align-items:center;
   padding:var(--space-3) 0;
+  width:100%;
   grid-template-columns:1fr auto auto;
   grid-template-areas:
     "freq  amount actions"
@@ -1313,6 +1321,7 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
     "cat   amount actions"
     "dates amount actions";
   transition:all 0.2s ease;
+  position:relative;
 }
 
 /* Editable frequency - looks like badge but is select */
@@ -1549,6 +1558,7 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
   .recurrent-edit-inline{
     grid-template-columns:120px 1fr auto auto auto;
     grid-template-areas:"freq desc cat amount actions";
+    width:100%;
   }
   .recurrent-dates--editing{
     display:none; /* Hide dates on desktop like normal view */
