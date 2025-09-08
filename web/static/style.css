@@ -1107,6 +1107,273 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
 }
 
 /* ==============================================================
+   Recurrent Expenses - using same style as normal expenses
+============================================================== */
+.recurrent-expenses{
+  background:var(--surface);
+  border-radius:var(--radius-card);
+  box-shadow:var(--shadow-md);
+  border:1px solid var(--border);
+  overflow:hidden;
+  margin-top:var(--space-4);
+}
+.recurrent-expenses h2{
+  margin:0;
+  padding:var(--space-4);
+  border-bottom:1px solid var(--line);
+  font-size:1.125rem;
+  font-weight:600;
+  color:var(--text);
+}
+.recurrent-list{
+  padding:var(--space-4);
+  display:grid;
+  gap:var(--space-2);
+}
+
+/* Recurrent expense item - same style as .month-overview .expense */
+.recurrent-item{
+  display:grid;
+  gap:var(--space-2);
+  align-items:center;
+  padding:var(--space-3) 0;
+  border-bottom:2px dashed var(--line);
+  grid-template-columns:1fr auto auto;
+  grid-template-areas:
+    "freq  amount actions"
+    "desc  amount actions"
+    "cat   amount actions"
+    "dates amount actions";
+  transition:background-color 0.2s ease;
+  position:relative;
+}
+.recurrent-item:hover{
+  background-color:var(--bg-light);
+  margin:0 calc(-1 * var(--space-4));
+  padding-left:var(--space-4);
+  padding-right:var(--space-4);
+  padding-top:var(--space-3);
+  padding-bottom:var(--space-3);
+  border-radius:var(--radius);
+}
+.recurrent-item:last-child{
+  border-bottom:none;
+}
+
+/* Grid areas for recurrent expense data */
+.recurrent-frequency{
+  grid-area:freq;
+  font-weight:500;
+  color:var(--text);
+  background:var(--bg-light);
+  padding:2px 8px;
+  border-radius:var(--radius);
+  border:1px solid var(--border);
+  font-size:0.875rem;
+  width:fit-content;
+}
+.recurrent-description{
+  grid-area:desc;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-weight:500;
+  color:var(--text);
+  margin:0;
+}
+.recurrent-categories{
+  grid-area:cat;
+  color:var(--muted);
+  font-size:0.875rem;
+}
+.recurrent-dates{
+  grid-area:dates;
+  color:var(--muted);
+  font-variant-numeric:tabular-nums;
+  font-size:0.875rem;
+}
+.recurrent-amount{
+  grid-area:amount;
+  font-weight:600;
+  font-variant-numeric:tabular-nums;
+  justify-self:end;
+  color:var(--primary);
+  font-size:1rem;
+}
+
+/* Action icons */
+.recurrent-actions{
+  grid-area:actions;
+  display:flex;
+  gap:var(--space-1);
+  opacity:0;
+  transition:opacity 0.2s ease;
+  justify-self:end;
+}
+.recurrent-item:hover .recurrent-actions{
+  opacity:1;
+}
+
+.action-icon{
+  width:32px;
+  height:32px;
+  border:none;
+  background:transparent;
+  cursor:pointer;
+  border-radius:var(--radius);
+  padding:6px;
+  transition:all 0.15s ease;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.action-icon:hover{
+  background:var(--text);
+  color:var(--surface);
+}
+.action-icon svg{
+  width:20px;
+  height:20px;
+  stroke:currentColor;
+  fill:none;
+  stroke-width:2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+
+/* Category styling */
+.category-primary{
+  font-weight:500;
+  color:var(--text);
+}
+.category-separator{
+  color:var(--muted);
+  margin:0 4px;
+}
+.category-secondary{
+  color:var(--muted);
+}
+
+/* Mobile responsive - same as normal expenses */
+@media (min-width:560px){
+  .recurrent-item{
+    grid-template-columns:120px 1fr auto auto auto;
+    grid-template-areas:"freq desc cat amount actions";
+  }
+  .recurrent-dates{
+    display:none; /* Hide dates on desktop to save space */
+  }
+}
+
+/* Mobile: show actions always */
+@media (max-width: 559px) {
+  .recurrent-actions{
+    opacity:1;
+    position:absolute;
+    top:var(--space-1);
+    right:0;
+  }
+  .action-icon{
+    background:var(--bg-light);
+    border:1px solid var(--border);
+  }
+}
+
+/* Inline editing form styles */
+.recurrent-edit-form{
+  display:grid;
+  gap:var(--space-2);
+  align-items:center;
+  padding:var(--space-3);
+  background:var(--bg-light);
+  border:2px solid var(--primary);
+  border-radius:var(--radius);
+  grid-template-columns:1fr 1fr auto;
+  grid-template-areas:
+    "desc amount actions"
+    "freq dates actions"
+    "cat1 cat2 actions";
+}
+
+.edit-field{
+  display:flex;
+  align-items:center;
+}
+
+.edit-input, .edit-select{
+  width:100%;
+  padding:6px 8px;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  font-size:0.875rem;
+  background:var(--surface);
+  color:var(--text);
+}
+.edit-input:focus, .edit-select:focus{
+  outline:none;
+  border-color:var(--primary);
+  box-shadow:0 0 0 2px rgba(79, 70, 229, 0.1);
+}
+
+.edit-field:nth-child(2){grid-area:desc;} /* description */
+.edit-field:nth-child(3){grid-area:amount;} /* amount */
+.edit-field:nth-child(4){grid-area:freq;} /* frequency */
+.edit-field:nth-child(5){grid-area:dates;} /* start date */
+.edit-field:nth-child(6){display:none;} /* end date - hide for now */
+.edit-field:nth-child(7){grid-area:cat1;} /* primary category */
+.edit-field:nth-child(8){grid-area:cat2;} /* secondary category */
+
+.edit-actions{
+  grid-area:actions;
+  display:flex;
+  gap:var(--space-1);
+  justify-self:end;
+}
+
+.action-icon--save{
+  background:var(--primary);
+  color:white;
+}
+.action-icon--save:hover{
+  background:var(--primary-dark);
+}
+
+.action-icon--cancel{
+  background:var(--muted);
+  color:white;
+}
+.action-icon--cancel:hover{
+  background:var(--text);
+}
+
+.edit-loading{
+  grid-column:1 / -1;
+  text-align:center;
+  padding:var(--space-2);
+  color:var(--muted);
+  font-size:0.875rem;
+}
+
+/* Mobile editing form */
+@media (max-width: 559px) {
+  .recurrent-edit-form{
+    grid-template-columns:1fr;
+    grid-template-areas:
+      "desc"
+      "amount"
+      "freq"
+      "dates"
+      "cat1"
+      "cat2"
+      "actions";
+  }
+  .edit-actions{
+    justify-self:center;
+    margin-top:var(--space-2);
+  }
+}
+
+/* ==============================================================
    Scrollbar sottili
 ============================================================== */
 *{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 40%, transparent) transparent;}
