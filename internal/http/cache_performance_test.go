@@ -1,6 +1,7 @@
 package http
 
 import (
+	"spese/internal/cache"
 	"spese/internal/core"
 	"testing"
 	"time"
@@ -9,7 +10,7 @@ import (
 // TestLRUCachePerformance verifies the new LRU cache performance and eviction
 func TestLRUCachePerformance(t *testing.T) {
 	// Create small cache for testing eviction
-	cache := newLRUCache[core.MonthOverview](3, 100*time.Millisecond) // 3 items max, 100ms TTL
+	cache := cache.NewLRUCache[core.MonthOverview](3, 100*time.Millisecond) // 3 items max, 100ms TTL
 
 	// Test basic operations
 	start := time.Now()
@@ -34,7 +35,7 @@ func TestLRUCachePerformance(t *testing.T) {
 
 // TestLRUCacheEviction tests size-based eviction
 func TestLRUCacheEviction(t *testing.T) {
-	cache := newLRUCache[string](3, time.Hour) // 3 items max
+	cache := cache.NewLRUCache[string](3, time.Hour) // 3 items max
 	
 	// Fill beyond capacity
 	cache.Set("key1", "value1")
@@ -61,7 +62,7 @@ func TestLRUCacheEviction(t *testing.T) {
 
 // TestLRUCacheTTLExpiration tests time-based expiration
 func TestLRUCacheTTLExpiration(t *testing.T) {
-	cache := newLRUCache[string](100, 50*time.Millisecond) // 50ms TTL
+	cache := cache.NewLRUCache[string](100, 50*time.Millisecond) // 50ms TTL
 	
 	cache.Set("key1", "value1")
 	
@@ -81,7 +82,7 @@ func TestLRUCacheTTLExpiration(t *testing.T) {
 
 // TestLRUCacheCleanExpired tests the cleanup mechanism
 func TestLRUCacheCleanExpired(t *testing.T) {
-	cache := newLRUCache[string](100, 50*time.Millisecond)
+	cache := cache.NewLRUCache[string](100, 50*time.Millisecond)
 	
 	// Add some items
 	cache.Set("key1", "value1")
@@ -102,7 +103,7 @@ func TestLRUCacheCleanExpired(t *testing.T) {
 
 // BenchmarkLRUCache benchmarks cache performance
 func BenchmarkLRUCache(b *testing.B) {
-	cache := newLRUCache[core.MonthOverview](1000, time.Hour)
+	cache := cache.NewLRUCache[core.MonthOverview](1000, time.Hour)
 	overview := core.MonthOverview{Year: 2025, Month: 1}
 	
 	b.ResetTimer()
@@ -122,7 +123,7 @@ func BenchmarkLRUCache(b *testing.B) {
 
 // BenchmarkCacheCleanup benchmarks the cleanup mechanism
 func BenchmarkCacheCleanup(b *testing.B) {
-	cache := newLRUCache[string](1000, time.Nanosecond) // Very short TTL
+	cache := cache.NewLRUCache[string](1000, time.Nanosecond) // Very short TTL
 	
 	// Fill cache with expired items
 	for i := 0; i < 100; i++ {

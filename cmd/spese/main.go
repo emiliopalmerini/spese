@@ -9,86 +9,60 @@ import (
 	"syscall"
 	"time"
 
-	"spese/internal/adapters"
-	"spese/internal/amqp"
+	"spese/internal/backend"
 	"spese/internal/config"
 	apphttp "spese/internal/http"
-	"spese/internal/services"
-	ports "spese/internal/sheets"
-	gsheet "spese/internal/sheets/google"
-	mem "spese/internal/sheets/memory"
-	"spese/internal/storage"
+	"spese/internal/log"
 )
 
 func main() {
-	// Setup structured logging
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
-	slog.SetDefault(logger)
+	// Setup structured logging with our centralized logger
+	appLogger := log.New(log.Config{
+		Level:     slog.LevelInfo,
+		Component: log.ComponentApp,
+		Handler:   slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}),
+	})
+	
+	// Set as default for backward compatibility
+	log.SetDefault(appLogger)
 
 	// Load configuration
 	cfg := config.Load()
 	
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
-		logger.Error("Configuration validation failed", "error", err)
+		appLogger.Error("Configuration validation failed", log.FieldError, err)
 		os.Exit(1)
 	}
 
-    var (
-        expWriter  ports.ExpenseWriter
-        taxReader  ports.TaxonomyReader
-        dashReader ports.DashboardReader
-        expLister  ports.ExpenseLister
-        cleanup    func() error
-    )
-
-	switch cfg.DataBackend {
-	case "sqlite":
-		// Initialize SQLite repository
-		sqliteRepo, err := storage.NewSQLiteRepository(cfg.SQLiteDBPath)
-		if err != nil {
-			logger.Error("Failed to initialize SQLite repository", "error", err, "path", cfg.SQLiteDBPath)
-			os.Exit(1)
-		}
-
-		// Initialize AMQP client (optional, can be nil)
-		var amqpClient *amqp.Client
-		if cfg.AMQPURL != "" {
-			amqpClient, err = amqp.NewClient(cfg.AMQPURL, cfg.AMQPExchange, cfg.AMQPQueue)
-			if err != nil {
-				logger.Warn("Failed to initialize AMQP client, continuing without sync", "error", err)
-			} else {
-				logger.Info("Initialized AMQP client", "exchange", cfg.AMQPExchange, "queue", cfg.AMQPQueue)
-			}
-		}
-
-		// Create expense service and adapter
-		expenseService := services.NewExpenseService(sqliteRepo, amqpClient)
-		adapter := adapters.NewSQLiteAdapter(sqliteRepo, expenseService)
-		
-		expWriter, taxReader, dashReader, expLister = adapter, adapter, adapter, adapter
-		cleanup = expenseService.Close
-		
-		logger.Info("Initialized SQLite backend", "db_path", cfg.SQLiteDBPath, "amqp_enabled", amqpClient != nil)
-
-	case "sheets":
-		cli, err := gsheet.NewFromEnv(context.Background())
-		if err != nil {
-			logger.Error("Failed to initialize Google Sheets client", "error", err)
-			os.Exit(1)
-		}
-        expWriter, taxReader, dashReader, expLister = cli, cli, cli, cli
-		logger.Info("Initialized Google Sheets backend")
-
-	default:
-		store := mem.NewFromFiles("data")
-        expWriter, taxReader, dashReader, expLister = store, store, store, store
-		logger.Info("Initialized memory backend", "backend", cfg.DataBackend)
+	// Convert app config to backend config
+	backendConfig, err := backend.FromAppConfig(cfg)
+	if err != nil {
+		appLogger.Error("Failed to convert backend configuration", log.FieldError, err)
+		os.Exit(1)
 	}
 
-    srv := apphttp.NewServer(":"+cfg.Port, expWriter, taxReader, dashReader, expLister)
+	// Validate backend configuration
+	if err := backendConfig.Validate(); err != nil {
+		appLogger.Error("Backend configuration validation failed", log.FieldError, err)
+		os.Exit(1)
+	}
+
+	// Create backend factory
+	factory := backend.NewFactory(appLogger.WithComponent(log.ComponentBackend).Logger)
+
+	// Create backend
+	backendResult, err := factory.CreateBackend(context.Background(), backendConfig)
+	if err != nil {
+		appLogger.Error("Failed to create backend", log.FieldError, err, "backend_type", backendConfig.Type)
+		os.Exit(1)
+	}
+
+	appLogger.Info("Backend initialized successfully", "backend_type", backendConfig.Type)
+
+	// Create HTTP server with logger
+	httpLogger := appLogger.WithComponent(log.ComponentHTTP)
+	srv := apphttp.NewServer(":"+cfg.Port, httpLogger, backendResult.Backend, backendResult.Backend, backendResult.Backend, backendResult.Backend)
 
 	// Configure server timeouts and limits
 	srv.ReadTimeout = 10 * time.Second
@@ -104,32 +78,37 @@ func main() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigChan
-		logger.Info("Shutdown signal received", "signal", sig.String())
+		appLogger.Info("Shutdown signal received", "signal", sig.String(), log.FieldOperation, log.OpShutdown)
 
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer shutdownCancel()
 
 		// Shutdown HTTP server
 		if err := srv.Shutdown(shutdownCtx); err != nil {
-			logger.Error("Server shutdown error", "error", err)
+			appLogger.Error("Server shutdown error", log.FieldError, err, log.FieldComponent, log.ComponentHTTP)
 		}
 
-		// Cleanup resources
-		if cleanup != nil {
-			if err := cleanup(); err != nil {
-				logger.Error("Cleanup error", "error", err)
+		// Cleanup backend resources
+		if backendResult.Cleanup != nil {
+			if err := backendResult.Cleanup(); err != nil {
+				appLogger.Error("Backend cleanup error", log.FieldError, err, log.FieldComponent, log.ComponentBackend)
 			}
 		}
 
 		cancel()
 	}()
 
-	logger.Info("Starting spese server", "port", cfg.Port, "backend", cfg.DataBackend)
+	appLogger.Info("Starting spese server", 
+		"port", cfg.Port, 
+		"backend", backendConfig.Type,
+		log.FieldOperation, log.OpStartup,
+		log.FieldComponent, log.ComponentApp)
+		
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.Error("Server error", "error", err, "port", cfg.Port)
+		appLogger.Error("Server error", log.FieldError, err, "port", cfg.Port, log.FieldComponent, log.ComponentHTTP)
 		os.Exit(1)
 	}
 
 	<-ctx.Done()
-	logger.Info("Server stopped gracefully")
+	appLogger.Info("Server stopped gracefully", log.FieldOperation, log.OpShutdown, log.FieldComponent, log.ComponentApp)
 }
