@@ -96,7 +96,7 @@ func main() {
 	// Start message consumption only if we have a sync worker
 	if syncWorker != nil {
 		go func() {
-			if err := amqpClient.ConsumeExpenseSync(ctx, syncWorker.HandleSyncMessage); err != nil {
+			if err := amqpClient.ConsumeMessages(ctx, syncWorker.HandleSyncMessage, syncWorker.HandleDeleteMessage); err != nil {
 				if err != context.Canceled {
 					logger.Error("Message consumption failed", "error", err)
 				}

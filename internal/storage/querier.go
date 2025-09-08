@@ -35,6 +35,7 @@ type Querier interface {
 	MarkExpenseSynced(ctx context.Context, id int64) error
 	RefreshCategories(ctx context.Context) error
 	RefreshPrimaryCategories(ctx context.Context) error
+	SoftDeleteExpense(ctx context.Context, id int64) error
 	UpdateRecurrentExpense(ctx context.Context, arg UpdateRecurrentExpenseParams) error
 }
 

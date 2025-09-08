@@ -5,6 +5,12 @@ import (
 	"spese/internal/core"
 )
 
+// ExpenseWithID represents an expense with its storage ID
+type ExpenseWithID struct {
+	ID      string
+	Expense core.Expense
+}
+
 // Ports for outbound adapters.
 type (
 	ExpenseWriter interface {
@@ -25,6 +31,18 @@ type (
 	ExpenseLister interface {
 		// ListExpenses returns all expenses for the specified year and month.
 		ListExpenses(ctx context.Context, year int, month int) ([]core.Expense, error)
+	}
+
+	// ExpenseListerWithID returns expenses along with their IDs for frontend operations
+	ExpenseListerWithID interface {
+		// ListExpensesWithID returns all expenses with their IDs for the specified year and month.
+		ListExpensesWithID(ctx context.Context, year int, month int) ([]ExpenseWithID, error)
+	}
+
+	// ExpenseDeleter provides expense deletion functionality.
+	ExpenseDeleter interface {
+		// DeleteExpense removes an expense by ID.
+		DeleteExpense(ctx context.Context, id string) error
 	}
 
 	// RecurrentExpenseWriter manages recurrent expenses.

@@ -37,11 +37,27 @@
       {{ if .Items }}
         <div class="expenses__list">
           {{ range .Items }}
-            <div class="expense">
+            <div class="expense" id="expense-{{ .ID }}">
               <div class="expense__date">{{ .Day }}/{{ $.Month }}</div>
               <div class="expense__desc">{{ .Desc }}</div>
               <div class="expense__cat">{{ .Cat }} / {{ .Sub }}</div>
               <div class="expense__amt">{{ .Amt }}</div>
+              <div class="expense__actions">
+                <button type="button" 
+                        class="action-icon"
+                        hx-delete="/expenses/delete"
+                        hx-vals='{"id": "{{ .ID }}"}'
+                        hx-target="#expense-{{ .ID }}"
+                        hx-swap="outerHTML"
+                        hx-confirm="Sei sicuro di voler cancellare questa spesa?"
+                        title="Elimina spesa"
+                        aria-label="Elimina spesa">
+                  <svg viewBox="0 0 24 24">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
             </div>
           {{ end }}
         </div>

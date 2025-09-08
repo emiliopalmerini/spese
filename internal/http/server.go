@@ -27,12 +27,14 @@ import (
 
 type Server struct {
 	http.Server
-	templates   *template.Template
-	expWriter   sheets.ExpenseWriter
-	taxReader   sheets.TaxonomyReader
-	dashReader  sheets.DashboardReader
-	expLister   sheets.ExpenseLister
-	rateLimiter *rateLimiter
+	templates     *template.Template
+	expWriter     sheets.ExpenseWriter
+	taxReader     sheets.TaxonomyReader
+	dashReader    sheets.DashboardReader
+	expLister     sheets.ExpenseLister
+	expListerWithID sheets.ExpenseListerWithID
+	expDeleter    sheets.ExpenseDeleter
+	rateLimiter   *rateLimiter
 
 	shutdownOnce sync.Once
 
@@ -320,7 +322,7 @@ func (rl *rateLimiter) allow(clientIP string, metrics *securityMetrics) bool {
 }
 
 // NewServer configures routes and templates, returning a ready-to-run http.Server.
-func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, dr sheets.DashboardReader, lr sheets.ExpenseLister) *Server {
+func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, dr sheets.DashboardReader, lr sheets.ExpenseLister, ed sheets.ExpenseDeleter, lrwid sheets.ExpenseListerWithID) *Server {
 	mux := http.NewServeMux()
 
 	s := &Server{
@@ -328,13 +330,15 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 			Addr:    addr,
 			Handler: mux,
 		},
-		expWriter:   ew,
-		taxReader:   tr,
-		dashReader:  dr,
-		expLister:   lr,
-		rateLimiter: newRateLimiter(),
-		metrics:     &securityMetrics{},
-		appMetrics:  &applicationMetrics{uptime: time.Now()},
+		expWriter:       ew,
+		taxReader:       tr,
+		dashReader:      dr,
+		expLister:       lr,
+		expListerWithID: lrwid,
+		expDeleter:      ed,
+		rateLimiter:     newRateLimiter(),
+		metrics:         &securityMetrics{},
+		appMetrics:      &applicationMetrics{uptime: time.Now()},
 	}
 
 	// Parse embedded templates at startup with custom functions.
@@ -372,6 +376,7 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	mux.HandleFunc("/readyz", s.handleReady)    // Updated to server method
 	mux.HandleFunc("/metrics", s.handleMetrics) // Metrics endpoint (no auth for now)
 	mux.HandleFunc("/expenses", s.withSecurityHeaders(s.handleCreateExpense))
+	mux.HandleFunc("/expenses/delete", s.withSecurityHeaders(s.handleDeleteExpense))
 	// UI partials
 	mux.HandleFunc("/ui/month-overview", s.withSecurityHeaders(s.handleMonthOverview))
 	mux.HandleFunc("/ui/recurrent-expenses-list", s.withSecurityHeaders(s.handleRecurrentExpensesList))
@@ -791,6 +796,64 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		` (` + template.HTMLEscapeString(exp.Primary) + ` / ` + template.HTMLEscapeString(exp.Secondary) + `)</div>`))
 }
 
+func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete && r.Method != http.MethodPost {
+		w.Header().Set("Allow", "DELETE, POST")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		slog.ErrorContext(r.Context(), "Parse form error", "error", err, "method", r.Method, "url", r.URL.Path)
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`<div class="error">Formato richiesta non valido</div>`))
+		return
+	}
+
+	expenseID := sanitizeInput(r.Form.Get("id"))
+	if expenseID == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`<div class="error">ID spesa mancante</div>`))
+		return
+	}
+
+	if s.expDeleter == nil {
+		slog.ErrorContext(r.Context(), "Expense deleter not configured")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`<div class="error">Servizio di cancellazione non disponibile</div>`))
+		return
+	}
+
+	err := s.expDeleter.DeleteExpense(r.Context(), expenseID)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to delete expense",
+			"error", err,
+			"expense_id", expenseID,
+			"component", "expense_deleter",
+			"operation", "delete")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`<div class="error">Errore nella cancellazione della spesa</div>`))
+		return
+	}
+
+	// Track successful expense deletion
+	atomic.AddInt64(&s.appMetrics.totalExpenses, -1)
+
+	// Log successful expense deletion
+	slog.InfoContext(r.Context(), "Expense deleted successfully",
+		"expense_id", expenseID,
+		"component", "expense_handler",
+		"operation", "delete")
+
+	// Trigger client refresh
+	now := time.Now()
+	year := now.Year()
+	month := int(now.Month())
+	w.Header().Set("HX-Trigger", `{"expense:deleted": {"year": `+strconv.Itoa(year)+`, "month": `+strconv.Itoa(month)+`}}`)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`<div class="success">Spesa cancellata con successo</div>`))
+}
+
 // sanitizeInput removes potentially dangerous characters and trims whitespace
 func sanitizeInput(s string) string {
 	s = strings.TrimSpace(s)
@@ -827,6 +890,19 @@ func (s *Server) getExpenses(ctx context.Context, year, month int) ([]core.Expen
 	items, err := s.expLister.ListExpenses(cctx, year, month)
 	if err != nil {
 		return nil, fmt.Errorf("list month expenses (year=%d, month=%d): %w", year, month, err)
+	}
+	return items, nil
+}
+
+func (s *Server) getExpensesWithID(ctx context.Context, year, month int) ([]sheets.ExpenseWithID, error) {
+	if s.expListerWithID == nil {
+		return nil, nil
+	}
+	cctx, cancel := context.WithTimeout(ctx, 7*time.Second)
+	defer cancel()
+	items, err := s.expListerWithID.ListExpensesWithID(cctx, year, month)
+	if err != nil {
+		return nil, fmt.Errorf("list month expenses with ID (year=%d, month=%d): %w", year, month, err)
 	}
 	return items, nil
 }
@@ -885,6 +961,7 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 		Rows    []row
 		// Expenses detail list
 		Items []struct {
+			ID   string
 			Day  int
 			Desc string
 			Amt  string
@@ -905,20 +982,21 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 		}
 		data.Rows = append(data.Rows, row{Name: r.Name, Amount: formatEuros(r.Amount.Cents), Width: width})
 	}
-	// Fetch detailed items (cached)
-	if s.expLister != nil {
-		items, err := s.getExpenses(r.Context(), year, month)
+	// Fetch detailed items with IDs (cached)
+	if s.expListerWithID != nil {
+		itemsWithID, err := s.getExpensesWithID(r.Context(), year, month)
 		if err != nil {
-			slog.ErrorContext(r.Context(), "List expenses error", "error", err, "year", year, "month", month)
+			slog.ErrorContext(r.Context(), "List expenses with ID error", "error", err, "year", year, "month", month)
 		} else {
-			for _, e := range items {
+			for _, e := range itemsWithID {
 				data.Items = append(data.Items, struct {
+					ID   string
 					Day  int
 					Desc string
 					Amt  string
 					Cat  string
 					Sub  string
-				}{Day: e.Date.Day, Desc: template.HTMLEscapeString(e.Description), Amt: formatEuros(e.Amount.Cents), Cat: e.Primary, Sub: e.Secondary})
+				}{ID: e.ID, Day: e.Expense.Date.Day, Desc: template.HTMLEscapeString(e.Expense.Description), Amt: formatEuros(e.Expense.Amount.Cents), Cat: e.Expense.Primary, Sub: e.Expense.Secondary})
 			}
 		}
 	}

@@ -5,24 +5,24 @@ RETURNING *;
 
 -- name: GetExpensesByMonth :many
 SELECT * FROM expenses 
-WHERE strftime('%m', date) = printf('%02d', ?)
+WHERE strftime('%m', date) = printf('%02d', ?) AND deleted_at IS NULL
 ORDER BY date DESC, created_at DESC;
 
 -- name: GetMonthTotal :one
 SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) as total
 FROM expenses 
-WHERE strftime('%m', date) = printf('%02d', ?);
+WHERE strftime('%m', date) = printf('%02d', ?) AND deleted_at IS NULL;
 
 -- name: GetCategorySums :many
 SELECT primary_category, CAST(SUM(amount_cents) AS INTEGER) as total_amount
 FROM expenses 
-WHERE strftime('%m', date) = printf('%02d', ?)
+WHERE strftime('%m', date) = printf('%02d', ?) AND deleted_at IS NULL
 GROUP BY primary_category
 ORDER BY total_amount DESC;
 
 -- name: GetPendingSyncExpenses :many
 SELECT id, version, created_at FROM expenses 
-WHERE sync_status = 'pending'
+WHERE sync_status = 'pending' AND deleted_at IS NULL
 ORDER BY created_at ASC
 LIMIT ?;
 
@@ -37,7 +37,12 @@ SET sync_status = 'error'
 WHERE id = ?;
 
 -- name: GetExpense :one
-SELECT * FROM expenses WHERE id = ?;
+SELECT * FROM expenses WHERE id = ? AND deleted_at IS NULL;
+
+-- name: SoftDeleteExpense :exec
+UPDATE expenses 
+SET deleted_at = CURRENT_TIMESTAMP 
+WHERE id = ? AND deleted_at IS NULL;
 
 -- Primary Categories queries
 -- name: GetPrimaryCategories :many

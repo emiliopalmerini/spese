@@ -310,11 +310,11 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
   align-items:center;
   padding:var(--space-3) 0;
   border-bottom:2px dashed var(--line);
-  grid-template-columns:1fr auto;
+  grid-template-columns:1fr auto auto;
   grid-template-areas:
-    "date amount"
-    "desc amount"
-    "cat  amount";
+    "date amount actions"
+    "desc amount actions"
+    "cat  amount actions";
   transition:background-color 0.2s ease;
 }
 .month-overview .expense:hover{
@@ -350,10 +350,26 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
   justify-self:end;
   color:var(--primary);
 }
+.month-overview .expense__actions{
+  grid-area:actions;
+  display:flex;
+  opacity:0;
+  transition:opacity 0.2s ease;
+  justify-self:end;
+}
+.month-overview .expense:hover .expense__actions{
+  opacity:1;
+}
+/* Mobile: always show delete button */
+@media (max-width: 559px) {
+  .month-overview .expense__actions{
+    opacity:1;
+  }
+}
 @media (min-width:560px){
   .month-overview .expense{
-    grid-template-columns:64px 1fr auto auto;
-    grid-template-areas:"date desc cat amount";
+    grid-template-columns:64px 1fr auto auto auto;
+    grid-template-areas:"date desc cat amount actions";
   }
 }
 
@@ -963,6 +979,7 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
     font-size:0.75rem;
   }
 }
+
 
 /* ==============================================================
    Scrollbar sottili

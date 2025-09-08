@@ -37,6 +37,7 @@ var (
 	_ ports.TaxonomyReader  = (*Client)(nil)
 	_ ports.DashboardReader = (*Client)(nil)
 	_ ports.ExpenseLister   = (*Client)(nil)
+	_ ports.ExpenseDeleter  = (*Client)(nil)
 )
 
 // NewFromEnv creates a Sheets client using environment variables and ADC.
@@ -472,6 +473,16 @@ func (c *Client) ListExpenses(ctx context.Context, year int, month int) ([]core.
 		out = append(out, e)
 	}
 	return out, nil
+}
+
+// DeleteExpense implements ports.ExpenseDeleter
+func (c *Client) DeleteExpense(ctx context.Context, id string) error {
+	// For Google Sheets, we need to find the row by expense ID and delete it
+	// Since Google Sheets doesn't have a natural ID system like databases,
+	// we'll need to search for the expense by its properties
+	// For now, return an error indicating that deletion via Google Sheets
+	// should be handled via AMQP sync messages to maintain data consistency
+	return fmt.Errorf("direct Google Sheets deletion not supported - use AMQP sync messages")
 }
 
 func indexOf(arr []string, target string) int {

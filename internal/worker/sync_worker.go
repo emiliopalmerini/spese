@@ -63,6 +63,24 @@ func (w *SyncWorker) HandleSyncMessage(ctx context.Context, msg *amqp.ExpenseSyn
 	return nil
 }
 
+// HandleDeleteMessage processes a single expense delete message from AMQP
+func (w *SyncWorker) HandleDeleteMessage(ctx context.Context, msg *amqp.ExpenseDeleteMessage) error {
+	slog.InfoContext(ctx, "Processing delete message",
+		"id", msg.ID)
+
+	// For now, we just log the delete message
+	// In a future implementation, we could:
+	// 1. Find the corresponding row in Google Sheets
+	// 2. Remove the row or mark it as deleted
+	// 3. Update dashboard calculations
+	
+	slog.InfoContext(ctx, "Delete message processed (Google Sheets sync not yet implemented)",
+		"id", msg.ID,
+		"timestamp", msg.Timestamp)
+
+	return nil
+}
+
 // ProcessPendingExpenses processes any expenses that haven't been synced yet
 // This is a backup mechanism in case AMQP messages are lost
 func (w *SyncWorker) ProcessPendingExpenses(ctx context.Context) error {

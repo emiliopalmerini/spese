@@ -168,6 +168,34 @@ func (r *SQLiteRepository) ListExpenses(ctx context.Context, year int, month int
 	return expenses, nil
 }
 
+// ListExpensesWithID returns expenses with their IDs for the specified year and month  
+func (r *SQLiteRepository) ListExpensesWithID(ctx context.Context, year int, month int) ([]ExpenseWithID, error) {
+	dbExpenses, err := r.queries.GetExpensesByMonth(ctx, int64(month))
+	if err != nil {
+		return nil, fmt.Errorf("get expenses by month: %w", err)
+	}
+
+	expensesWithID := make([]ExpenseWithID, len(dbExpenses))
+	for i, e := range dbExpenses {
+		expensesWithID[i] = ExpenseWithID{
+			ID: strconv.FormatInt(e.ID, 10),
+			Expense: core.Expense{
+				Date: core.DateParts{
+					Day:   e.Date.Day(),
+					Month: int(e.Date.Month()),
+					Year:  e.Date.Year(),
+				},
+				Description: e.Description,
+				Amount:      core.Money{Cents: e.AmountCents},
+				Primary:     e.PrimaryCategory,
+				Secondary:   e.SecondaryCategory,
+			},
+		}
+	}
+
+	return expensesWithID, nil
+}
+
 // GetPendingSyncExpenses returns expenses that need to be synced to Google Sheets
 func (r *SQLiteRepository) GetPendingSyncExpenses(ctx context.Context, limit int) ([]PendingSyncExpense, error) {
 	dbExpenses, err := r.queries.GetPendingSyncExpenses(ctx, int64(limit))
@@ -218,6 +246,17 @@ func (r *SQLiteRepository) GetExpense(ctx context.Context, id int64) (*Expense, 
 	return &expense, nil
 }
 
+// SoftDeleteExpense marks an expense as deleted (soft delete)
+func (r *SQLiteRepository) SoftDeleteExpense(ctx context.Context, id int64) error {
+	err := r.queries.SoftDeleteExpense(ctx, id)
+	if err != nil {
+		return fmt.Errorf("soft delete expense: %w", err)
+	}
+
+	slog.InfoContext(ctx, "Expense soft deleted", "id", id)
+	return nil
+}
+
 // CreateCategory is deprecated - categories are managed via migrations
 func (r *SQLiteRepository) CreateCategory(ctx context.Context, name, categoryType string) error {
 	slog.WarnContext(ctx, "CreateCategory called but is deprecated - categories are managed via migrations")
@@ -232,7 +271,7 @@ func (r *SQLiteRepository) DeleteCategory(ctx context.Context, name, categoryTyp
 
 // ExpenseWithID represents an expense with its database ID for sync operations
 type ExpenseWithID struct {
-	ID        int64
+	ID        string
 	Expense   core.Expense
 	CreatedAt time.Time
 }
