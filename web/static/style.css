@@ -982,6 +982,131 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
 
 
 /* ==============================================================
+   Data Tables
+============================================================== */
+.data-table{
+  width:100%;
+  background:var(--surface);
+  border-radius:var(--radius-card);
+  box-shadow:var(--shadow-md);
+  border:1px solid var(--border);
+  overflow:hidden;
+}
+.data-table thead{
+  background:var(--bg-light);
+  border-bottom:2px solid var(--border);
+}
+.data-table th{
+  padding:var(--space-3) var(--space-4);
+  text-align:left;
+  font-weight:600;
+  font-size:0.875rem;
+  color:var(--text);
+  text-transform:uppercase;
+  letter-spacing:0.025em;
+}
+.data-table tbody tr{
+  border-bottom:1px solid var(--line);
+  transition:background-color 0.2s ease;
+}
+.data-table tbody tr:hover{
+  background:var(--bg-light);
+}
+.data-table tbody tr:last-child{
+  border-bottom:none;
+}
+.data-table td{
+  padding:var(--space-3) var(--space-4);
+  color:var(--text);
+}
+.expense-description{font-weight:500;}
+.expense-amount{font-weight:600;color:var(--primary);font-variant-numeric:tabular-nums;}
+.expense-frequency{font-size:0.875rem;}
+.expense-date{font-size:0.875rem;color:var(--muted);font-variant-numeric:tabular-nums;}
+.expense-category{font-size:0.875rem;}
+.category-badge{
+  display:inline-block;
+  padding:2px 8px;
+  background:var(--primary-light);
+  color:var(--primary);
+  border-radius:var(--radius);
+  font-weight:500;
+  font-size:0.75rem;
+  margin-right:var(--space-1);
+}
+.subcategory-badge{
+  display:inline-block;
+  padding:2px 8px;
+  background:var(--bg-light);
+  color:var(--muted);
+  border-radius:var(--radius);
+  font-size:0.75rem;
+}
+.expense-actions{
+  white-space:nowrap;
+}
+.expense-actions .btn{
+  margin-right:var(--space-2);
+}
+
+/* ==============================================================
+   Button Variants
+============================================================== */
+.btn-secondary{
+  background:var(--surface);
+  color:var(--text);
+  border:2px solid var(--border);
+}
+.btn-secondary:hover{
+  background:var(--bg-light);
+  border-color:var(--muted);
+}
+.btn-danger{
+  background:#FEE2E2;
+  color:#991B1B;
+  border:2px solid #EF4444;
+}
+.btn-danger:hover{
+  background:#EF4444;
+  color:white;
+  border-color:#DC2626;
+}
+.btn-sm{
+  padding:6px 12px;
+  font-size:0.875rem;
+  min-height:32px;
+}
+
+/* ==============================================================
+   Section Titles
+============================================================== */
+.section-title{
+  font-size:1.25rem;
+  font-weight:600;
+  color:var(--text);
+  margin:var(--space-4) 0;
+  padding-bottom:var(--space-2);
+  border-bottom:2px solid var(--line);
+}
+
+/* ==============================================================
+   Empty State
+============================================================== */
+.empty-state{
+  text-align:center;
+  padding:calc(var(--space-4)*3) var(--space-4);
+  background:var(--surface);
+  border-radius:var(--radius-card);
+  border:1px solid var(--border);
+}
+.empty-state p{
+  margin:var(--space-2) 0;
+}
+.text-muted{
+  color:var(--muted);
+}
+
+/* ==============================================================
    Scrollbar sottili
 ============================================================== */
 *{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 40%, transparent) transparent;}
