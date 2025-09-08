@@ -6,12 +6,12 @@ package storage
 
 import (
 	"database/sql"
+	"time"
 )
 
 type Expense struct {
 	ID                int64          `db:"id" json:"id"`
-	Day               int64          `db:"day" json:"day"`
-	Month             int64          `db:"month" json:"month"`
+	Date              time.Time      `db:"date" json:"date"`
 	Description       string         `db:"description" json:"description"`
 	AmountCents       int64          `db:"amount_cents" json:"amount_cents"`
 	PrimaryCategory   string         `db:"primary_category" json:"primary_category"`
@@ -26,6 +26,20 @@ type PrimaryCategory struct {
 	ID        int64        `db:"id" json:"id"`
 	Name      string       `db:"name" json:"name"`
 	CreatedAt sql.NullTime `db:"created_at" json:"created_at"`
+}
+
+type RecurrentExpense struct {
+	ID                int64        `db:"id" json:"id"`
+	StartDate         time.Time    `db:"start_date" json:"start_date"`
+	EndDate           interface{}  `db:"end_date" json:"end_date"`
+	RepetitionType    string       `db:"repetition_type" json:"repetition_type"`
+	Description       string       `db:"description" json:"description"`
+	AmountCents       int64        `db:"amount_cents" json:"amount_cents"`
+	PrimaryCategory   string       `db:"primary_category" json:"primary_category"`
+	SecondaryCategory string       `db:"secondary_category" json:"secondary_category"`
+	IsActive          bool         `db:"is_active" json:"is_active"`
+	CreatedAt         sql.NullTime `db:"created_at" json:"created_at"`
+	UpdatedAt         sql.NullTime `db:"updated_at" json:"updated_at"`
 }
 
 type SecondaryCategory struct {

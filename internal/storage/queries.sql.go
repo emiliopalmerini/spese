@@ -8,27 +8,26 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const createExpense = `-- name: CreateExpense :one
-INSERT INTO expenses (day, month, description, amount_cents, primary_category, secondary_category)
-VALUES (?, ?, ?, ?, ?, ?)
-RETURNING id, day, month, description, amount_cents, primary_category, secondary_category, version, created_at, synced_at, sync_status
+INSERT INTO expenses (date, description, amount_cents, primary_category, secondary_category)
+VALUES (?, ?, ?, ?, ?)
+RETURNING id, date, description, amount_cents, primary_category, secondary_category, version, created_at, synced_at, sync_status
 `
 
 type CreateExpenseParams struct {
-	Day               int64  `db:"day" json:"day"`
-	Month             int64  `db:"month" json:"month"`
-	Description       string `db:"description" json:"description"`
-	AmountCents       int64  `db:"amount_cents" json:"amount_cents"`
-	PrimaryCategory   string `db:"primary_category" json:"primary_category"`
-	SecondaryCategory string `db:"secondary_category" json:"secondary_category"`
+	Date              time.Time `db:"date" json:"date"`
+	Description       string    `db:"description" json:"description"`
+	AmountCents       int64     `db:"amount_cents" json:"amount_cents"`
+	PrimaryCategory   string    `db:"primary_category" json:"primary_category"`
+	SecondaryCategory string    `db:"secondary_category" json:"secondary_category"`
 }
 
 func (q *Queries) CreateExpense(ctx context.Context, arg CreateExpenseParams) (Expense, error) {
 	row := q.db.QueryRowContext(ctx, createExpense,
-		arg.Day,
-		arg.Month,
+		arg.Date,
 		arg.Description,
 		arg.AmountCents,
 		arg.PrimaryCategory,
@@ -37,8 +36,7 @@ func (q *Queries) CreateExpense(ctx context.Context, arg CreateExpenseParams) (E
 	var i Expense
 	err := row.Scan(
 		&i.ID,
-		&i.Day,
-		&i.Month,
+		&i.Date,
 		&i.Description,
 		&i.AmountCents,
 		&i.PrimaryCategory,
@@ -61,6 +59,53 @@ func (q *Queries) CreatePrimaryCategory(ctx context.Context, name string) (Prima
 	row := q.db.QueryRowContext(ctx, createPrimaryCategory, name)
 	var i PrimaryCategory
 	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+	return i, err
+}
+
+const createRecurrentExpense = `-- name: CreateRecurrentExpense :one
+INSERT INTO recurrent_expenses (
+    start_date, end_date, repetition_type, description, 
+    amount_cents, primary_category, secondary_category
+)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+RETURNING id, start_date, end_date, repetition_type, description, amount_cents, primary_category, secondary_category, is_active, created_at, updated_at
+`
+
+type CreateRecurrentExpenseParams struct {
+	StartDate         time.Time   `db:"start_date" json:"start_date"`
+	EndDate           interface{} `db:"end_date" json:"end_date"`
+	RepetitionType    string      `db:"repetition_type" json:"repetition_type"`
+	Description       string      `db:"description" json:"description"`
+	AmountCents       int64       `db:"amount_cents" json:"amount_cents"`
+	PrimaryCategory   string      `db:"primary_category" json:"primary_category"`
+	SecondaryCategory string      `db:"secondary_category" json:"secondary_category"`
+}
+
+// Recurrent Expenses queries
+func (q *Queries) CreateRecurrentExpense(ctx context.Context, arg CreateRecurrentExpenseParams) (RecurrentExpense, error) {
+	row := q.db.QueryRowContext(ctx, createRecurrentExpense,
+		arg.StartDate,
+		arg.EndDate,
+		arg.RepetitionType,
+		arg.Description,
+		arg.AmountCents,
+		arg.PrimaryCategory,
+		arg.SecondaryCategory,
+	)
+	var i RecurrentExpense
+	err := row.Scan(
+		&i.ID,
+		&i.StartDate,
+		&i.EndDate,
+		&i.RepetitionType,
+		&i.Description,
+		&i.AmountCents,
+		&i.PrimaryCategory,
+		&i.SecondaryCategory,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
@@ -87,12 +132,34 @@ func (q *Queries) CreateSecondaryCategory(ctx context.Context, arg CreateSeconda
 	return i, err
 }
 
+const deactivateRecurrentExpense = `-- name: DeactivateRecurrentExpense :exec
+UPDATE recurrent_expenses
+SET is_active = 0,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+func (q *Queries) DeactivateRecurrentExpense(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deactivateRecurrentExpense, id)
+	return err
+}
+
 const deletePrimaryCategory = `-- name: DeletePrimaryCategory :exec
 DELETE FROM primary_categories WHERE name = ?
 `
 
 func (q *Queries) DeletePrimaryCategory(ctx context.Context, name string) error {
 	_, err := q.db.ExecContext(ctx, deletePrimaryCategory, name)
+	return err
+}
+
+const deleteRecurrentExpense = `-- name: DeleteRecurrentExpense :exec
+DELETE FROM recurrent_expenses
+WHERE id = ?
+`
+
+func (q *Queries) DeleteRecurrentExpense(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteRecurrentExpense, id)
 	return err
 }
 
@@ -105,10 +172,58 @@ func (q *Queries) DeleteSecondaryCategory(ctx context.Context, name string) erro
 	return err
 }
 
+const getActiveRecurrentExpensesByDate = `-- name: GetActiveRecurrentExpensesByDate :many
+SELECT id, start_date, end_date, repetition_type, description, amount_cents, primary_category, secondary_category, is_active, created_at, updated_at FROM recurrent_expenses
+WHERE is_active = 1
+  AND start_date <= ?
+  AND (end_date IS NULL OR end_date >= ?)
+ORDER BY start_date DESC
+`
+
+type GetActiveRecurrentExpensesByDateParams struct {
+	StartDate time.Time   `db:"start_date" json:"start_date"`
+	EndDate   interface{} `db:"end_date" json:"end_date"`
+}
+
+func (q *Queries) GetActiveRecurrentExpensesByDate(ctx context.Context, arg GetActiveRecurrentExpensesByDateParams) ([]RecurrentExpense, error) {
+	rows, err := q.db.QueryContext(ctx, getActiveRecurrentExpensesByDate, arg.StartDate, arg.EndDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RecurrentExpense
+	for rows.Next() {
+		var i RecurrentExpense
+		if err := rows.Scan(
+			&i.ID,
+			&i.StartDate,
+			&i.EndDate,
+			&i.RepetitionType,
+			&i.Description,
+			&i.AmountCents,
+			&i.PrimaryCategory,
+			&i.SecondaryCategory,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getCategorySums = `-- name: GetCategorySums :many
 SELECT primary_category, CAST(SUM(amount_cents) AS INTEGER) as total_amount
 FROM expenses 
-WHERE month = ?
+WHERE strftime('%m', date) = printf('%02d', ?)
 GROUP BY primary_category
 ORDER BY total_amount DESC
 `
@@ -118,8 +233,8 @@ type GetCategorySumsRow struct {
 	TotalAmount     int64  `db:"total_amount" json:"total_amount"`
 }
 
-func (q *Queries) GetCategorySums(ctx context.Context, month int64) ([]GetCategorySumsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getCategorySums, month)
+func (q *Queries) GetCategorySums(ctx context.Context, printf interface{}) ([]GetCategorySumsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getCategorySums, printf)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +257,7 @@ func (q *Queries) GetCategorySums(ctx context.Context, month int64) ([]GetCatego
 }
 
 const getExpense = `-- name: GetExpense :one
-SELECT id, day, month, description, amount_cents, primary_category, secondary_category, version, created_at, synced_at, sync_status FROM expenses WHERE id = ?
+SELECT id, date, description, amount_cents, primary_category, secondary_category, version, created_at, synced_at, sync_status FROM expenses WHERE id = ?
 `
 
 func (q *Queries) GetExpense(ctx context.Context, id int64) (Expense, error) {
@@ -150,8 +265,7 @@ func (q *Queries) GetExpense(ctx context.Context, id int64) (Expense, error) {
 	var i Expense
 	err := row.Scan(
 		&i.ID,
-		&i.Day,
-		&i.Month,
+		&i.Date,
 		&i.Description,
 		&i.AmountCents,
 		&i.PrimaryCategory,
@@ -165,13 +279,13 @@ func (q *Queries) GetExpense(ctx context.Context, id int64) (Expense, error) {
 }
 
 const getExpensesByMonth = `-- name: GetExpensesByMonth :many
-SELECT id, day, month, description, amount_cents, primary_category, secondary_category, version, created_at, synced_at, sync_status FROM expenses 
-WHERE month = ?
-ORDER BY day DESC, created_at DESC
+SELECT id, date, description, amount_cents, primary_category, secondary_category, version, created_at, synced_at, sync_status FROM expenses 
+WHERE strftime('%m', date) = printf('%02d', ?)
+ORDER BY date DESC, created_at DESC
 `
 
-func (q *Queries) GetExpensesByMonth(ctx context.Context, month int64) ([]Expense, error) {
-	rows, err := q.db.QueryContext(ctx, getExpensesByMonth, month)
+func (q *Queries) GetExpensesByMonth(ctx context.Context, printf interface{}) ([]Expense, error) {
+	rows, err := q.db.QueryContext(ctx, getExpensesByMonth, printf)
 	if err != nil {
 		return nil, err
 	}
@@ -181,8 +295,7 @@ func (q *Queries) GetExpensesByMonth(ctx context.Context, month int64) ([]Expens
 		var i Expense
 		if err := rows.Scan(
 			&i.ID,
-			&i.Day,
-			&i.Month,
+			&i.Date,
 			&i.Description,
 			&i.AmountCents,
 			&i.PrimaryCategory,
@@ -208,11 +321,11 @@ func (q *Queries) GetExpensesByMonth(ctx context.Context, month int64) ([]Expens
 const getMonthTotal = `-- name: GetMonthTotal :one
 SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) as total
 FROM expenses 
-WHERE month = ?
+WHERE strftime('%m', date) = printf('%02d', ?)
 `
 
-func (q *Queries) GetMonthTotal(ctx context.Context, month int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getMonthTotal, month)
+func (q *Queries) GetMonthTotal(ctx context.Context, printf interface{}) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getMonthTotal, printf)
 	var total int64
 	err := row.Scan(&total)
 	return total, err
@@ -273,6 +386,71 @@ func (q *Queries) GetPrimaryCategories(ctx context.Context) ([]string, error) {
 			return nil, err
 		}
 		items = append(items, name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRecurrentExpenseByID = `-- name: GetRecurrentExpenseByID :one
+SELECT id, start_date, end_date, repetition_type, description, amount_cents, primary_category, secondary_category, is_active, created_at, updated_at FROM recurrent_expenses
+WHERE id = ?
+`
+
+func (q *Queries) GetRecurrentExpenseByID(ctx context.Context, id int64) (RecurrentExpense, error) {
+	row := q.db.QueryRowContext(ctx, getRecurrentExpenseByID, id)
+	var i RecurrentExpense
+	err := row.Scan(
+		&i.ID,
+		&i.StartDate,
+		&i.EndDate,
+		&i.RepetitionType,
+		&i.Description,
+		&i.AmountCents,
+		&i.PrimaryCategory,
+		&i.SecondaryCategory,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getRecurrentExpenses = `-- name: GetRecurrentExpenses :many
+SELECT id, start_date, end_date, repetition_type, description, amount_cents, primary_category, secondary_category, is_active, created_at, updated_at FROM recurrent_expenses
+WHERE is_active = 1
+ORDER BY start_date DESC
+`
+
+func (q *Queries) GetRecurrentExpenses(ctx context.Context) ([]RecurrentExpense, error) {
+	rows, err := q.db.QueryContext(ctx, getRecurrentExpenses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RecurrentExpense
+	for rows.Next() {
+		var i RecurrentExpense
+		if err := rows.Scan(
+			&i.ID,
+			&i.StartDate,
+			&i.EndDate,
+			&i.RepetitionType,
+			&i.Description,
+			&i.AmountCents,
+			&i.PrimaryCategory,
+			&i.SecondaryCategory,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -379,5 +557,43 @@ DELETE FROM primary_categories
 
 func (q *Queries) RefreshPrimaryCategories(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, refreshPrimaryCategories)
+	return err
+}
+
+const updateRecurrentExpense = `-- name: UpdateRecurrentExpense :exec
+UPDATE recurrent_expenses
+SET start_date = ?, 
+    end_date = ?, 
+    repetition_type = ?, 
+    description = ?,
+    amount_cents = ?, 
+    primary_category = ?, 
+    secondary_category = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+type UpdateRecurrentExpenseParams struct {
+	StartDate         time.Time   `db:"start_date" json:"start_date"`
+	EndDate           interface{} `db:"end_date" json:"end_date"`
+	RepetitionType    string      `db:"repetition_type" json:"repetition_type"`
+	Description       string      `db:"description" json:"description"`
+	AmountCents       int64       `db:"amount_cents" json:"amount_cents"`
+	PrimaryCategory   string      `db:"primary_category" json:"primary_category"`
+	SecondaryCategory string      `db:"secondary_category" json:"secondary_category"`
+	ID                int64       `db:"id" json:"id"`
+}
+
+func (q *Queries) UpdateRecurrentExpense(ctx context.Context, arg UpdateRecurrentExpenseParams) error {
+	_, err := q.db.ExecContext(ctx, updateRecurrentExpense,
+		arg.StartDate,
+		arg.EndDate,
+		arg.RepetitionType,
+		arg.Description,
+		arg.AmountCents,
+		arg.PrimaryCategory,
+		arg.SecondaryCategory,
+		arg.ID,
+	)
 	return err
 }

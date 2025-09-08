@@ -45,8 +45,9 @@ func (w *SyncWorker) HandleSyncMessage(ctx context.Context, msg *amqp.ExpenseSyn
 	// Convert storage expense to core expense
 	coreExpense := core.Expense{
 		Date: core.DateParts{
-			Day:   int(expense.Day),
-			Month: int(expense.Month),
+			Day:   expense.Date.Day(),
+			Month: int(expense.Date.Month()),
+			Year:  expense.Date.Year(),
 		},
 		Description: expense.Description,
 		Amount:      core.Money{Cents: expense.AmountCents},
@@ -90,8 +91,9 @@ func (w *SyncWorker) ProcessPendingExpenses(ctx context.Context) error {
 		// Convert and sync
 		coreExpense := core.Expense{
 			Date: core.DateParts{
-				Day:   int(expense.Day),
-				Month: int(expense.Month),
+				Day:   expense.Date.Day(),
+				Month: int(expense.Date.Month()),
+				Year:  expense.Date.Year(),
 			},
 			Description: expense.Description,
 			Amount:      core.Money{Cents: expense.AmountCents},
@@ -144,8 +146,9 @@ func (w *SyncWorker) StartupSyncCheck(ctx context.Context) error {
 		// Convert and sync
 		coreExpense := core.Expense{
 			Date: core.DateParts{
-				Day:   int(expense.Day),
-				Month: int(expense.Month),
+				Day:   expense.Date.Day(),
+				Month: int(expense.Date.Month()),
+				Year:  expense.Date.Year(),
 			},
 			Description: expense.Description,
 			Amount:      core.Money{Cents: expense.AmountCents},

@@ -1,4 +1,33 @@
-{{ define "content" }}
+{{ define "index_page" }}
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#10b981" />
+    <title>Spese</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  </head>
+  <body class="theme-ink density-comfortable style-minimal">
+    <header class="topbar">
+      <div class="container topbar__inner">
+        <div class="brand">Spese</div>
+        <nav class="topbar__nav">
+          <a href="/" class="nav-link">Spese</a>
+          <a href="/recurrent" class="nav-link">Spese Ricorrenti</a>
+        </nav>
+      </div>
+    </header>
+    <main class="container page">
+      {{ template "index_content" . }}
+    </main>
+  </body>
+</html>
+{{ end }}
+
+{{ define "index_content" }}
   <div class="container">
     {{/* Main expense form section */}}
     <section class="page__section">
@@ -94,4 +123,3 @@
     </section>
   </div>
 {{ end }}
-

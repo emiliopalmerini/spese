@@ -2,7 +2,6 @@ package adapters
 
 import (
 	"context"
-
 	"spese/internal/core"
 	"spese/internal/services"
 	"spese/internal/storage"
@@ -45,4 +44,10 @@ func (a *SQLiteAdapter) ListExpenses(ctx context.Context, year int, month int) (
 // GetSecondariesByPrimary returns secondary categories for a given primary category
 func (a *SQLiteAdapter) GetSecondariesByPrimary(ctx context.Context, primaryCategory string) ([]string, error) {
 	return a.storage.GetSecondariesByPrimary(ctx, primaryCategory)
+}
+
+// GetStorage returns the underlying storage repository
+// This is needed for accessing recurrent expenses functionality
+func (a *SQLiteAdapter) GetStorage() *storage.SQLiteRepository {
+	return a.storage
 }

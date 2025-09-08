@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -335,10 +336,20 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 		appMetrics:  &applicationMetrics{uptime: time.Now()},
 	}
 
-	// Parse embedded templates at startup.
-	t, err := template.ParseFS(appweb.TemplatesFS, "templates/*.html")
+	// Parse embedded templates at startup with custom functions.
+	funcMap := template.FuncMap{
+		"divFloat": func(a, b int64) float64 {
+			return float64(a) / float64(b)
+		},
+		"formatDate": func(day, month, year int) string {
+			return fmt.Sprintf("%02d/%02d/%d", day, month, year)
+		},
+	}
+	
+	t, err := template.New("").Funcs(funcMap).ParseFS(appweb.TemplatesFS, "templates/*.html")
 	if err != nil {
-		slog.Warn("Failed parsing templates", "error", err)
+		slog.Error("Failed parsing templates", "error", err)
+		panic(fmt.Sprintf("Failed to parse templates: %v", err))
 	}
 	s.templates = t
 
@@ -363,6 +374,12 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	// UI partials
 	mux.HandleFunc("/ui/month-overview", s.withSecurityHeaders(s.handleMonthOverview))
 	mux.HandleFunc("/api/categories/secondary", s.withSecurityHeaders(s.handleGetSecondaryCategories))
+	
+	// Recurrent expenses routes
+	mux.HandleFunc("/recurrent", s.withSecurityHeaders(s.handleRecurrentExpenses))
+	mux.HandleFunc("/recurrent/create", s.withSecurityHeaders(s.handleCreateRecurrentExpense))
+	mux.HandleFunc("/recurrent/update", s.withSecurityHeaders(s.handleUpdateRecurrentExpense))
+	mux.HandleFunc("/recurrent/delete", s.withSecurityHeaders(s.handleDeleteRecurrentExpense))
 
 	return s
 }
@@ -612,7 +629,6 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "# HELP expenses_total Total number of expenses created\n")
 	fmt.Fprintf(w, "# TYPE expenses_total counter\n")
 	fmt.Fprintf(w, "expenses_total %d\n\n", totalExpenses)
-
 	fmt.Fprintf(w, "# HELP rate_limit_hits_total Total rate limit hits\n")
 	fmt.Fprintf(w, "# TYPE rate_limit_hits_total counter\n")
 	fmt.Fprintf(w, "rate_limit_hits_total %d\n\n", rateLimitHits)
@@ -675,8 +691,8 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		Subcats:    subs,
 	}
 
-	if err := s.templates.ExecuteTemplate(w, "index.html", data); err != nil {
-		slog.ErrorContext(r.Context(), "Index template execution failed", "error", err, "template", "index.html")
+	if err := s.templates.ExecuteTemplate(w, "index_page", data); err != nil {
+		slog.ErrorContext(r.Context(), "Index template execution failed", "error", err, "template", "index_page")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -909,6 +925,327 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleGetSecondaryCategories returns secondary categories for a given primary category as HTML options
+// Recurrent Expenses Handlers
+
+func (s *Server) handleRecurrentExpenses(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get repository based on adapter type
+	var repo interface {
+		GetRecurrentExpenses(ctx context.Context) ([]core.RecurrentExpenses, error)
+	}
+	
+	// Check if we have access to the repository through type assertion
+	if adapter, ok := s.expWriter.(*adapters.SQLiteAdapter); ok {
+		repo = adapter.GetStorage()
+	} else {
+		slog.ErrorContext(r.Context(), "Recurrent expenses not supported with current backend")
+		http.Error(w, "Recurrent expenses not available", http.StatusNotImplemented)
+		return
+	}
+
+	expenses, err := repo.GetRecurrentExpenses(r.Context())
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to get recurrent expenses", "error", err)
+		http.Error(w, "Failed to load recurrent expenses", http.StatusInternalServerError)
+		return
+	}
+
+	// Get categories for the form
+	cats, subs, err := s.taxReader.List(r.Context())
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to get categories", "error", err)
+		cats = []string{}
+		subs = []string{}
+	}
+
+	data := struct {
+		Expenses   []core.RecurrentExpenses
+		Categories []string
+		Subcats    []string
+	}{
+		Expenses:   expenses,
+		Categories: cats,
+		Subcats:    subs,
+	}
+
+	if err := s.templates.ExecuteTemplate(w, "recurrent_page", data); err != nil {
+		slog.ErrorContext(r.Context(), "Template execution failed", "error", err, "template", "recurrent_page")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) handleCreateRecurrentExpense(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		slog.ErrorContext(r.Context(), "Parse form error", "error", err)
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`<div class="error">Formato richiesta non valido</div>`))
+		return
+	}
+
+	// Parse form data
+	startDateStr := r.Form.Get("start_date")
+	endDateStr := r.Form.Get("end_date")
+	repetitionType := r.Form.Get("repetition_type")
+	description := sanitizeInput(r.Form.Get("description"))
+	amountStr := strings.TrimSpace(r.Form.Get("amount"))
+	primary := sanitizeInput(r.Form.Get("primary"))
+	secondary := sanitizeInput(r.Form.Get("secondary"))
+
+	// Parse dates
+	startDate, err := parseDate(startDateStr)
+	if err != nil {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`<div class="error">Data inizio non valida</div>`))
+		return
+	}
+
+	var endDate core.DateParts
+	if endDateStr != "" {
+		endDate, err = parseDate(endDateStr)
+		if err != nil {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte(`<div class="error">Data fine non valida</div>`))
+			return
+		}
+	}
+
+	// Parse amount
+	cents, err := core.ParseDecimalToCents(amountStr)
+	if err != nil {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`<div class="error">Importo non valido</div>`))
+		return
+	}
+
+	// Create and validate recurrent expense
+	re := core.RecurrentExpenses{
+		StartDate:   startDate,
+		EndDate:     endDate,
+		Every:       core.RepetitionTypes(repetitionType),
+		Description: description,
+		Amount:      core.Money{Cents: cents},
+		Primary:     primary,
+		Secondary:   secondary,
+	}
+
+	if err := re.Validate(); err != nil {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`<div class="error">` + template.HTMLEscapeString(err.Error()) + `</div>`))
+		return
+	}
+
+	// Get repository
+	var repo interface {
+		CreateRecurrentExpense(ctx context.Context, re core.RecurrentExpenses) (int64, error)
+	}
+	
+	if adapter, ok := s.expWriter.(*adapters.SQLiteAdapter); ok {
+		repo = adapter.GetStorage()
+	} else {
+		slog.ErrorContext(r.Context(), "Recurrent expenses not supported with current backend")
+		w.WriteHeader(http.StatusNotImplemented)
+		_, _ = w.Write([]byte(`<div class="error">Spese ricorrenti non disponibili</div>`))
+		return
+	}
+
+	id, err := repo.CreateRecurrentExpense(r.Context(), re)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to create recurrent expense", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`<div class="error">Errore nel salvare la spesa ricorrente</div>`))
+		return
+	}
+
+	slog.InfoContext(r.Context(), "Recurrent expense created", "id", id, "description", re.Description)
+	
+	// Return success response for HTMX
+	w.Header().Set("HX-Redirect", "/recurrent")
+	w.WriteHeader(http.StatusCreated)
+	_, _ = w.Write([]byte(`<div class="success">Spesa ricorrente creata con successo</div>`))
+}
+
+func (s *Server) handleUpdateRecurrentExpense(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut && r.Method != http.MethodPost {
+		w.Header().Set("Allow", "PUT, POST")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse ID from query params
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`<div class="error">ID non valido</div>`))
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		slog.ErrorContext(r.Context(), "Parse form error", "error", err)
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`<div class="error">Formato richiesta non valido</div>`))
+		return
+	}
+
+	// Parse form data (similar to create)
+	startDateStr := r.Form.Get("start_date")
+	endDateStr := r.Form.Get("end_date")
+	repetitionType := r.Form.Get("repetition_type")
+	description := sanitizeInput(r.Form.Get("description"))
+	amountStr := strings.TrimSpace(r.Form.Get("amount"))
+	primary := sanitizeInput(r.Form.Get("primary"))
+	secondary := sanitizeInput(r.Form.Get("secondary"))
+
+	startDate, err := parseDate(startDateStr)
+	if err != nil {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`<div class="error">Data inizio non valida</div>`))
+		return
+	}
+
+	var endDate core.DateParts
+	if endDateStr != "" {
+		endDate, err = parseDate(endDateStr)
+		if err != nil {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte(`<div class="error">Data fine non valida</div>`))
+			return
+		}
+	}
+
+	cents, err := core.ParseDecimalToCents(amountStr)
+	if err != nil {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`<div class="error">Importo non valido</div>`))
+		return
+	}
+
+	re := core.RecurrentExpenses{
+		StartDate:   startDate,
+		EndDate:     endDate,
+		Every:       core.RepetitionTypes(repetitionType),
+		Description: description,
+		Amount:      core.Money{Cents: cents},
+		Primary:     primary,
+		Secondary:   secondary,
+	}
+
+	if err := re.Validate(); err != nil {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`<div class="error">` + template.HTMLEscapeString(err.Error()) + `</div>`))
+		return
+	}
+
+	// Get repository
+	var repo interface {
+		UpdateRecurrentExpense(ctx context.Context, id int64, re core.RecurrentExpenses) error
+	}
+	
+	if adapter, ok := s.expWriter.(*adapters.SQLiteAdapter); ok {
+		repo = adapter.GetStorage()
+	} else {
+		slog.ErrorContext(r.Context(), "Recurrent expenses not supported with current backend")
+		w.WriteHeader(http.StatusNotImplemented)
+		_, _ = w.Write([]byte(`<div class="error">Spese ricorrenti non disponibili</div>`))
+		return
+	}
+
+	if err := repo.UpdateRecurrentExpense(r.Context(), id, re); err != nil {
+		slog.ErrorContext(r.Context(), "Failed to update recurrent expense", "error", err, "id", id)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`<div class="error">Errore nell'aggiornare la spesa ricorrente</div>`))
+		return
+	}
+
+	slog.InfoContext(r.Context(), "Recurrent expense updated", "id", id)
+	
+	// Return success response for HTMX
+	w.Header().Set("HX-Redirect", "/recurrent")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`<div class="success">Spesa ricorrente aggiornata con successo</div>`))
+}
+
+func (s *Server) handleDeleteRecurrentExpense(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete && r.Method != http.MethodPost {
+		w.Header().Set("Allow", "DELETE, POST")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse ID from query params
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`<div class="error">ID non valido</div>`))
+		return
+	}
+
+	// Get repository
+	var repo interface {
+		DeleteRecurrentExpense(ctx context.Context, id int64) error
+	}
+	
+	if adapter, ok := s.expWriter.(*adapters.SQLiteAdapter); ok {
+		repo = adapter.GetStorage()
+	} else {
+		slog.ErrorContext(r.Context(), "Recurrent expenses not supported with current backend")
+		w.WriteHeader(http.StatusNotImplemented)
+		_, _ = w.Write([]byte(`<div class="error">Spese ricorrenti non disponibili</div>`))
+		return
+	}
+
+	if err := repo.DeleteRecurrentExpense(r.Context(), id); err != nil {
+		slog.ErrorContext(r.Context(), "Failed to delete recurrent expense", "error", err, "id", id)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`<div class="error">Errore nell'eliminare la spesa ricorrente</div>`))
+		return
+	}
+
+	slog.InfoContext(r.Context(), "Recurrent expense deleted", "id", id)
+	
+	// Return success response for HTMX
+	w.Header().Set("HX-Redirect", "/recurrent")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`<div class="success">Spesa ricorrente eliminata con successo</div>`))
+}
+
+// Helper function to parse date from string (YYYY-MM-DD format)
+func parseDate(dateStr string) (core.DateParts, error) {
+	parts := strings.Split(dateStr, "-")
+	if len(parts) != 3 {
+		return core.DateParts{}, errors.New("invalid date format")
+	}
+	
+	year, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return core.DateParts{}, err
+	}
+	
+	month, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return core.DateParts{}, err
+	}
+	
+	day, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return core.DateParts{}, err
+	}
+	
+	return core.DateParts{Year: year, Month: month, Day: day}, nil
+}
+
 func (s *Server) handleGetSecondaryCategories(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
