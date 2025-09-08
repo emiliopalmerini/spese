@@ -115,7 +115,7 @@
     <section class="page__section">
       <div id="month-overview" 
            hx-get="/ui/month-overview" 
-           hx-trigger="load, expense:created from:body"
+           hx-trigger="load, expense:created from:body, expense:deleted from:body"
            hx-target="#month-overview" 
            hx-swap="outerHTML">
         <div class="placeholder">Caricamento panoramica mensile…</div>
