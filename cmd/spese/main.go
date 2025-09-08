@@ -16,7 +16,6 @@ import (
 	"spese/internal/services"
 	ports "spese/internal/sheets"
 	gsheet "spese/internal/sheets/google"
-	mem "spese/internal/sheets/memory"
 	"spese/internal/storage"
 )
 
@@ -83,9 +82,8 @@ func main() {
 		logger.Info("Initialized Google Sheets backend")
 
 	default:
-		store := mem.NewFromFiles("data")
-		expWriter, taxReader, dashReader, expLister = store, store, store, store
-		logger.Info("Initialized memory backend", "backend", cfg.DataBackend)
+		logger.Error("Unsupported data backend", "backend", cfg.DataBackend)
+		os.Exit(1)
 	}
 
 	srv := apphttp.NewServer(":"+cfg.Port, expWriter, taxReader, dashReader, expLister)

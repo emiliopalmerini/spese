@@ -33,7 +33,7 @@ DASHBOARD_SHEET_NAME=Dashboard
 # (legacy fallback) Pattern with %d: e.g. "%d Dashboard"
 # DASHBOARD_SHEET_PREFIX="%d Dashboard"
 
-DATA_BACKEND=memory # use 'sheets' to integrate Google Sheets directly or 'sqlite' for local storage + async sync
+DATA_BACKEND=sqlite # use 'sheets' to integrate Google Sheets directly or 'sqlite' for local storage + async sync
 PORT=8080
 # OAuth
 # GOOGLE_OAUTH_CLIENT_FILE=/path/to/client.json
@@ -47,10 +47,9 @@ PORT=8080
 
 App available at `http://localhost:8080` (`PORT` variable).
 
-With `DATA_BACKEND=memory`, the app loads development data from `./data`:
-- `data/seed_categories.txt` and `data/seed_subcategories.txt`
-- optional `data/seed_expenses.csv` (Month,Day,Description,Amount,Primary,Secondary)
-This data is also used to populate the monthly overview below the form.
+The app supports two backends:
+- `DATA_BACKEND=sqlite`: Uses local SQLite database with optional async Google Sheets sync
+- `DATA_BACKEND=sheets`: Direct Google Sheets integration
 
 **Security and Performance:**
 - Rate limiting: 60 requests per minute per IP
@@ -67,7 +66,7 @@ See `.env.example` for defaults. Main variables:
 - `GOOGLE_SHEET_NAME`: base name of expenses sheet (without year), default `Expenses` → resolved to `"<year> Expenses"`
 - `GOOGLE_CATEGORIES_SHEET_NAME`: base name categories sheet, default `Dashboard` → `"<year> Dashboard"`
 - `GOOGLE_SUBCATEGORIES_SHEET_NAME`: base name subcategories sheet, default `Dashboard` → `"<year> Dashboard"`
-- `DATA_BACKEND`: `memory` (default), `sheets`, or `sqlite`
+- `DATA_BACKEND`: `sqlite` (default), or `sheets`
 - `DASHBOARD_SHEET_NAME`: base name of annual dashboard sheet to read totals from (preferred). Result: `"<year> <name>"`.
 - `DASHBOARD_SHEET_PREFIX`: (legacy) pattern or prefix of annual dashboard sheet (e.g. `%d Dashboard`). Used only if `DASHBOARD_SHEET_NAME` is not set.
 

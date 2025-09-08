@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#10b981" />
-    <title>Spese</title>
+    <title>Spese Ricorrenti</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
     <link rel="stylesheet" href="/static/style.css" />
     <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
@@ -29,17 +29,9 @@
 
 {{ define "recurrent_content" }}
   <div class="container">
-    {{/* Header with navigation */}}
+    {{/* Main recurrent expense form section */}}
     <section class="page__section">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-        <h1 class="page__title" style="margin: 0;">Spese Ricorrenti</h1>
-        <a href="/" class="btn btn-secondary">← Torna alle Spese</a>
-      </div>
-    </section>
-
-    {{/* Main form section */}}
-    <section class="page__section">
-      <h2 class="section-title">Nuova Spesa Ricorrente</h2>
+      <h1 class="page__title">Registra Spesa Ricorrente</h1>
       
       <form id="recurrent-expense-form"
             class="form"
@@ -47,27 +39,30 @@
             hx-target="#flash"
             hx-swap="innerHTML"
             hx-indicator=".indicator"
-            hx-on::after-request="if(event.detail.successful) { this.reset(); document.getElementById('description').focus(); window.location.reload(); }">
+            hx-on::after-request="if(event.detail.successful) { this.reset(); document.getElementById('description').focus(); }">
+
+        {{/* Description field */}}
+        <div class="field">
+          <label for="description">Descrizione</label>
+          <input id="description" type="text" name="description" maxlength="200" placeholder="es. Abbonamento Netflix" required />
+        </div>
+
+        {{/* Amount field */}}
+        <div class="field">
+          <label for="amount">Importo (€)</label>
+          <input id="amount" type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required />
+        </div>
 
         {{/* Date fields group */}}
         <div class="field-group">
           <div class="field field--half">
-            <label for="start_date">Data Inizio</label>
-            <input 
-              type="date" 
-              id="start_date" 
-              name="start_date" 
-              required
-            />
+            <label for="start_date">Data inizio</label>
+            <input id="start_date" type="date" name="start_date" required />
           </div>
 
           <div class="field field--half">
-            <label for="end_date">Data Fine (opzionale)</label>
-            <input 
-              type="date" 
-              id="end_date" 
-              name="end_date"
-            />
+            <label for="end_date">Data fine (opzionale)</label>
+            <input id="end_date" type="date" name="end_date" />
           </div>
         </div>
 
@@ -83,57 +78,25 @@
           </select>
         </div>
 
-        {{/* Description field */}}
-        <div class="field">
-          <label for="description">Descrizione</label>
-          <input 
-            type="text" 
-            id="description" 
-            name="description" 
-            required
-            maxlength="200"
-            placeholder="es. Abbonamento Netflix"
-          />
-        </div>
-
-        {{/* Amount field */}}
-        <div class="field">
-          <label for="amount">Importo (€)</label>
-          <input 
-            type="number" 
-            id="amount" 
-            name="amount" 
-            step="0.01" 
-            min="0.01" 
-            required
-            placeholder="0.00"
-          />
-        </div>
-
         {{/* Category fields group */}}
         <div class="field-group">
           <div class="field field--half">
             <label for="primary">Categoria Primaria</label>
-            <select 
-              id="primary" 
-              name="primary" 
-              required
-              hx-get="/api/categories/secondary"
-              hx-trigger="change"
-              hx-target="#secondary"
-              hx-swap="innerHTML"
-              hx-indicator="#category-loading"
-            >
+            <select id="primary" name="primary" required
+                    hx-get="/api/categories/secondary"
+                    hx-trigger="change"
+                    hx-target="#secondary"
+                    hx-swap="innerHTML"
+                    hx-indicator="#category-loading">
               <option value="">Seleziona categoria</option>
-              {{ range .Categories }}
-              <option value="{{ . }}">{{ . }}</option>
-              {{ end }}
+              {{ range .Categories }}<option value="{{ . }}">{{ . }}</option>{{ end }}
             </select>
           </div>
 
           <div class="field field--half">
             <label for="secondary">Categoria Secondaria</label>
             <select id="secondary" name="secondary" required>
+              {{/* If we have legacy subcategories (for non-SQLite adapters), show them */}}
               {{ if .Subcats }}
                 {{ range .Subcats }}<option value="{{ . }}">{{ . }}</option>{{ end }}
               {{ else }}
@@ -151,7 +114,7 @@
 
         {{/* Submit button and loading indicator */}}
         <div class="actions">
-          <button class="btn btn-primary btn--block" type="submit">Crea Spesa Ricorrente</button>
+          <button class="btn btn-primary btn--block" type="submit">Aggiungi Spesa Ricorrente</button>
           <div class="indicator htmx-indicator" aria-hidden="true">
             <span class="spinner"></span>
             <span>Salvataggio in corso…</span>
@@ -160,78 +123,15 @@
       </form>
     </section>
 
-    {{/* List of recurrent expenses */}}
+    {{/* Recurrent expenses list section that loads via HTMX */}}
     <section class="page__section">
-      <h2 class="section-title">Spese Ricorrenti Attive</h2>
-      
-      {{ if .Expenses }}
-      <div class="expenses-list">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Descrizione</th>
-              <th>Importo</th>
-              <th>Frequenza</th>
-              <th>Data Inizio</th>
-              <th>Data Fine</th>
-              <th>Categoria</th>
-              <th>Azioni</th>
-            </tr>
-          </thead>
-          <tbody>
-            {{ range .Expenses }}
-            <tr class="expense-row">
-              <td class="expense-description">{{ .Description }}</td>
-              <td class="expense-amount">€ {{ printf "%.2f" (divFloat .Amount.Cents 100) }}</td>
-              <td class="expense-frequency">
-                {{ if eq .Every "daily" }}Giornaliera{{ end }}
-                {{ if eq .Every "weekly" }}Settimanale{{ end }}
-                {{ if eq .Every "monthly" }}Mensile{{ end }}
-                {{ if eq .Every "yearly" }}Annuale{{ end }}
-              </td>
-              <td class="expense-date">{{ formatDate .StartDate.Day .StartDate.Month .StartDate.Year }}</td>
-              <td class="expense-date">
-                {{ if .EndDate.Year }}
-                  {{ formatDate .EndDate.Month .EndDate.Day .EndDate.Year }}
-                {{ else }}
-                  <span class="text-muted">-</span>
-                {{ end }}
-              </td>
-              <td class="expense-category">
-                <span class="category-badge">{{ .Primary }}</span>
-                <span class="subcategory-badge">{{ .Secondary }}</span>
-              </td>
-              <td class="expense-actions">
-                <button 
-                  class="btn btn-sm btn-secondary"
-                  onclick="alert('Funzionalità di modifica in sviluppo')"
-                  title="Modifica spesa ricorrente"
-                >
-                  Modifica
-                </button>
-                <button 
-                  class="btn btn-sm btn-danger"
-                  hx-post="/recurrent/delete"
-                  hx-vals='{"id": "1"}'
-                  hx-confirm="Sei sicuro di voler eliminare questa spesa ricorrente?"
-                  hx-target="closest tr"
-                  hx-swap="outerHTML"
-                  title="Elimina spesa ricorrente"
-                >
-                  Elimina
-                </button>
-              </td>
-            </tr>
-            {{ end }}
-          </tbody>
-        </table>
+      <div id="recurrent-overview" 
+           hx-get="/ui/recurrent-expenses-list" 
+           hx-trigger="load, recurrent:created from:body, recurrent:updated from:body, recurrent:deleted from:body"
+           hx-target="#recurrent-overview" 
+           hx-swap="outerHTML">
+        <div class="placeholder">Caricamento spese ricorrenti…</div>
       </div>
-      {{ else }}
-      <div class="empty-state">
-        <p>Nessuna spesa ricorrente configurata.</p>
-        <p class="text-muted">Aggiungi la tua prima spesa ricorrente usando il form sopra.</p>
-      </div>
-      {{ end }}
     </section>
   </div>
 {{ end }}

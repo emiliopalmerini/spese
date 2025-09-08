@@ -373,6 +373,7 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	mux.HandleFunc("/expenses", s.withSecurityHeaders(s.handleCreateExpense))
 	// UI partials
 	mux.HandleFunc("/ui/month-overview", s.withSecurityHeaders(s.handleMonthOverview))
+	mux.HandleFunc("/ui/recurrent-expenses-list", s.withSecurityHeaders(s.handleRecurrentExpensesList))
 	mux.HandleFunc("/api/categories/secondary", s.withSecurityHeaders(s.handleGetSecondaryCategories))
 	
 	// Recurrent expenses routes
@@ -963,14 +964,19 @@ func (s *Server) handleRecurrentExpenses(w http.ResponseWriter, r *http.Request)
 		subs = []string{}
 	}
 
+	now := time.Now()
 	data := struct {
-		Expenses   []core.RecurrentExpenses
-		Categories []string
-		Subcats    []string
+		RecurrentExpenses []core.RecurrentExpenses
+		Categories        []string
+		Subcats           []string
+		Day               int
+		Month             int
 	}{
-		Expenses:   expenses,
-		Categories: cats,
-		Subcats:    subs,
+		RecurrentExpenses: expenses,
+		Categories:        cats,
+		Subcats:           subs,
+		Day:               now.Day(),
+		Month:             int(now.Month()),
 	}
 
 	if err := s.templates.ExecuteTemplate(w, "recurrent_page", data); err != nil {
@@ -1069,8 +1075,8 @@ func (s *Server) handleCreateRecurrentExpense(w http.ResponseWriter, r *http.Req
 
 	slog.InfoContext(r.Context(), "Recurrent expense created", "id", id, "description", re.Description)
 	
-	// Return success response for HTMX
-	w.Header().Set("HX-Redirect", "/recurrent")
+	// Trigger client refresh for HTMX
+	w.Header().Set("HX-Trigger", `{"recurrent:created": {}}`)
 	w.WriteHeader(http.StatusCreated)
 	_, _ = w.Write([]byte(`<div class="success">Spesa ricorrente creata con successo</div>`))
 }
@@ -1170,8 +1176,8 @@ func (s *Server) handleUpdateRecurrentExpense(w http.ResponseWriter, r *http.Req
 
 	slog.InfoContext(r.Context(), "Recurrent expense updated", "id", id)
 	
-	// Return success response for HTMX
-	w.Header().Set("HX-Redirect", "/recurrent")
+	// Trigger client refresh for HTMX
+	w.Header().Set("HX-Trigger", `{"recurrent:updated": {}}`)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`<div class="success">Spesa ricorrente aggiornata con successo</div>`))
 }
@@ -1215,10 +1221,9 @@ func (s *Server) handleDeleteRecurrentExpense(w http.ResponseWriter, r *http.Req
 
 	slog.InfoContext(r.Context(), "Recurrent expense deleted", "id", id)
 	
-	// Return success response for HTMX
-	w.Header().Set("HX-Redirect", "/recurrent")
+	// Return empty content for HTMX to remove the row
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`<div class="success">Spesa ricorrente eliminata con successo</div>`))
+	_, _ = w.Write([]byte(``))
 }
 
 // Helper function to parse date from string (YYYY-MM-DD format)
@@ -1329,4 +1334,46 @@ func formatEuros(cents int64) string {
 		return "-€" + s
 	}
 	return "€" + s
+}
+
+// handleRecurrentExpensesList renders the recurrent expenses list partial
+func (s *Server) handleRecurrentExpensesList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	// Get repository based on adapter type
+	var repo interface {
+		GetRecurrentExpenses(ctx context.Context) ([]core.RecurrentExpenses, error)
+	}
+	
+	// Check if we have access to the repository through type assertion
+	if adapter, ok := s.expWriter.(*adapters.SQLiteAdapter); ok {
+		repo = adapter.GetStorage()
+	} else {
+		_, _ = w.Write([]byte(`<div id="recurrent-list" class="recurrent-expenses"><div class="empty-state"><p class="empty-message">Spese ricorrenti non disponibili con questo backend</p></div></div>`))
+		return
+	}
+
+	expenses, err := repo.GetRecurrentExpenses(r.Context())
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to get recurrent expenses", "error", err)
+		_, _ = w.Write([]byte(`<div id="recurrent-list" class="recurrent-expenses"><div class="empty-state"><p class="empty-message">Errore nel caricamento delle spese ricorrenti</p></div></div>`))
+		return
+	}
+
+	data := struct {
+		RecurrentExpenses []core.RecurrentExpenses
+	}{
+		RecurrentExpenses: expenses,
+	}
+
+	if err := s.templates.ExecuteTemplate(w, "recurrent-list", data); err != nil {
+		slog.ErrorContext(r.Context(), "Template execution failed", "error", err, "template", "recurrent-list")
+		_, _ = w.Write([]byte(`<div id="recurrent-list" class="recurrent-expenses"><div class="empty-state"><p class="empty-message">Errore nel rendering della lista</p></div></div>`))
+	}
 }

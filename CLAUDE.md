@@ -16,9 +16,8 @@ This is a Go expense tracking application with HTMX frontend and Google Sheets i
 
 The application supports multiple data backends via `DATA_BACKEND` environment variable:
 
-- **memory**: Local development with seed data from `./data/` directory
 - **sheets**: Direct Google Sheets integration (legacy, synchronous)
-- **sqlite**: Local SQLite storage with async Google Sheets sync via AMQP
+- **sqlite**: Local SQLite storage with async Google Sheets sync via AMQP (recommended)
 
 ### SQLite + AMQP Architecture (Recommended)
 
@@ -110,7 +109,7 @@ The app uses environment-based configuration via `internal/config`. Key variable
 
 ### Core Settings
 - `PORT`: HTTP server port (default: 8081)
-- `DATA_BACKEND`: Backend type (memory|sheets|sqlite)
+- `DATA_BACKEND`: Backend type (sheets|sqlite)
 
 ### SQLite + AMQP (Recommended)
 - `SQLITE_DB_PATH`: SQLite database path (default: ./data/spese.db)
@@ -246,7 +245,6 @@ The application follows hexagonal architecture with clear port definitions:
 
 ### Adapters
 - `internal/sheets/google`: Google Sheets API adapter
-- `internal/sheets/memory`: In-memory adapter (development)
 - `internal/adapters/sqlite_adapter.go`: SQLite adapter with AMQP integration
 
 ## HTTP Layer (internal/http)

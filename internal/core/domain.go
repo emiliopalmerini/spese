@@ -34,6 +34,7 @@ type (
 	}
 
 	RecurrentExpenses struct {
+		ID          int64  // Database ID for operations
 		StartDate   DateParts
 		EndDate     DateParts
 		Every       RepetitionTypes
@@ -97,13 +98,13 @@ func (re RecurrentExpenses) Validate() error {
 	if err := re.StartDate.Validate(); err != nil {
 		return errors.New("invalid start date: " + err.Error())
 	}
-	
+
 	// Validate end date if provided
 	if re.EndDate.Year > 0 || re.EndDate.Month > 0 || re.EndDate.Day > 0 {
 		if err := re.EndDate.Validate(); err != nil {
 			return errors.New("invalid end date: " + err.Error())
 		}
-		
+
 		// Ensure end date is after start date
 		startTime := re.StartDate.Year*10000 + re.StartDate.Month*100 + re.StartDate.Day
 		endTime := re.EndDate.Year*10000 + re.EndDate.Month*100 + re.EndDate.Day
@@ -111,7 +112,7 @@ func (re RecurrentExpenses) Validate() error {
 			return errors.New("end date must be after start date")
 		}
 	}
-	
+
 	// Validate repetition type
 	switch re.Every {
 	case Daily, Weekly, Monthly, Yearly:
@@ -119,7 +120,7 @@ func (re RecurrentExpenses) Validate() error {
 	default:
 		return errors.New("invalid repetition type")
 	}
-	
+
 	// Validate description
 	if len(strings.TrimSpace(re.Description)) == 0 {
 		return ErrEmptyDescription
@@ -127,12 +128,12 @@ func (re RecurrentExpenses) Validate() error {
 	if len(re.Description) > 200 {
 		return errors.New("description too long (max 200 characters)")
 	}
-	
+
 	// Validate amount
 	if err := re.Amount.Validate(); err != nil {
 		return err
 	}
-	
+
 	// Validate categories
 	if strings.TrimSpace(re.Primary) == "" {
 		return ErrEmptyPrimary
@@ -140,6 +141,6 @@ func (re RecurrentExpenses) Validate() error {
 	if strings.TrimSpace(re.Secondary) == "" {
 		return ErrEmptySecondary
 	}
-	
+
 	return nil
 }

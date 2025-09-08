@@ -501,6 +501,7 @@ func (r *SQLiteRepository) GetRecurrentExpenses(ctx context.Context) ([]core.Rec
 	expenses := make([]core.RecurrentExpenses, len(dbExpenses))
 	for i, e := range dbExpenses {
 		expenses[i] = core.RecurrentExpenses{
+			ID: e.ID,
 			StartDate: core.DateParts{
 				Day:   e.StartDate.Day(),
 				Month: int(e.StartDate.Month()),
@@ -537,6 +538,7 @@ func (r *SQLiteRepository) GetRecurrentExpenseByID(ctx context.Context, id int64
 	}
 
 	expense := &core.RecurrentExpenses{
+		ID: dbExpense.ID,
 		StartDate: core.DateParts{
 			Day:   dbExpense.StartDate.Day(),
 			Month: int(dbExpense.StartDate.Month()),

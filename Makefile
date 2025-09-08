@@ -119,7 +119,7 @@ smoke:
 
 cover:
 	@echo "Running coverage for selected packages..."
-	go test -coverprofile=coverage.out ./internal/core ./internal/http ./internal/sheets/memory
+	go test -coverprofile=coverage.out ./internal/core ./internal/http
 	go tool cover -func=coverage.out | tail -n1 | awk '{print $$3}' | grep -qx '100.0%' && echo "Coverage 100%" || (echo "Coverage below 100%" && go tool cover -func=coverage.out && exit 1)
 
 oauth-init:

@@ -1,0 +1,66 @@
+{{ define "recurrent-list" }}
+<div id="recurrent-list" class="recurrent-expenses">
+  {{ if .RecurrentExpenses }}
+    <h2 class="section-title">Le tue spese ricorrenti</h2>
+    
+    <div class="recurrent-list">
+      {{ range .RecurrentExpenses }}
+      <div class="recurrent-item" id="recurrent-{{ .ID }}">
+        <div class="recurrent-header">
+          <h3 class="recurrent-description">{{ .Description }}</h3>
+          <div class="recurrent-amount">{{ printf "€%.2f" (divFloat .Amount.Cents 100) }}</div>
+        </div>
+        
+        <div class="recurrent-details">
+          <div class="recurrent-meta">
+            <span class="recurrent-frequency">
+              {{ if eq .Every "daily" }}Giornaliera{{ end }}
+              {{ if eq .Every "weekly" }}Settimanale{{ end }}
+              {{ if eq .Every "monthly" }}Mensile{{ end }}
+              {{ if eq .Every "yearly" }}Annuale{{ end }}
+            </span>
+            
+            <span class="recurrent-dates">
+              Dal {{ formatDate .StartDate.Day .StartDate.Month .StartDate.Year }}
+              {{ if .EndDate.Year }}
+                al {{ formatDate .EndDate.Day .EndDate.Month .EndDate.Year }}
+              {{ else }}
+                (senza fine)
+              {{ end }}
+            </span>
+          </div>
+          
+          <div class="recurrent-categories">
+            <span class="category-primary">{{ .Primary }}</span>
+            <span class="category-separator">/</span>
+            <span class="category-secondary">{{ .Secondary }}</span>
+          </div>
+        </div>
+        
+        <div class="recurrent-actions">
+          <button class="btn btn-secondary btn-small" 
+                  hx-get="/recurrent/{{ .ID }}/edit" 
+                  hx-target="#recurrent-{{ .ID }}" 
+                  hx-swap="outerHTML">
+            Modifica
+          </button>
+          
+          <button class="btn btn-danger btn-small" 
+                  hx-delete="/recurrent/delete?id={{ .ID }}"
+                  hx-target="#recurrent-{{ .ID }}"
+                  hx-swap="outerHTML"
+                  hx-confirm="Sei sicuro di voler eliminare questa spesa ricorrente?">
+            Elimina
+          </button>
+        </div>
+      </div>
+      {{ end }}
+    </div>
+  {{ else }}
+    <div class="empty-state">
+      <p class="empty-message">Nessuna spesa ricorrente configurata.</p>
+      <p class="empty-hint">Usa il modulo sopra per aggiungere la prima spesa ricorrente.</p>
+    </div>
+  {{ end }}
+</div>
+{{ end }}

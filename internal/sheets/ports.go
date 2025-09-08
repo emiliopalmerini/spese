@@ -26,4 +26,16 @@ type (
 		// ListExpenses returns all expenses for the specified year and month.
 		ListExpenses(ctx context.Context, year int, month int) ([]core.Expense, error)
 	}
+
+	// RecurrentExpenseWriter manages recurrent expenses.
+	RecurrentExpenseWriter interface {
+		// SaveRecurrentExpense creates a new recurrent expense.
+		SaveRecurrentExpense(ctx context.Context, re core.RecurrentExpenses) error
+	}
+
+	// RecurrentExpenseLister returns the list of active recurrent expenses.
+	RecurrentExpenseLister interface {
+		// ListActiveRecurrentExpenses returns all active recurrent expenses.
+		ListActiveRecurrentExpenses(ctx context.Context) ([]core.RecurrentExpenses, error)
+	}
 )

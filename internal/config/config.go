@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -57,7 +58,7 @@ func Load() *Config {
 		SyncBatchSize: getEnvInt("SYNC_BATCH_SIZE", 10),
 		SyncInterval:  getEnvDuration("SYNC_INTERVAL", 30*time.Second),
 
-		DataBackend: getEnv("DATA_BACKEND", "memory"),
+		DataBackend: getEnv("DATA_BACKEND", "sqlite"),
 	}
 
 	return cfg
@@ -75,14 +76,8 @@ func (c *Config) Validate() error {
 	}
 
 	// Validate data backend
-	validBackends := []string{"memory", "sheets", "sqlite"}
-	isValidBackend := false
-	for _, backend := range validBackends {
-		if c.DataBackend == backend {
-			isValidBackend = true
-			break
-		}
-	}
+	validBackends := []string{"sheets", "sqlite"}
+	isValidBackend := slices.Contains(validBackends, c.DataBackend)
 	if !isValidBackend {
 		errors = append(errors, fmt.Sprintf("invalid data backend '%s': must be one of %v", c.DataBackend, validBackends))
 	}
