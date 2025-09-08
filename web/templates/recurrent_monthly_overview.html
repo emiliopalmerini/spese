@@ -1,0 +1,36 @@
+{{ define "recurrent_monthly_overview" }}
+{{/*
+  Recurrent expenses monthly overview partial template
+  Rendered by /ui/recurrent-monthly-overview HTMX endpoint
+  Expects: .MonthlyTotal, .TopCategory, .TopAmount, .Categories (breakdown by category)
+*/}}
+<section id="recurrent-monthly-overview" class="month-overview">
+  <h2>Panoramica Mensile</h2>
+  <div class="overview-body">
+    {{/* Total monthly amount display */}}
+    <div class="total">Totale mensile: <strong>{{ .MonthlyTotal }}</strong></div>
+    
+    {{/* Scale legend (if available) */}}
+    {{ if .TopCategory }}
+    <div class="legend">Scala relativa a: <em>{{ .TopCategory }}</em> ({{ .TopAmount }})</div>
+    {{ end }}
+    
+    {{/* Category breakdown with bars */}}
+    <div class="categories">
+      {{ if .Categories }}
+        {{ range .Categories }}
+        <div class="row">
+          <div class="name">{{ .Name }}</div>
+          <div class="amount">{{ .Amount }}</div>
+          <div class="bar" aria-hidden="true">
+            <div class="bar__fill" style="width: {{ .Width }}%"></div>
+          </div>
+        </div>
+        {{ end }}
+      {{ else }}
+        <div class="row placeholder">Nessuna spesa ricorrente configurata</div>
+      {{ end }}
+    </div>
+  </div>
+</section>
+{{ end }}

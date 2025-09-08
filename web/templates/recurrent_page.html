@@ -123,6 +123,17 @@
       </form>
     </section>
 
+    {{/* Monthly overview for recurrent expenses */}}
+    <section class="page__section">
+      <div id="recurrent-monthly-overview" 
+           hx-get="/ui/recurrent-monthly-overview" 
+           hx-trigger="load, recurrent:created from:body, recurrent:updated from:body, recurrent:deleted from:body"
+           hx-target="#recurrent-monthly-overview" 
+           hx-swap="outerHTML">
+        <div class="placeholder">Caricamento panoramica mensile…</div>
+      </div>
+    </section>
+
     {{/* Recurrent expenses list section that loads via HTMX */}}
     <section class="page__section">
       <div id="recurrent-overview" 
