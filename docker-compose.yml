@@ -4,7 +4,7 @@ services:
     image: rabbitmq:3.13-management
     container_name: spese-rabbitmq
     ports:
-      - "5672:5672"   # AMQP port
+      - "5672:5672" # AMQP port
       - "15672:15672" # Management UI
     environment:
       RABBITMQ_DEFAULT_USER: admin
@@ -17,26 +17,6 @@ services:
       timeout: 10s
       retries: 5
 
-  # OAuth initialization service (run once to get token)
-  oauth-init:
-    build: .
-    image: spese:dev
-    container_name: spese-oauth-init
-    env_file:
-      - .env
-    ports:
-      - "${OAUTH_REDIRECT_PORT:-8084}:${OAUTH_REDIRECT_PORT:-8085}"
-    environment:
-      - OAUTH_REDIRECT_PORT=${OAUTH_REDIRECT_PORT:-8085}
-      # Ensure a sensible default path inside the container for token.json
-      - GOOGLE_OAUTH_TOKEN_FILE=${GOOGLE_OAUTH_TOKEN_FILE:-/secrets/token.json}
-    volumes:
-      # Mount full configs dir for flexibility and also bind the specific client.json
-      - ./configs:/configs:ro
-      - ./configs/client.json:${GOOGLE_OAUTH_CLIENT_FILE:-/client.json}:ro
-      - ./.secrets:/secrets
-    command: go run ./cmd/oauth-init
-    profiles: ["oauth"] # Only run when explicitly requested
 
   spese:
     build: .
@@ -54,13 +34,11 @@ services:
       - AMQP_URL=amqp://admin:admin@rabbitmq:5672/
       - AMQP_EXCHANGE=spese
       - AMQP_QUEUE=sync_expenses
-      # OAuth: choose file- or json-based (file requires mounting volume)
+      # Service Account: choose file- or json-based (file requires mounting volume)
       # Values from .env are injected via env_file; uncomment below only to override
-      # - GOOGLE_OAUTH_CLIENT_JSON=${GOOGLE_OAUTH_CLIENT_JSON:-}
-      # - GOOGLE_OAUTH_TOKEN_JSON=${GOOGLE_OAUTH_TOKEN_JSON:-}
+      # - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON:-}
     volumes:
-      - ./configs/client.json:${GOOGLE_OAUTH_CLIENT_FILE:-/client.json}:ro
-      - ./.secrets:/secrets:ro
+      - ./configs/service-account.json:${GOOGLE_SERVICE_ACCOUNT_FILE:-/service-account.json}:ro
       - spese_data:/data
     depends_on:
       rabbitmq:
@@ -88,12 +66,10 @@ services:
       - GOOGLE_CATEGORIES_SHEET_NAME=${GOOGLE_CATEGORIES_SHEET_NAME:-Dashboard}
       - GOOGLE_SUBCATEGORIES_SHEET_NAME=${GOOGLE_SUBCATEGORIES_SHEET_NAME:-Dashboard}
       - DASHBOARD_SHEET_NAME=${DASHBOARD_SHEET_NAME:-Dashboard}
-      # OAuth credentials for Google Sheets access
-      - GOOGLE_OAUTH_CLIENT_FILE=/client.json
-      - GOOGLE_OAUTH_TOKEN_FILE=/secrets/token.json
+      # Service Account credentials for Google Sheets access
+      - GOOGLE_SERVICE_ACCOUNT_FILE=/service-account.json
     volumes:
-      - ./configs/client.json:${GOOGLE_OAUTH_CLIENT_FILE:-/client.json}:ro
-      - ./.secrets:/secrets:ro
+      - ./configs/service-account.json:${GOOGLE_SERVICE_ACCOUNT_FILE:-/service-account.json}:ro
       - spese_data:/data
     entrypoint: ["/app/bin/spese-worker"]
     depends_on:

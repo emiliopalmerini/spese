@@ -1,6 +1,6 @@
 -- name: CreateExpense :one
 INSERT INTO expenses (date, description, amount_cents, primary_category, secondary_category)
-VALUES (?, ?, ?, ?, ?)
+VALUES (date(?), ?, ?, ?, ?)
 RETURNING *;
 
 -- name: GetExpensesByMonth :many

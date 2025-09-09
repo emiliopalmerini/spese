@@ -10,7 +10,6 @@ This is a Go expense tracking application with HTMX frontend and Google Sheets i
 
 - **cmd/spese**: Main web application (HTTP server + HTMX frontend)
 - **cmd/spese-worker**: Background worker for async Google Sheets synchronization
-- **cmd/oauth-init**: OAuth flow utility for Google Sheets API setup
 
 ### Data Backends
 
@@ -85,8 +84,6 @@ make docker-up
 # View logs
 make docker-logs
 
-# OAuth setup in Docker
-make oauth-init-docker
 
 # Cleanup
 make docker-down
@@ -119,11 +116,12 @@ The app uses environment-based configuration via `internal/config`. Key variable
 - `SYNC_BATCH_SIZE`: Worker batch size (default: 10)
 - `SYNC_INTERVAL`: Periodic sync interval (default: 30s)
 
-### Google Sheets OAuth
+### Google Sheets Service Account
 - `GOOGLE_SPREADSHEET_ID`: Target spreadsheet ID
 - `GOOGLE_SHEET_NAME`: Base sheet name (year auto-prefixed, e.g., "2025 Expenses")
-- `GOOGLE_OAUTH_CLIENT_FILE` or `GOOGLE_OAUTH_CLIENT_JSON`: OAuth client credentials
-- `GOOGLE_OAUTH_TOKEN_FILE` or `GOOGLE_OAUTH_TOKEN_JSON`: User access token
+- `GOOGLE_SERVICE_ACCOUNT_JSON`: Service account JSON as string
+- `GOOGLE_SERVICE_ACCOUNT_FILE`: Path to service account JSON file
+- `GOOGLE_APPLICATION_CREDENTIALS`: Standard Google Cloud service account file path
 
 ## Database Schema (SQLite)
 
@@ -263,14 +261,12 @@ Year-prefixed sheet names (e.g., "2025 Expenses", "2025 Dashboard"):
 - **Categories**: Column A in Dashboard sheet
 - **Subcategories**: Column B in Dashboard sheet
 
-### OAuth Setup
-```bash
-# Local OAuth flow
-make oauth-init
-
-# Docker OAuth flow  
-make oauth-init-docker
-```
+### Service Account Setup
+1. Create a service account in Google Cloud Console
+2. Enable Google Sheets API
+3. Generate JSON credentials for the service account
+4. Share your Google Spreadsheet with the service account email
+5. Set environment variable: `GOOGLE_SERVICE_ACCOUNT_FILE=/path/to/service-account.json`
 
 ## Architecture Decision Records (ADRs)
 

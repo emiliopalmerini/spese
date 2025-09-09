@@ -2,7 +2,6 @@ package google
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -16,8 +15,6 @@ import (
 
 	ports "spese/internal/sheets"
 
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 	goption "google.golang.org/api/option"
 	gsheet "google.golang.org/api/sheets/v4"
 )
@@ -98,73 +95,40 @@ func NewFromEnv(ctx context.Context) (*Client, error) {
 	}, nil
 }
 
-// newSheetsService initializes a Sheets Service using either OAuth (user credentials)
-// or Service Account credentials. Preference order:
-//  1. OAuth: GOOGLE_OAUTH_CLIENT_JSON or GOOGLE_OAUTH_CLIENT_FILE combined with
-//     GOOGLE_OAUTH_TOKEN_JSON or GOOGLE_OAUTH_TOKEN_FILE.
-//  2. Service Account: GOOGLE_CREDENTIALS_JSON or GOOGLE_APPLICATION_CREDENTIALS.
+// newSheetsService initializes a Sheets Service using Service Account credentials.
+// Uses GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_SERVICE_ACCOUNT_FILE, or GOOGLE_APPLICATION_CREDENTIALS.
 func newSheetsService(ctx context.Context) (*gsheet.Service, error) {
-	// OAuth only: require client + token
-	clientJSON := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_CLIENT_JSON"))
-	clientFile := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_CLIENT_FILE"))
-	tokenJSON := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_TOKEN_JSON"))
-	tokenFile := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_TOKEN_FILE"))
+	serviceAccountJSON := strings.TrimSpace(os.Getenv("GOOGLE_SERVICE_ACCOUNT_JSON"))
+	serviceAccountFile := strings.TrimSpace(os.Getenv("GOOGLE_SERVICE_ACCOUNT_FILE"))
+	
+	// Also check the standard Google Cloud environment variable
+	if serviceAccountJSON == "" && serviceAccountFile == "" {
+		serviceAccountFile = strings.TrimSpace(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))
+	}
 
-	var b []byte
+	var credentialsJSON []byte
 	var err error
+
 	switch {
-	case clientJSON != "":
-		b = []byte(clientJSON)
-	case clientFile != "":
-		b, err = os.ReadFile(clientFile)
+	case serviceAccountJSON != "":
+		credentialsJSON = []byte(serviceAccountJSON)
+	case serviceAccountFile != "":
+		credentialsJSON, err = os.ReadFile(serviceAccountFile)
 		if err != nil {
-			return nil, fmt.Errorf("read oauth client file: %w", err)
+			return nil, fmt.Errorf("read service account file: %w", err)
 		}
 	default:
-		return nil, errors.New("missing oauth client (set GOOGLE_OAUTH_CLIENT_JSON or GOOGLE_OAUTH_CLIENT_FILE)")
-	}
-
-	cfg, err := google.ConfigFromJSON(b, gsheet.SpreadsheetsScope)
-	if err != nil {
-		return nil, fmt.Errorf("oauth config: %w", err)
-	}
-
-	var tok *oauth2.Token
-	switch {
-	case tokenJSON != "":
-		tok = &oauth2.Token{}
-		if err := jsonUnmarshal([]byte(tokenJSON), tok); err != nil {
-			return nil, fmt.Errorf("oauth token json: %w", err)
-		}
-	case tokenFile != "":
-		data, err := os.ReadFile(tokenFile)
-		if err != nil {
-			return nil, fmt.Errorf("read oauth token file: %w", err)
-		}
-		tok = &oauth2.Token{}
-		if err := jsonUnmarshal(data, tok); err != nil {
-			return nil, fmt.Errorf("oauth token file: %w", err)
-		}
-	default:
-		return nil, errors.New("missing oauth token (set GOOGLE_OAUTH_TOKEN_JSON or GOOGLE_OAUTH_TOKEN_FILE)")
-	}
-
-	// Fail fast with a helpful error if the token is already expired and
-	// there is no refresh token available to auto-refresh.
-	if !tok.Expiry.IsZero() && tok.Expiry.Before(time.Now()) && strings.TrimSpace(tok.RefreshToken) == "" {
-		return nil, fmt.Errorf("oauth token expired and missing refresh_token; re-run 'make oauth-init' to generate a new token (with offline access)")
+		return nil, errors.New("missing service account credentials (set GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_SERVICE_ACCOUNT_FILE, or GOOGLE_APPLICATION_CREDENTIALS)")
 	}
 
 	// Create HTTP client with connection pooling and proper timeouts
 	baseClient := newHTTPClientWithPooling()
-	httpClient := cfg.Client(ctx, tok)
 
-	// Replace the transport with our optimized one while preserving OAuth
-	if transport, ok := httpClient.Transport.(*oauth2.Transport); ok {
-		transport.Base = baseClient.Transport
-	}
-
-	return gsheet.NewService(ctx, goption.WithHTTPClient(httpClient))
+	// Create service using service account credentials
+	return gsheet.NewService(ctx, 
+		goption.WithCredentialsJSON(credentialsJSON),
+		goption.WithScopes(gsheet.SpreadsheetsScope),
+		goption.WithHTTPClient(baseClient))
 }
 
 // newHTTPClientWithPooling creates an HTTP client optimized for Google Sheets API
@@ -202,8 +166,6 @@ func newHTTPClientWithPooling() *http.Client {
 	}
 }
 
-// jsonUnmarshal is a tiny indirection to allow testing if needed.
-var jsonUnmarshal = func(b []byte, v any) error { return json.Unmarshal(b, v) }
 
 func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
 	if err := e.Validate(); err != nil {

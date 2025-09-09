@@ -58,15 +58,15 @@ func (r *SQLiteRepository) Close() error {
 
 // Append implements sheets.ExpenseWriter
 func (r *SQLiteRepository) Append(ctx context.Context, e core.Expense) (string, error) {
-	// Convert DateParts to time.Time, defaulting to current year if not provided
+	// Convert DateParts to date string format, defaulting to current year if not provided
 	year := e.Date.Year
 	if year == 0 {
 		year = time.Now().Year()
 	}
-	date := time.Date(year, time.Month(e.Date.Month), e.Date.Day, 0, 0, 0, 0, time.UTC)
+	dateStr := fmt.Sprintf("%04d-%02d-%02d", year, e.Date.Month, e.Date.Day)
 
 	expense, err := r.queries.CreateExpense(ctx, CreateExpenseParams{
-		Date:              date,
+		Date:              dateStr,
 		Description:       e.Description,
 		AmountCents:       e.Amount.Cents,
 		PrimaryCategory:   e.Primary,
@@ -80,7 +80,7 @@ func (r *SQLiteRepository) Append(ctx context.Context, e core.Expense) (string, 
 		"id", expense.ID,
 		"description", expense.Description,
 		"amount_cents", expense.AmountCents,
-		"date", expense.Date.Format("2006-01-02"))
+		"date", dateStr)
 
 	return strconv.FormatInt(expense.ID, 10), nil
 }

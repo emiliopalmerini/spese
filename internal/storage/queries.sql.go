@@ -13,16 +13,16 @@ import (
 
 const createExpense = `-- name: CreateExpense :one
 INSERT INTO expenses (date, description, amount_cents, primary_category, secondary_category)
-VALUES (?, ?, ?, ?, ?)
+VALUES (date(?), ?, ?, ?, ?)
 RETURNING id, date, description, amount_cents, primary_category, secondary_category, version, created_at, synced_at, sync_status
 `
 
 type CreateExpenseParams struct {
-	Date              time.Time `db:"date" json:"date"`
-	Description       string    `db:"description" json:"description"`
-	AmountCents       int64     `db:"amount_cents" json:"amount_cents"`
-	PrimaryCategory   string    `db:"primary_category" json:"primary_category"`
-	SecondaryCategory string    `db:"secondary_category" json:"secondary_category"`
+	Date              interface{} `db:"date" json:"date"`
+	Description       string      `db:"description" json:"description"`
+	AmountCents       int64       `db:"amount_cents" json:"amount_cents"`
+	PrimaryCategory   string      `db:"primary_category" json:"primary_category"`
+	SecondaryCategory string      `db:"secondary_category" json:"secondary_category"`
 }
 
 func (q *Queries) CreateExpense(ctx context.Context, arg CreateExpenseParams) (Expense, error) {
