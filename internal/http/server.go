@@ -395,6 +395,11 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	mux.HandleFunc("/expenses/delete", s.withSecurityHeaders(s.handleDeleteExpense))
 	// UI partials
 	mux.HandleFunc("/ui/month-overview", s.withSecurityHeaders(s.handleMonthOverview))
+	mux.HandleFunc("/ui/month-total", s.withSecurityHeaders(s.handleMonthTotal))
+	mux.HandleFunc("/ui/month-categories", s.withSecurityHeaders(s.handleMonthCategories))
+	mux.HandleFunc("/ui/month-expenses", s.withSecurityHeaders(s.handleMonthExpenses))
+	mux.HandleFunc("/ui/notifications", s.withSecurityHeaders(s.handleNotifications))
+	mux.HandleFunc("/ui/form-reset", s.withSecurityHeaders(s.handleFormReset))
 	mux.HandleFunc("/ui/recurrent-expenses-list", s.withSecurityHeaders(s.handleRecurrentExpensesList))
 	mux.HandleFunc("/ui/recurrent-monthly-overview", s.withSecurityHeaders(s.handleRecurrentMonthlyOverview))
 	mux.HandleFunc("/api/categories/secondary", s.withSecurityHeaders(s.handleGetSecondaryCategories))
@@ -469,7 +474,7 @@ func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 
 		// Enhanced Content Security Policy with stricter rules
 		csp := "default-src 'self'; " +
-			"script-src 'self' https://unpkg.com; " +
+			"script-src 'self' https://unpkg.com 'unsafe-eval'; " +
 			"style-src 'self' 'unsafe-inline'; " +
 			"img-src 'self' data:; " +
 			"connect-src 'self'; " +
@@ -802,14 +807,24 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		"sheets_ref", ref,
 		"component", "expense_handler",
 		"operation", "create")
-	// Trigger client refresh
+	// Trigger client refresh for form, overview and list + show notification
 	year := time.Now().Year()
-	w.Header().Set("HX-Trigger", `{"expense:created": {"year": `+strconv.Itoa(year)+`, "month": `+strconv.Itoa(month)+`}}`)
+	successMsg := fmt.Sprintf("Spesa registrata (#%s): %s — €%s (%s / %s)", 
+		template.HTMLEscapeString(ref), 
+		template.HTMLEscapeString(exp.Description),
+		template.HTMLEscapeString(amountStr),
+		template.HTMLEscapeString(exp.Primary), 
+		template.HTMLEscapeString(exp.Secondary))
+	
+	w.Header().Set("HX-Trigger", fmt.Sprintf(`{
+		"expense:created": {"year": %d, "month": %d},
+		"form:reset": {},
+		"overview:refresh": {"year": %d, "month": %d},
+		"show-notification": {"type": "success", "message": "%s", "duration": 3000}
+	}`, year, month, year, month, template.JSEscapeString(successMsg)))
+	
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`<div class="success">Spesa registrata (#` + template.HTMLEscapeString(ref) + `): ` +
-		template.HTMLEscapeString(exp.Description) +
-		` — €` + template.HTMLEscapeString(amountStr) +
-		` (` + template.HTMLEscapeString(exp.Primary) + ` / ` + template.HTMLEscapeString(exp.Secondary) + `)</div>`))
+	_, _ = w.Write([]byte("")) // Empty response, notifications handled via JavaScript
 }
 
 func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
@@ -920,13 +935,17 @@ func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
 		"component", "expense_handler",
 		"operation", "delete")
 
-	// Trigger client refresh
+	// Trigger client refresh + show notification
 	now := time.Now()
 	year := now.Year()
 	month := int(now.Month())
-	w.Header().Set("HX-Trigger", `{"expense:deleted": {"year": `+strconv.Itoa(year)+`, "month": `+strconv.Itoa(month)+`}}`)
+	w.Header().Set("HX-Trigger", fmt.Sprintf(`{
+		"expense:deleted": {"year": %d, "month": %d},
+		"overview:refresh": {"year": %d, "month": %d},
+		"show-notification": {"type": "success", "message": "Spesa cancellata con successo", "duration": 2000}
+	}`, year, month, year, month))
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`<div class="success">Spesa cancellata con successo</div>`))
+	_, _ = w.Write([]byte("")) // Empty response - item will be removed via targeting
 }
 
 // sanitizeInput removes potentially dangerous characters and trims whitespace
@@ -1378,6 +1397,8 @@ func (s *Server) handleDeleteRecurrentExpense(w http.ResponseWriter, r *http.Req
 
 	slog.InfoContext(r.Context(), "Recurrent expense deleted", "id", id)
 
+	// Trigger client refresh for HTMX
+	w.Header().Set("HX-Trigger", `{"recurrent:deleted": {}}`)
 	// Return empty content for HTMX to remove the row
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(``))
@@ -1415,8 +1436,11 @@ func (s *Server) handleGetSecondaryCategories(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Get primary category from query parameter
+	// Get primary category from query parameter or form data
 	primaryCategory := strings.TrimSpace(r.URL.Query().Get("primary"))
+	if primaryCategory == "" {
+		primaryCategory = strings.TrimSpace(r.FormValue("primary"))
+	}
 	if primaryCategory == "" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusBadRequest)
@@ -1712,5 +1736,277 @@ func (s *Server) handleRecurrentExpenseEdit(w http.ResponseWriter, r *http.Reque
 	if err := s.templates.ExecuteTemplate(w, "recurrent_edit_form", data); err != nil {
 		slog.ErrorContext(r.Context(), "Template execution failed", "error", err, "template", "recurrent_edit_form")
 		http.Error(w, "Template error", http.StatusInternalServerError)
+	}
+}
+
+// handleNotifications provides a dedicated endpoint for flash messages
+func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	
+	// Get notification details from query params
+	msgType := r.URL.Query().Get("type") // success, error, info
+	message := r.URL.Query().Get("message")
+	duration := r.URL.Query().Get("duration") // in milliseconds
+	
+	if message == "" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	data := struct {
+		Type     string
+		Message  string
+		Duration string
+	}{
+		Type:     msgType,
+		Message:  message,
+		Duration: duration,
+	}
+
+	if err := s.templates.ExecuteTemplate(w, "notification", data); err != nil {
+		slog.ErrorContext(r.Context(), "Notification template execution failed", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+// handleFormReset returns a fresh form after successful submission
+func (s *Server) handleFormReset(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	now := time.Now()
+	cats, _, err := s.taxReader.List(r.Context())
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to get categories for form reset", "error", err)
+		cats = []string{}
+	}
+
+	data := struct {
+		Day        int
+		Month      int
+		Categories []string
+	}{
+		Day:        now.Day(),
+		Month:      int(now.Month()),
+		Categories: cats,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.templates.ExecuteTemplate(w, "expense_form", data); err != nil {
+		slog.ErrorContext(r.Context(), "Form reset template execution failed", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+}
+
+// handleMonthTotal returns only the total amount for the month
+func (s *Server) handleMonthTotal(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	
+	now := time.Now()
+	year := now.Year()
+	month := int(now.Month())
+	
+	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
+		if y, err := strconv.Atoi(v); err == nil {
+			year = y
+		}
+	}
+	if v := strings.TrimSpace(r.URL.Query().Get("month")); v != "" {
+		if m, err := strconv.Atoi(v); err == nil {
+			month = m
+		}
+	}
+
+	ov, err := s.getOverview(r.Context(), year, month)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Month total error", "error", err, "year", year, "month", month)
+		_, _ = w.Write([]byte(`<div class="total">Errore nel caricamento</div>`))
+		return
+	}
+
+	data := struct {
+		Total string
+	}{
+		Total: formatEuros(ov.Total.Cents),
+	}
+
+	if err := s.templates.ExecuteTemplate(w, "month_total", data); err != nil {
+		slog.ErrorContext(r.Context(), "Month total template execution failed", "error", err)
+		_, _ = w.Write([]byte(`<div class="total">Errore template</div>`))
+	}
+}
+
+// handleMonthCategories returns only the category breakdown
+func (s *Server) handleMonthCategories(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	
+	now := time.Now()
+	year := now.Year()
+	month := int(now.Month())
+	
+	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
+		if y, err := strconv.Atoi(v); err == nil {
+			year = y
+		}
+	}
+	if v := strings.TrimSpace(r.URL.Query().Get("month")); v != "" {
+		if m, err := strconv.Atoi(v); err == nil {
+			month = m
+		}
+	}
+
+	ov, err := s.getOverview(r.Context(), year, month)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Month categories error", "error", err, "year", year, "month", month)
+		_, _ = w.Write([]byte(`<div class="categories"><div class="row placeholder">Errore nel caricamento</div></div>`))
+		return
+	}
+
+	// Calculate category data
+	var maxCents int64
+	var maxName string
+	for _, r := range ov.ByCategory {
+		if r.Amount.Cents > maxCents {
+			maxCents = r.Amount.Cents
+			maxName = r.Name
+		}
+	}
+
+	type row struct {
+		Name, Amount string
+		Width        int
+	}
+
+	var rows []row
+	for _, r := range ov.ByCategory {
+		width := 0
+		if maxCents > 0 && r.Amount.Cents > 0 {
+			width = int((r.Amount.Cents*100 + maxCents/2) / maxCents)
+			if width > 0 && width < 2 {
+				width = 2
+			}
+			if width > 100 {
+				width = 100
+			}
+		}
+		rows = append(rows, row{Name: r.Name, Amount: formatEuros(r.Amount.Cents), Width: width})
+	}
+
+	data := struct {
+		MaxName string
+		Max     string
+		Rows    []row
+	}{
+		MaxName: maxName,
+		Max:     formatEuros(maxCents),
+		Rows:    rows,
+	}
+
+	if err := s.templates.ExecuteTemplate(w, "month_categories", data); err != nil {
+		slog.ErrorContext(r.Context(), "Month categories template execution failed", "error", err)
+		_, _ = w.Write([]byte(`<div class="categories"><div class="row placeholder">Errore template</div></div>`))
+	}
+}
+
+// handleMonthExpenses returns only the expense list
+func (s *Server) handleMonthExpenses(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	
+	now := time.Now()
+	year := now.Year()
+	month := int(now.Month())
+	
+	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
+		if y, err := strconv.Atoi(v); err == nil {
+			year = y
+		}
+	}
+	if v := strings.TrimSpace(r.URL.Query().Get("month")); v != "" {
+		if m, err := strconv.Atoi(v); err == nil {
+			month = m
+		}
+	}
+
+	// Fetch detailed items with IDs
+	var items []struct {
+		ID   string
+		Day  int
+		Desc string
+		Amt  string
+		Cat  string
+		Sub  string
+	}
+
+	if s.expListerWithID != nil {
+		itemsWithID, err := s.getExpensesWithID(r.Context(), year, month)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "List expenses with ID error", "error", err, "year", year, "month", month)
+		} else {
+			for _, e := range itemsWithID {
+				items = append(items, struct {
+					ID   string
+					Day  int
+					Desc string
+					Amt  string
+					Cat  string
+					Sub  string
+				}{
+					ID:   e.ID,
+					Day:  e.Expense.Date.Day,
+					Desc: template.HTMLEscapeString(e.Expense.Description),
+					Amt:  formatEuros(e.Expense.Amount.Cents),
+					Cat:  e.Expense.Primary,
+					Sub:  e.Expense.Secondary,
+				})
+			}
+		}
+	}
+
+	data := struct {
+		Month int
+		Items []struct {
+			ID   string
+			Day  int
+			Desc string
+			Amt  string
+			Cat  string
+			Sub  string
+		}
+	}{
+		Month: month,
+		Items: items,
+	}
+
+	if err := s.templates.ExecuteTemplate(w, "month_expenses", data); err != nil {
+		slog.ErrorContext(r.Context(), "Month expenses template execution failed", "error", err)
+		_, _ = w.Write([]byte(`<div class="expenses"><div class="row placeholder">Errore template</div></div>`))
 	}
 }

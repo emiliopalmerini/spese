@@ -1,0 +1,38 @@
+{{/* 
+  Expense form partial template
+  Rendered by /ui/form-reset HTMX endpoint after successful submission
+  Expects: .Day, .Month, .Categories
+*/}}
+{{ define "expense_form" }}
+<form id="expense-form"
+      class="form"
+      hx-post="/expenses"
+      hx-target="#flash"
+      hx-swap="innerHTML"
+      hx-indicator=".indicator">
+
+  {{/* Date fields group using component */}}
+  <div class="field-group">
+    {{ template "form_field" (dict "ID" "day" "Name" "day" "Type" "number" "Label" "Giorno" "Min" "1" "Max" "31" "Value" .Day "Required" true "Half" true) }}
+    {{ template "form_field" (dict "ID" "month" "Name" "month" "Type" "number" "Label" "Mese" "Min" "1" "Max" "12" "Value" .Month "Required" true "Half" true) }}
+  </div>
+
+  {{/* Description field using component */}}
+  {{ template "form_field" (dict "ID" "description" "Name" "description" "Type" "text" "Label" "Descrizione" "MaxLength" "200" "Placeholder" "es. Supermercato" "Required" true) }}
+
+  {{/* Amount field using component */}}
+  {{ template "form_field" (dict "ID" "amount" "Name" "amount" "Type" "number" "Label" "Importo (€)" "Step" "0.01" "Min" "0.01" "Placeholder" "0.00" "Required" true) }}
+
+  {{/* Category fields using component */}}
+  {{ template "category_selector" (dict "PrimaryID" "primary" "PrimaryName" "primary" "SecondaryID" "secondary" "SecondaryName" "secondary" "LoadingID" "category-loading" "Categories" .Categories) }}
+
+  {{/* Flash messages using component */}}
+  {{ template "flash_messages" (dict "ID" "flash") }}
+
+  {{/* Submit button and loading indicator */}}
+  <div class="actions">
+    <button class="btn btn-primary btn--block" type="submit">Aggiungi Spesa</button>
+    {{ template "loading_indicator" (dict "Text" "Salvataggio in corso…") }}
+  </div>
+</form>
+{{ end }}

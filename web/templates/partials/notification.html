@@ -1,0 +1,18 @@
+{{/* 
+  Notification partial template
+  Rendered by /ui/notifications HTMX endpoint
+  Expects: .Type (success|error|info), .Message, .Duration
+*/}}
+{{ define "notification" }}
+{{ $class := "info" }}
+{{ if eq .Type "success" }}{{ $class = "success" }}{{ end }}
+{{ if eq .Type "error" }}{{ $class = "error" }}{{ end }}
+{{ $duration := .Duration }}
+{{ if not $duration }}
+  {{ if eq .Type "success" }}{{ $duration = "3000" }}{{ else }}{{ $duration = "0" }}{{ end }}
+{{ end }}
+<div class="{{ $class }} notification" 
+     data-auto-dismiss="{{ $duration }}">
+  {{ .Message }}
+</div>
+{{ end }}

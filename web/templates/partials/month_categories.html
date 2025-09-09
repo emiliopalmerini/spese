@@ -1,0 +1,28 @@
+{{/* 
+  Month categories partial template
+  Rendered by /ui/month-categories HTMX endpoint
+  Expects: .MaxName, .Max, .Rows
+*/}}
+{{ define "month_categories" }}
+<div class="categories" id="month-categories">
+  {{/* Scale legend (if available) */}}
+  {{ if .MaxName }}
+  <div class="legend">Scala relativa a: <em>{{ .MaxName }}</em> ({{ .Max }})</div>
+  {{ end }}
+  
+  {{/* Category breakdown with bars */}}
+  {{ if .Rows }}
+    {{ range .Rows }}
+    <div class="row">
+      <div class="name">{{ .Name }}</div>
+      <div class="amount">{{ .Amount }}</div>
+      <div class="bar" aria-hidden="true">
+        <div class="bar__fill" style="width: {{ .Width }}%"></div>
+      </div>
+    </div>
+    {{ end }}
+  {{ else }}
+    <div class="row placeholder">Nessun dato</div>
+  {{ end }}
+</div>
+{{ end }}

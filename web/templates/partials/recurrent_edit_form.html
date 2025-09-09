@@ -26,9 +26,11 @@
     <div class="recurrent-categories recurrent-categories--editing">
       <select name="primary" required class="category-select category-primary--editing"
               hx-get="/api/categories/secondary"
+              hx-include="this"
               hx-trigger="change"
               hx-target="#secondary-{{ .ID }}"
-              hx-swap="innerHTML">
+              hx-swap="innerHTML"
+              hx-indicator="#loading-{{ .ID }}">
         <option value="">Categoria</option>
         {{ range .Categories }}
           <option value="{{ . }}" {{ if eq . $.Primary }}selected{{ end }}>{{ . }}</option>
@@ -44,6 +46,9 @@
           <option value="{{ .Secondary }}" selected>{{ .Secondary }}</option>
         {{ end }}
       </select>
+      <div id="loading-{{ .ID }}" class="htmx-indicator" style="display: none; margin-top: 4px; font-size: 0.875rem; color: #6b7280;">
+        Caricamento sottocategorie...
+      </div>
     </div>
     
     {{/* Dates - simplified inline */}}

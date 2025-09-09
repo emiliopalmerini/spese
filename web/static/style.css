@@ -178,23 +178,98 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
    Feedback (Peso-style modern alerts)
 ============================================================== */
 .flash{margin:var(--space-4);min-height:1.5rem;}
+.notifications-container{
+  position:fixed;
+  top:80px;
+  right:var(--space-4);
+  z-index:1000;
+  display:flex;
+  flex-direction:column;
+  gap:var(--space-2);
+  max-width:400px;
+  width:100%;
+}
+
+.notification{
+  padding:var(--space-3) var(--control-pad-x);
+  border-radius:var(--radius);
+  font-weight:500;
+  box-shadow:var(--shadow-md);
+  opacity:0;
+  transform:translateX(100%);
+  animation:slideInNotification 0.3s ease forwards;
+  position:relative;
+  margin-bottom:var(--space-2);
+  cursor:pointer;
+  transition:all 0.3s ease;
+}
+
+.notification__close{
+  position:absolute;
+  top:var(--space-2);
+  right:var(--space-2);
+  background:none;
+  border:none;
+  font-size:1.25rem;
+  font-weight:bold;
+  line-height:1;
+  color:inherit;
+  opacity:0.6;
+  cursor:pointer;
+  padding:0;
+  width:20px;
+  height:20px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:50%;
+  transition:all 0.2s ease;
+}
+
+.notification__close:hover{
+  opacity:1;
+  background:rgba(0,0,0,0.1);
+}
+
+.notification:hover{
+  opacity:0.95;
+}
+
+.notification[data-auto-dismiss]:not([data-auto-dismiss="0"]){
+  animation:slideInNotification 0.3s ease forwards, slideOutNotification 0.3s ease 2.7s forwards;
+}
+
+@keyframes slideInNotification {
+  to {
+    opacity:1;
+    transform:translateX(0);
+  }
+}
+
+@keyframes slideOutNotification {
+  to {
+    opacity:0;
+    transform:translateX(100%);
+  }
+}
+
 .success{
   background-color:#F0FDF4;
   border:1px solid #10B981;
   border-left:4px solid #10B981;
   color:#166534;
-  padding:var(--space-3) var(--control-pad-x);
-  border-radius:var(--radius);
-  font-weight:500;
 }
 .error{
   background-color:#FEF2F2;
   border:1px solid #EF4444;
   border-left:4px solid #EF4444;
   color:#991B1B;
-  padding:var(--space-3) var(--control-pad-x);
-  border-radius:var(--radius);
-  font-weight:500;
+}
+.info{
+  background-color:#EFF6FF;
+  border:1px solid #3B82F6;
+  border-left:4px solid #3B82F6;
+  color:#1E3A8A;
 }
 
 /* ==============================================================
@@ -1596,4 +1671,55 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
 *::-webkit-scrollbar{height:8px;width:8px;}
 *::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 40%, transparent);}
 *::-webkit-scrollbar-track{background:transparent;}
+
+
+/* ==============================================================
+   Expense Actions
+============================================================== */
+.expense__actions{
+  display:flex;
+  gap:var(--space-1);
+  align-items:center;
+}
+
+.action-icon{
+  appearance:none;
+  background:none;
+  border:none;
+  padding:var(--space-1);
+  border-radius:var(--radius);
+  cursor:pointer;
+  color:var(--muted);
+  transition:all 0.2s ease;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:32px;
+  height:32px;
+}
+
+.action-icon:hover{
+  background:var(--border);
+  color:var(--text);
+}
+
+.delete-btn:hover{
+  background:#FEE2E2;
+  color:#DC2626;
+}
+
+.delete-btn svg{
+  transition:transform 0.2s ease;
+}
+
+.delete-btn:hover svg{
+  transform:scale(1.1);
+}
+
+/* Slide out animation for deleted items */
+.expense.deleting{
+  opacity:0;
+  transform:translateX(-100%);
+  transition:all 0.3s ease;
+}
 

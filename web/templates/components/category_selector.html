@@ -5,6 +5,7 @@
     <label for="{{ .PrimaryID }}">Categoria Primaria</label>
     <select id="{{ .PrimaryID }}" name="{{ .PrimaryName }}" required
             hx-get="/api/categories/secondary"
+            hx-include="this"
             hx-trigger="change"
             hx-target="#{{ .SecondaryID }}"
             hx-swap="innerHTML"

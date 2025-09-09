@@ -9,6 +9,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
     <link rel="stylesheet" href="/static/style.css" />
     <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+    <script src="/static/notifications.js" defer></script>
   </head>
   <body class="theme-ink density-comfortable style-minimal">
     <header class="topbar">
@@ -33,48 +34,58 @@
   <section class="page__section">
     <h1 class="page__title">Registra Spesa</h1>
     
-    <form id="expense-form"
-          class="form"
-          hx-post="/expenses"
-          hx-target="#flash"
-          hx-swap="innerHTML"
-          hx-indicator=".indicator"
-          hx-on::after-request="if(event.detail.successful) { this.reset(); document.getElementById('description').focus(); }">
-
-      {{/* Date fields group using component */}}
-      <div class="field-group">
-        {{ template "form_field" (dict "ID" "day" "Name" "day" "Type" "number" "Label" "Giorno" "Min" "1" "Max" "31" "Value" .Day "Required" true "Half" true) }}
-        {{ template "form_field" (dict "ID" "month" "Name" "month" "Type" "number" "Label" "Mese" "Min" "1" "Max" "12" "Value" .Month "Required" true "Half" true) }}
-      </div>
-
-      {{/* Description field using component */}}
-      {{ template "form_field" (dict "ID" "description" "Name" "description" "Type" "text" "Label" "Descrizione" "MaxLength" "200" "Placeholder" "es. Supermercato" "Required" true) }}
-
-      {{/* Amount field using component */}}
-      {{ template "form_field" (dict "ID" "amount" "Name" "amount" "Type" "number" "Label" "Importo (€)" "Step" "0.01" "Min" "0.01" "Placeholder" "0.00" "Required" true) }}
-
-      {{/* Category fields using component */}}
-      {{ template "category_selector" (dict "PrimaryID" "primary" "PrimaryName" "primary" "SecondaryID" "secondary" "SecondaryName" "secondary" "LoadingID" "category-loading" "Categories" .Categories "Subcats" .Subcats) }}
-
-      {{/* Flash messages using component */}}
-      {{ template "flash_messages" (dict "ID" "flash") }}
-
-      {{/* Submit button and loading indicator */}}
-      <div class="actions">
-        <button class="btn btn-primary btn--block" type="submit">Aggiungi Spesa</button>
-        {{ template "loading_indicator" (dict "Text" "Salvataggio in corso…") }}
-      </div>
-    </form>
+    <div id="expense-form-container"
+         hx-trigger="form:reset from:body"
+         hx-get="/ui/form-reset"
+         hx-target="#expense-form-container"
+         hx-swap="innerHTML">
+      {{ template "expense_form" . }}
+    </div>
   </section>
 
-  {{/* Month overview section that loads via HTMX */}}
+  {{/* Notification area */}}
   <section class="page__section">
-    <div id="month-overview" 
-         hx-get="/ui/month-overview" 
-         hx-trigger="load, expense:created from:body, expense:deleted from:body"
-         hx-target="#month-overview" 
-         hx-swap="outerHTML">
-      <div class="placeholder">Caricamento panoramica mensile…</div>
+    <div id="notifications" 
+         class="notifications-container"
+         hx-trigger="show-notification from:body"
+         hx-get="/ui/notifications"
+         hx-target="#notifications"
+         hx-swap="beforeend">
+    </div>
+  </section>
+
+  {{/* Month overview section with granular updates */}}
+  <section class="page__section">
+    <div id="month-overview-container" class="month-overview">
+      <h2>Panoramica Mensile</h2>
+      <div class="overview-body">
+        {{/* Total amount - refreshes independently */}}
+        <div id="month-total-container"
+             hx-trigger="load, overview:refresh from:body"
+             hx-get="/ui/month-total"
+             hx-target="#month-total-container"
+             hx-swap="innerHTML">
+          <div class="placeholder">Caricamento totale…</div>
+        </div>
+        
+        {{/* Category breakdown - refreshes independently */}}
+        <div id="month-categories-container"
+             hx-trigger="load, overview:refresh from:body"
+             hx-get="/ui/month-categories"
+             hx-target="#month-categories-container"
+             hx-swap="innerHTML">
+          <div class="placeholder">Caricamento categorie…</div>
+        </div>
+        
+        {{/* Expense details - refreshes independently */}}
+        <div id="month-expenses-container"
+             hx-trigger="load, overview:refresh from:body"
+             hx-get="/ui/month-expenses"
+             hx-target="#month-expenses-container"
+             hx-swap="innerHTML">
+          <div class="placeholder">Caricamento spese…</div>
+        </div>
+      </div>
     </div>
   </section>
 </div>
