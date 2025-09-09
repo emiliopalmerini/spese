@@ -16,8 +16,10 @@ import (
 )
 
 type SQLiteRepository struct {
-	db      *sql.DB
-	queries *Queries
+	db         *sql.DB         // Main connection for writes
+	readDB     *sql.DB         // Read-only connection for queries
+	queries    *Queries        // Queries using main connection
+	readQueries *Queries       // Queries using read-only connection
 }
 
 func NewSQLiteRepository(dbPath string) (*SQLiteRepository, error) {
@@ -25,34 +27,78 @@ func NewSQLiteRepository(dbPath string) (*SQLiteRepository, error) {
 		return nil, fmt.Errorf("create db directory: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", dbPath)
+	// Configure SQLite connection with optimizations for reduced locking
+	dsn := fmt.Sprintf("%s?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=1000&_timeout=5000&_busy_timeout=5000", dbPath)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite database: %w", err)
 	}
+
+	// Configure connection pool
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(time.Hour)
 
 	if err := db.Ping(); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
+	// Create read-only connection with similar optimizations
+	readDSN := fmt.Sprintf("%s?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=1000&_timeout=5000&_busy_timeout=5000&mode=ro", dbPath)
+	readDB, err := sql.Open("sqlite", readDSN)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("open read-only sqlite database: %w", err)
+	}
+
+	// Configure read-only connection pool (can be more aggressive since it's read-only)
+	readDB.SetMaxOpenConns(20)
+	readDB.SetMaxIdleConns(10)
+	readDB.SetConnMaxLifetime(time.Hour)
+
+	if err := readDB.Ping(); err != nil {
+		db.Close()
+		readDB.Close()
+		return nil, fmt.Errorf("ping read-only database: %w", err)
+	}
+
 	// Run migrations
 	if err := RunMigrations(dbPath); err != nil {
 		db.Close()
+		readDB.Close()
 		return nil, fmt.Errorf("run migrations: %w", err)
 	}
 
 	repo := &SQLiteRepository{
-		db:      db,
-		queries: New(db),
+		db:          db,
+		readDB:      readDB,
+		queries:     New(db),
+		readQueries: New(readDB),
 	}
 
 	return repo, nil
 }
 
 func (r *SQLiteRepository) Close() error {
+	var errs []error
+	
 	if r.db != nil {
-		return r.db.Close()
+		if err := r.db.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close main db: %w", err))
+		}
 	}
+	
+	if r.readDB != nil {
+		if err := r.readDB.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close read db: %w", err))
+		}
+	}
+	
+	if len(errs) > 0 {
+		return fmt.Errorf("close repository: %v", errs)
+	}
+	
 	return nil
 }
 
@@ -87,14 +133,14 @@ func (r *SQLiteRepository) Append(ctx context.Context, e core.Expense) (string, 
 
 // List implements sheets.TaxonomyReader
 func (r *SQLiteRepository) List(ctx context.Context) ([]string, []string, error) {
-	// Get primary categories from database
-	primaryCategories, err := r.queries.GetPrimaryCategories(ctx)
+	// Get primary categories from database using read-only connection
+	primaryCategories, err := r.readQueries.GetPrimaryCategories(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("get primary categories: %w", err)
 	}
 
-	// Get all secondary categories from database
-	secondaryCategories, err := r.queries.GetSecondaryCategories(ctx)
+	// Get all secondary categories from database using read-only connection
+	secondaryCategories, err := r.readQueries.GetSecondaryCategories(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("get secondary categories: %w", err)
 	}
@@ -104,7 +150,7 @@ func (r *SQLiteRepository) List(ctx context.Context) ([]string, []string, error)
 
 // GetSecondariesByPrimary returns secondary categories for a given primary category
 func (r *SQLiteRepository) GetSecondariesByPrimary(ctx context.Context, primaryCategory string) ([]string, error) {
-	secondaryCategories, err := r.queries.GetSecondariesByPrimary(ctx, primaryCategory)
+	secondaryCategories, err := r.readQueries.GetSecondariesByPrimary(ctx, primaryCategory)
 	if err != nil {
 		return nil, fmt.Errorf("get secondary categories for primary %s: %w", primaryCategory, err)
 	}
@@ -119,16 +165,16 @@ func (r *SQLiteRepository) ReadMonthOverview(ctx context.Context, year int, mont
 		Month: month,
 	}
 
-	// Get total for the month
-	total, err := r.queries.GetMonthTotal(ctx, int64(month))
+	// Get total for the month using read-only connection
+	total, err := r.readQueries.GetMonthTotal(ctx, int64(month))
 	if err != nil {
 		return overview, fmt.Errorf("get month total: %w", err)
 	}
 
 	overview.Total = core.Money{Cents: total}
 
-	// Get category sums
-	categorySums, err := r.queries.GetCategorySums(ctx, int64(month))
+	// Get category sums using read-only connection
+	categorySums, err := r.readQueries.GetCategorySums(ctx, int64(month))
 	if err != nil {
 		return overview, fmt.Errorf("get category sums: %w", err)
 	}
@@ -145,7 +191,7 @@ func (r *SQLiteRepository) ReadMonthOverview(ctx context.Context, year int, mont
 
 // ListExpenses implements sheets.ExpenseLister
 func (r *SQLiteRepository) ListExpenses(ctx context.Context, year int, month int) ([]core.Expense, error) {
-	dbExpenses, err := r.queries.GetExpensesByMonth(ctx, int64(month))
+	dbExpenses, err := r.readQueries.GetExpensesByMonth(ctx, int64(month))
 	if err != nil {
 		return nil, fmt.Errorf("get expenses by month: %w", err)
 	}
@@ -168,9 +214,9 @@ func (r *SQLiteRepository) ListExpenses(ctx context.Context, year int, month int
 	return expenses, nil
 }
 
-// ListExpensesWithID returns expenses with their IDs for the specified year and month  
+// ListExpensesWithID returns expenses with their IDs for the specified year and month
 func (r *SQLiteRepository) ListExpensesWithID(ctx context.Context, year int, month int) ([]ExpenseWithID, error) {
-	dbExpenses, err := r.queries.GetExpensesByMonth(ctx, int64(month))
+	dbExpenses, err := r.readQueries.GetExpensesByMonth(ctx, int64(month))
 	if err != nil {
 		return nil, fmt.Errorf("get expenses by month: %w", err)
 	}
@@ -239,21 +285,21 @@ func (r *SQLiteRepository) MarkSyncError(ctx context.Context, id int64) error {
 
 // GetExpense retrieves a single expense by ID
 func (r *SQLiteRepository) GetExpense(ctx context.Context, id int64) (*Expense, error) {
-	expense, err := r.queries.GetExpense(ctx, id)
+	expense, err := r.readQueries.GetExpense(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("get expense by id: %w", err)
 	}
 	return &expense, nil
 }
 
-// SoftDeleteExpense marks an expense as deleted (soft delete)
-func (r *SQLiteRepository) SoftDeleteExpense(ctx context.Context, id int64) error {
-	err := r.queries.SoftDeleteExpense(ctx, id)
+// HardDeleteExpense permanently deletes an expense (hard delete)
+func (r *SQLiteRepository) HardDeleteExpense(ctx context.Context, id int64) error {
+	err := r.queries.HardDeleteExpense(ctx, id)
 	if err != nil {
-		return fmt.Errorf("soft delete expense: %w", err)
+		return fmt.Errorf("hard delete expense: %w", err)
 	}
 
-	slog.InfoContext(ctx, "Expense soft deleted", "id", id)
+	slog.InfoContext(ctx, "Expense hard deleted", "id", id)
 	return nil
 }
 
@@ -457,14 +503,14 @@ func (r *SQLiteRepository) syncSecondaryCategories(ctx context.Context, categori
 
 // GetCategoryCount returns the total number of categories in the database
 func (r *SQLiteRepository) GetCategoryCount(ctx context.Context) (int64, error) {
-	// Count primary categories
-	primaries, err := r.queries.GetPrimaryCategories(ctx)
+	// Count primary categories using read-only connection
+	primaries, err := r.readQueries.GetPrimaryCategories(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("get primary categories: %w", err)
 	}
 
-	// Count secondary categories
-	secondaries, err := r.queries.GetSecondaryCategories(ctx)
+	// Count secondary categories using read-only connection
+	secondaries, err := r.readQueries.GetSecondaryCategories(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("get secondary categories: %w", err)
 	}
@@ -502,7 +548,7 @@ func (r *SQLiteRepository) RefreshCategories(ctx context.Context) error {
 func (r *SQLiteRepository) CreateRecurrentExpense(ctx context.Context, re core.RecurrentExpenses) (int64, error) {
 	// Convert DateParts to time.Time
 	startDate := time.Date(re.StartDate.Year, time.Month(re.StartDate.Month), re.StartDate.Day, 0, 0, 0, 0, time.UTC)
-	
+
 	var endDate interface{}
 	if re.EndDate.Year > 0 {
 		endDate = time.Date(re.EndDate.Year, time.Month(re.EndDate.Month), re.EndDate.Day, 0, 0, 0, 0, time.UTC)
@@ -532,7 +578,7 @@ func (r *SQLiteRepository) CreateRecurrentExpense(ctx context.Context, re core.R
 
 // GetRecurrentExpenses returns all active recurrent expenses
 func (r *SQLiteRepository) GetRecurrentExpenses(ctx context.Context) ([]core.RecurrentExpenses, error) {
-	dbExpenses, err := r.queries.GetRecurrentExpenses(ctx)
+	dbExpenses, err := r.readQueries.GetRecurrentExpenses(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get recurrent expenses: %w", err)
 	}
@@ -552,7 +598,7 @@ func (r *SQLiteRepository) GetRecurrentExpenses(ctx context.Context) ([]core.Rec
 			Primary:     e.PrimaryCategory,
 			Secondary:   e.SecondaryCategory,
 		}
-		
+
 		// Handle nullable EndDate
 		if endTime, ok := e.EndDate.(time.Time); ok {
 			expenses[i].EndDate = core.DateParts{
@@ -568,7 +614,7 @@ func (r *SQLiteRepository) GetRecurrentExpenses(ctx context.Context) ([]core.Rec
 
 // GetRecurrentExpenseByID returns a single recurrent expense by ID
 func (r *SQLiteRepository) GetRecurrentExpenseByID(ctx context.Context, id int64) (*core.RecurrentExpenses, error) {
-	dbExpense, err := r.queries.GetRecurrentExpenseByID(ctx, id)
+	dbExpense, err := r.readQueries.GetRecurrentExpenseByID(ctx, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("recurrent expense not found: %d", id)
@@ -589,7 +635,7 @@ func (r *SQLiteRepository) GetRecurrentExpenseByID(ctx context.Context, id int64
 		Primary:     dbExpense.PrimaryCategory,
 		Secondary:   dbExpense.SecondaryCategory,
 	}
-	
+
 	// Handle nullable EndDate
 	if endTime, ok := dbExpense.EndDate.(time.Time); ok {
 		expense.EndDate = core.DateParts{
@@ -606,7 +652,7 @@ func (r *SQLiteRepository) GetRecurrentExpenseByID(ctx context.Context, id int64
 func (r *SQLiteRepository) UpdateRecurrentExpense(ctx context.Context, id int64, re core.RecurrentExpenses) error {
 	// Convert DateParts to time.Time
 	startDate := time.Date(re.StartDate.Year, time.Month(re.StartDate.Month), re.StartDate.Day, 0, 0, 0, 0, time.UTC)
-	
+
 	var endDate interface{}
 	if re.EndDate.Year > 0 {
 		endDate = time.Date(re.EndDate.Year, time.Month(re.EndDate.Month), re.EndDate.Day, 0, 0, 0, 0, time.UTC)

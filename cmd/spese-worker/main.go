@@ -74,7 +74,7 @@ func main() {
 	var syncWorker *worker.SyncWorker
 	if sheetsClient != nil {
 		// Create sync worker only if Google Sheets is available
-		syncWorker = worker.NewSyncWorker(sqliteRepo, sheetsClient, sheetsClient, cfg.SyncBatchSize)
+		syncWorker = worker.NewSyncWorker(sqliteRepo, sheetsClient, sheetsClient, sheetsClient, cfg.SyncBatchSize)
 
 		// On startup, sync categories from Google Sheets if database is empty
 		logger.Info("Checking category cache...")

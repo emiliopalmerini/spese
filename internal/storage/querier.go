@@ -31,11 +31,11 @@ type Querier interface {
 	GetSecondariesByPrimary(ctx context.Context, name string) ([]string, error)
 	// Secondary Categories queries
 	GetSecondaryCategories(ctx context.Context) ([]string, error)
+	HardDeleteExpense(ctx context.Context, id int64) error
 	MarkExpenseSyncError(ctx context.Context, id int64) error
 	MarkExpenseSynced(ctx context.Context, id int64) error
 	RefreshCategories(ctx context.Context) error
 	RefreshPrimaryCategories(ctx context.Context) error
-	SoftDeleteExpense(ctx context.Context, id int64) error
 	UpdateRecurrentExpense(ctx context.Context, arg UpdateRecurrentExpenseParams) error
 }
 

@@ -34,7 +34,7 @@ type (
 	}
 
 	RecurrentExpenses struct {
-		ID          int64  // Database ID for operations
+		ID          int64 // Database ID for operations
 		StartDate   DateParts
 		EndDate     DateParts
 		Every       RepetitionTypes

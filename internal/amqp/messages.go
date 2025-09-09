@@ -37,16 +37,29 @@ func ExpenseSyncMessageFromJSON(data []byte) (*ExpenseSyncMessage, error) {
 }
 
 // ExpenseDeleteMessage represents a message for deleting an expense from Google Sheets
+// Includes expense data to identify the row in Google Sheets since it's deleted from SQLite first
 type ExpenseDeleteMessage struct {
-	ID        int64     `json:"id"`
-	Timestamp time.Time `json:"timestamp"`
+	ID          int64     `json:"id"`
+	Day         int       `json:"day"`
+	Month       int       `json:"month"`
+	Description string    `json:"description"`
+	AmountCents int64     `json:"amount_cents"`
+	Primary     string    `json:"primary"`
+	Secondary   string    `json:"secondary"`
+	Timestamp   time.Time `json:"timestamp"`
 }
 
-// NewExpenseDeleteMessage creates a new delete message
-func NewExpenseDeleteMessage(id int64) *ExpenseDeleteMessage {
+// NewExpenseDeleteMessage creates a new delete message with expense data
+func NewExpenseDeleteMessage(id int64, day, month int, description string, amountCents int64, primary, secondary string) *ExpenseDeleteMessage {
 	return &ExpenseDeleteMessage{
-		ID:        id,
-		Timestamp: time.Now(),
+		ID:          id,
+		Day:         day,
+		Month:       month,
+		Description: description,
+		AmountCents: amountCents,
+		Primary:     primary,
+		Secondary:   secondary,
+		Timestamp:   time.Now(),
 	}
 }
 

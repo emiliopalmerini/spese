@@ -223,7 +223,7 @@ func (q *Queries) GetActiveRecurrentExpensesByDate(ctx context.Context, arg GetA
 const getCategorySums = `-- name: GetCategorySums :many
 SELECT primary_category, CAST(SUM(amount_cents) AS INTEGER) as total_amount
 FROM expenses 
-WHERE strftime('%m', date) = printf('%02d', ?) AND deleted_at IS NULL
+WHERE strftime('%m', date) = printf('%02d', ?)
 GROUP BY primary_category
 ORDER BY total_amount DESC
 `
@@ -257,7 +257,7 @@ func (q *Queries) GetCategorySums(ctx context.Context, printf interface{}) ([]Ge
 }
 
 const getExpense = `-- name: GetExpense :one
-SELECT id, date, description, amount_cents, primary_category, secondary_category, version, created_at, synced_at, sync_status FROM expenses WHERE id = ? AND deleted_at IS NULL
+SELECT id, date, description, amount_cents, primary_category, secondary_category, version, created_at, synced_at, sync_status FROM expenses WHERE id = ?
 `
 
 func (q *Queries) GetExpense(ctx context.Context, id int64) (Expense, error) {
@@ -280,7 +280,7 @@ func (q *Queries) GetExpense(ctx context.Context, id int64) (Expense, error) {
 
 const getExpensesByMonth = `-- name: GetExpensesByMonth :many
 SELECT id, date, description, amount_cents, primary_category, secondary_category, version, created_at, synced_at, sync_status FROM expenses 
-WHERE strftime('%m', date) = printf('%02d', ?) AND deleted_at IS NULL
+WHERE strftime('%m', date) = printf('%02d', ?)
 ORDER BY date DESC, created_at DESC
 `
 
@@ -321,7 +321,7 @@ func (q *Queries) GetExpensesByMonth(ctx context.Context, printf interface{}) ([
 const getMonthTotal = `-- name: GetMonthTotal :one
 SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) as total
 FROM expenses 
-WHERE strftime('%m', date) = printf('%02d', ?) AND deleted_at IS NULL
+WHERE strftime('%m', date) = printf('%02d', ?)
 `
 
 func (q *Queries) GetMonthTotal(ctx context.Context, printf interface{}) (int64, error) {
@@ -333,7 +333,7 @@ func (q *Queries) GetMonthTotal(ctx context.Context, printf interface{}) (int64,
 
 const getPendingSyncExpenses = `-- name: GetPendingSyncExpenses :many
 SELECT id, version, created_at FROM expenses 
-WHERE sync_status = 'pending' AND deleted_at IS NULL
+WHERE sync_status = 'pending'
 ORDER BY created_at ASC
 LIMIT ?
 `
@@ -520,6 +520,16 @@ func (q *Queries) GetSecondaryCategories(ctx context.Context) ([]string, error) 
 	return items, nil
 }
 
+const hardDeleteExpense = `-- name: HardDeleteExpense :exec
+DELETE FROM expenses 
+WHERE id = ?
+`
+
+func (q *Queries) HardDeleteExpense(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, hardDeleteExpense, id)
+	return err
+}
+
 const markExpenseSyncError = `-- name: MarkExpenseSyncError :exec
 UPDATE expenses 
 SET sync_status = 'error'
@@ -557,17 +567,6 @@ DELETE FROM primary_categories
 
 func (q *Queries) RefreshPrimaryCategories(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, refreshPrimaryCategories)
-	return err
-}
-
-const softDeleteExpense = `-- name: SoftDeleteExpense :exec
-UPDATE expenses 
-SET deleted_at = CURRENT_TIMESTAMP 
-WHERE id = ? AND deleted_at IS NULL
-`
-
-func (q *Queries) SoftDeleteExpense(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, softDeleteExpense, id)
 	return err
 }
 

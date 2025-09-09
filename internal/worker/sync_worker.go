@@ -16,14 +16,16 @@ import (
 type SyncWorker struct {
 	storage   *storage.SQLiteRepository
 	sheets    sheets.ExpenseWriter
+	deleter   sheets.ExpenseDeleter
 	taxonomy  sheets.TaxonomyReader
 	batchSize int
 }
 
-func NewSyncWorker(storage *storage.SQLiteRepository, sheets sheets.ExpenseWriter, taxonomy sheets.TaxonomyReader, batchSize int) *SyncWorker {
+func NewSyncWorker(storage *storage.SQLiteRepository, sheets sheets.ExpenseWriter, deleter sheets.ExpenseDeleter, taxonomy sheets.TaxonomyReader, batchSize int) *SyncWorker {
 	return &SyncWorker{
 		storage:   storage,
 		sheets:    sheets,
+		deleter:   deleter,
 		taxonomy:  taxonomy,
 		batchSize: batchSize,
 	}
@@ -68,14 +70,61 @@ func (w *SyncWorker) HandleDeleteMessage(ctx context.Context, msg *amqp.ExpenseD
 	slog.InfoContext(ctx, "Processing delete message",
 		"id", msg.ID)
 
-	// For now, we just log the delete message
-	// In a future implementation, we could:
-	// 1. Find the corresponding row in Google Sheets
-	// 2. Remove the row or mark it as deleted
-	// 3. Update dashboard calculations
+	// Check if we have a deleter configured
+	if w.deleter == nil {
+		slog.WarnContext(ctx, "No expense deleter configured, skipping Google Sheets deletion",
+			"id", msg.ID)
+		return nil
+	}
+
+	// For Google Sheets deletion, we need the expense data to find the row
+	// Reconstruct the expense from the message data
+	expenseData := core.Expense{
+		Date: core.DateParts{
+			Day:   msg.Day,
+			Month: msg.Month,
+		},
+		Description: msg.Description,
+		Amount:      core.Money{Cents: msg.AmountCents},
+		Primary:     msg.Primary,
+		Secondary:   msg.Secondary,
+	}
 	
-	slog.InfoContext(ctx, "Delete message processed (Google Sheets sync not yet implemented)",
+	// Check if deleter supports expense data deletion (Google Sheets case)
+	if googleDeleter, ok := w.deleter.(interface {
+		DeleteExpenseByData(ctx context.Context, expenseData core.Expense) error
+	}); ok {
+		// Use expense data for Google Sheets
+		if err := googleDeleter.DeleteExpenseByData(ctx, expenseData); err != nil {
+			slog.ErrorContext(ctx, "Failed to delete expense from Google Sheets",
+				"id", msg.ID,
+				"error", err,
+				"timestamp", msg.Timestamp)
+			return fmt.Errorf("delete expense from Google Sheets: %w", err)
+		}
+
+		slog.InfoContext(ctx, "Successfully deleted expense from Google Sheets",
+			"id", msg.ID,
+			"timestamp", msg.Timestamp)
+
+		return nil
+	}
+
+	// Fallback to regular ID-based deletion for other adapters
+	expenseID := fmt.Sprintf("%d", msg.ID)
+	
+	if err := w.deleter.DeleteExpense(ctx, expenseID); err != nil {
+		slog.ErrorContext(ctx, "Failed to delete expense",
+			"id", msg.ID,
+			"string_id", expenseID,
+			"error", err,
+			"timestamp", msg.Timestamp)
+		return fmt.Errorf("delete expense: %w", err)
+	}
+
+	slog.InfoContext(ctx, "Successfully deleted expense",
 		"id", msg.ID,
+		"string_id", expenseID,
 		"timestamp", msg.Timestamp)
 
 	return nil
@@ -281,8 +330,14 @@ func (w *SyncWorker) syncCategoriesFromSheets(ctx context.Context) error {
 }
 
 func (w *SyncWorker) syncExpenseToSheets(ctx context.Context, id int64, expense core.Expense) error {
-	// Sync to Google Sheets
-	ref, err := w.sheets.Append(ctx, expense)
+	// Add timestamp to description for unique identification on Google Sheets
+	// This helps differentiate identical expenses (especially from recurrent expenses)
+	timestampMs := time.Now().UnixMilli()
+	expenseWithTimestamp := expense
+	expenseWithTimestamp.Description = fmt.Sprintf("%s [ts:%d]", expense.Description, timestampMs)
+	
+	// Sync to Google Sheets with timestamped description
+	ref, err := w.sheets.Append(ctx, expenseWithTimestamp)
 	if err != nil {
 		// Mark as sync error
 		if markErr := w.storage.MarkSyncError(ctx, id); markErr != nil {

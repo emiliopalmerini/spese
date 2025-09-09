@@ -123,12 +123,11 @@ func TestClient_readColParsing(t *testing.T) {
 	}
 }
 
-
 func TestNewSheetsService_MissingServiceAccount(t *testing.T) {
 	// Clear all service account env vars
 	oldVars := map[string]string{
-		"GOOGLE_SERVICE_ACCOUNT_JSON": os.Getenv("GOOGLE_SERVICE_ACCOUNT_JSON"),
-		"GOOGLE_SERVICE_ACCOUNT_FILE": os.Getenv("GOOGLE_SERVICE_ACCOUNT_FILE"),
+		"GOOGLE_SERVICE_ACCOUNT_JSON":    os.Getenv("GOOGLE_SERVICE_ACCOUNT_JSON"),
+		"GOOGLE_SERVICE_ACCOUNT_FILE":    os.Getenv("GOOGLE_SERVICE_ACCOUNT_FILE"),
 		"GOOGLE_APPLICATION_CREDENTIALS": os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"),
 	}
 	defer func() {
@@ -291,7 +290,6 @@ func TestDefaultSheetNames(t *testing.T) {
 		t.Errorf("expected OAuth service error, got: %v", err)
 	}
 }
-
 
 // Test expense validation edge cases
 func TestExpenseValidationEdgeCases(t *testing.T) {

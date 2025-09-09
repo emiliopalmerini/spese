@@ -3,11 +3,11 @@ package adapters
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"spese/internal/core"
 	"spese/internal/services"
 	"spese/internal/sheets"
 	"spese/internal/storage"
+	"strconv"
 )
 
 // SQLiteAdapter adapts SQLiteRepository and ExpenseService to implement sheets.* interfaces
@@ -55,7 +55,7 @@ func (a *SQLiteAdapter) DeleteExpense(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("invalid expense ID: %w", err)
 	}
-	
+
 	return a.service.DeleteExpense(ctx, expenseID)
 }
 
@@ -65,7 +65,7 @@ func (a *SQLiteAdapter) ListExpensesWithID(ctx context.Context, year int, month 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Convert from storage.ExpenseWithID to sheets.ExpenseWithID
 	result := make([]sheets.ExpenseWithID, len(storageExpenses))
 	for i, se := range storageExpenses {
@@ -74,7 +74,7 @@ func (a *SQLiteAdapter) ListExpensesWithID(ctx context.Context, year int, month 
 			Expense: se.Expense,
 		}
 	}
-	
+
 	return result, nil
 }
 

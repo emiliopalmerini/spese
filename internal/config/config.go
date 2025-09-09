@@ -127,7 +127,7 @@ func (c *Config) Validate() error {
 		hasServiceAccountFile := c.GoogleServiceAccountFile != ""
 		hasServiceAccountJSON := c.GoogleServiceAccountJSON != ""
 		hasGoogleApplicationCredentials := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") != ""
-		
+
 		if !hasServiceAccountFile && !hasServiceAccountJSON && !hasGoogleApplicationCredentials {
 			errors = append(errors, "either GOOGLE_SERVICE_ACCOUNT_FILE, GOOGLE_SERVICE_ACCOUNT_JSON, or GOOGLE_APPLICATION_CREDENTIALS must be provided for sheets backend")
 		}

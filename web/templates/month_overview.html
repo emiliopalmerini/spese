@@ -39,7 +39,7 @@
           {{ range .Items }}
             <div class="expense" id="expense-{{ .ID }}">
               <div class="expense__date">{{ .Day }}/{{ $.Month }}</div>
-              <div class="expense__desc">{{ .Desc }}</div>
+              <div class="expense__desc">{{ .Desc }} <small style="color: #999;">[ID: {{ .ID }}]</small></div>
               <div class="expense__cat">{{ .Cat }} / {{ .Sub }}</div>
               <div class="expense__amt">{{ .Amt }}</div>
               <div class="expense__actions">

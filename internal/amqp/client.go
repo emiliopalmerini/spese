@@ -318,13 +318,13 @@ func (c *Client) PublishExpenseSync(ctx context.Context, id, version int64) erro
 }
 
 // PublishExpenseDelete publishes an expense delete message with circuit breaker and retry
-func (c *Client) PublishExpenseDelete(ctx context.Context, id int64) error {
+func (c *Client) PublishExpenseDelete(ctx context.Context, id int64, day, month int, description string, amountCents int64, primary, secondary string) error {
 	// Check circuit breaker
 	if c.isCircuitOpen() {
 		return fmt.Errorf("circuit breaker is open, skipping publish")
 	}
 
-	msg := NewExpenseDeleteMessage(id)
+	msg := NewExpenseDeleteMessage(id, day, month, description, amountCents, primary, secondary)
 	body, err := msg.ToJSON()
 	if err != nil {
 		return fmt.Errorf("marshal delete message: %w", err)
@@ -507,7 +507,7 @@ func (c *Client) ConsumeMessages(ctx context.Context, syncHandler func(context.C
 
 			// Check message type to determine how to process it
 			msgType := delivery.Type
-			
+
 			switch msgType {
 			case "expense_delete":
 				msg, err := ExpenseDeleteMessageFromJSON(delivery.Body)
