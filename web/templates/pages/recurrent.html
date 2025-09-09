@@ -1,0 +1,79 @@
+{{ define "recurrent_page" }}
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#10b981" />
+    <title>Spese</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+    <script src="/static/notifications.js" defer></script>
+  </head>
+  <body class="theme-ink density-comfortable style-minimal">
+    <header class="topbar">
+      <div class="container topbar__inner">
+        <div class="brand">Spese</div>
+        <nav class="topbar__nav">
+          <a href="/" class="nav-link">Spese</a>
+          <a href="/recurrent" class="nav-link">Spese Ricorrenti</a>
+        </nav>
+      </div>
+    </header>
+    <main class="container page">
+      {{ template "recurrent_content" . }}
+    </main>
+  </body>
+</html>
+{{ end }}
+
+{{ define "recurrent_content" }}
+<div class="container">
+  {{/* Main recurrent expense form section */}}
+  <section class="page__section">
+    <h1 class="page__title">Registra Spesa Ricorrente</h1>
+    
+    <div id="recurrent-form-container"
+         hx-trigger="form:reset from:body"
+         hx-get="/ui/recurrent-form-reset"
+         hx-target="#recurrent-form-container"
+         hx-swap="innerHTML">
+      {{ template "recurrent_form" . }}
+    </div>
+  </section>
+
+  {{/* Notification area */}}
+  <section class="page__section">
+    <div id="notifications" 
+         class="notifications-container"
+         hx-trigger="show-notification from:body"
+         hx-get="/ui/notifications"
+         hx-target="#notifications"
+         hx-swap="beforeend">
+    </div>
+  </section>
+
+  {{/* Monthly overview for recurrent expenses */}}
+  <section class="page__section">
+    <div id="recurrent-monthly-overview" 
+         hx-get="/ui/recurrent-monthly-overview" 
+         hx-trigger="load, recurrent:created from:body, recurrent:updated from:body, recurrent:deleted from:body"
+         hx-target="#recurrent-monthly-overview" 
+         hx-swap="outerHTML">
+      <div class="placeholder">Caricamento panoramica mensile…</div>
+    </div>
+  </section>
+
+  {{/* Recurrent expenses list section that loads via HTMX */}}
+  <section class="page__section">
+    <div id="recurrent-overview" 
+         hx-get="/ui/recurrent-expenses-list" 
+         hx-trigger="load, recurrent:created from:body, recurrent:updated from:body, recurrent:deleted from:body"
+         hx-target="#recurrent-overview" 
+         hx-swap="outerHTML">
+      <div class="placeholder">Caricamento spese ricorrenti…</div>
+    </div>
+  </section>
+</div>
+{{ end }}

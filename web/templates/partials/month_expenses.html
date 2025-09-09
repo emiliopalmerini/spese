@@ -1,0 +1,25 @@
+{{/* 
+  Month expenses partial template
+  Rendered by /ui/month-expenses HTMX endpoint
+  Expects: .Month, .Items
+*/}}
+{{ define "month_expenses" }}
+<div class="expenses" id="month-expenses">
+  <h3>Dettagli Spese</h3>
+  {{ if .Items }}
+    <div class="expenses__list">
+      {{ range .Items }}
+        <div class="expense" id="expense-{{ .ID }}">
+          <div class="expense__date">{{ .Day }}/{{ $.Month }}</div>
+          <div class="expense__desc">{{ .Desc }} <small style="color: #999;">[ID: {{ .ID }}]</small></div>
+          <div class="expense__cat">{{ .Cat }} / {{ .Sub }}</div>
+          <div class="expense__amt">{{ .Amt }}</div>
+          {{ template "action_buttons" (dict "ShowDelete" true "DeleteURL" "/expenses/delete" "DeleteVals" (printf "{\"id\": \"%s\"}" .ID) "DeleteTarget" (printf "#expense-%s" .ID) "DeleteConfirm" "Sei sicuro di voler cancellare questa spesa?") }}
+        </div>
+      {{ end }}
+    </div>
+  {{ else }}
+    <div class="row placeholder">Nessuna spesa registrata</div>
+  {{ end }}
+</div>
+{{ end }}

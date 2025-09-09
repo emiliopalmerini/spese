@@ -1,0 +1,141 @@
+/**
+ * Spese Notification System
+ * Handles dynamic notifications with auto-dismiss and HTMX integration
+ */
+
+class NotificationManager {
+    constructor() {
+        this.container = null;
+        this.init();
+    }
+
+    init() {
+        // Wait for DOM to be ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.setup());
+        } else {
+            this.setup();
+        }
+    }
+
+    setup() {
+        this.container = document.getElementById('notifications');
+        if (!this.container) {
+            console.warn('Notification container not found');
+            return;
+        }
+
+        // Listen for HTMX events for notifications
+        document.addEventListener('htmx:afterRequest', (event) => {
+            this.handleResponse(event.detail);
+        });
+
+        // Listen for custom notification events
+        document.addEventListener('show-notification', (event) => {
+            this.show(event.detail);
+        });
+
+        // Setup mutation observer to handle auto-dismiss
+        this.observeNotifications();
+    }
+
+    observeNotifications() {
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === 1 && node.classList.contains('notification')) {
+                        this.setupAutoDismiss(node);
+                    }
+                });
+            });
+        });
+
+        observer.observe(this.container, { childList: true });
+    }
+
+    setupAutoDismiss(notification) {
+        const duration = parseInt(notification.dataset.autoDismiss);
+        if (duration > 0) {
+            setTimeout(() => {
+                this.dismiss(notification);
+            }, duration);
+        }
+
+        // Add click to dismiss
+        notification.addEventListener('click', () => {
+            this.dismiss(notification);
+        });
+
+        // Add close button
+        const closeBtn = document.createElement('button');
+        closeBtn.innerHTML = '×';
+        closeBtn.className = 'notification__close';
+        closeBtn.setAttribute('aria-label', 'Close notification');
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.dismiss(notification);
+        });
+        notification.appendChild(closeBtn);
+    }
+
+    show(options = {}) {
+        if (!this.container) return;
+
+        const { type = 'info', message, duration = 3000 } = options;
+        
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.dataset.autoDismiss = duration;
+        notification.innerHTML = message;
+
+        // Add to container
+        this.container.appendChild(notification);
+        
+        // Setup auto dismiss
+        this.setupAutoDismiss(notification);
+
+        return notification;
+    }
+
+    dismiss(notification) {
+        if (!notification || !notification.parentNode) return;
+
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateX(100%)';
+        
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300); // Match CSS animation duration
+    }
+
+    clear() {
+        if (!this.container) return;
+        this.container.innerHTML = '';
+    }
+
+    handleResponse(detail) {
+        // Handle HX-Trigger headers for notifications
+        if (detail.xhr && detail.xhr.getResponseHeader) {
+            const trigger = detail.xhr.getResponseHeader('HX-Trigger');
+            if (trigger) {
+                try {
+                    const events = JSON.parse(trigger);
+                    if (events['show-notification']) {
+                        this.show(events['show-notification']);
+                    }
+                } catch (e) {
+                    console.warn('Failed to parse HX-Trigger header:', e);
+                }
+            }
+        }
+    }
+}
+
+// Initialize notification manager
+window.notificationManager = new NotificationManager();
+
+// Export for use in other scripts
+window.showNotification = (options) => window.notificationManager.show(options);

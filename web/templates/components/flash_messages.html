@@ -1,0 +1,4 @@
+{{/* Flash messages component */}}
+{{ define "flash_messages" }}
+<div id="{{ if .ID }}{{ .ID }}{{ else }}flash{{ end }}" class="flash" aria-live="polite"></div>
+{{ end }}

@@ -101,12 +101,12 @@ func NewFromEnv(ctx context.Context) (*Client, error) {
 func newSheetsService(ctx context.Context) (*gsheet.Service, error) {
 	serviceAccountJSON := strings.TrimSpace(os.Getenv("GOOGLE_SERVICE_ACCOUNT_JSON"))
 	serviceAccountFile := strings.TrimSpace(os.Getenv("GOOGLE_SERVICE_ACCOUNT_FILE"))
-	
+
 	slog.InfoContext(ctx, "Checking Service Account environment variables",
 		"has_json", serviceAccountJSON != "",
 		"file_path", serviceAccountFile,
 		"json_length", len(serviceAccountJSON))
-	
+
 	// Also check the standard Google Cloud environment variable
 	if serviceAccountJSON == "" && serviceAccountFile == "" {
 		serviceAccountFile = strings.TrimSpace(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))
@@ -135,16 +135,16 @@ func newSheetsService(ctx context.Context) (*gsheet.Service, error) {
 	slog.InfoContext(ctx, "Creating Google Sheets service with Service Account",
 		"credentials_size", len(credentialsJSON),
 		"scope", gsheet.SpreadsheetsScope)
-	
+
 	// Try without custom HTTP client first to debug
-	service, err := gsheet.NewService(ctx, 
+	service, err := gsheet.NewService(ctx,
 		goption.WithCredentialsJSON(credentialsJSON),
 		goption.WithScopes(gsheet.SpreadsheetsScope))
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("create sheets service: %w", err)
 	}
-	
+
 	slog.InfoContext(ctx, "Google Sheets service created successfully")
 	return service, nil
 }
@@ -183,7 +183,6 @@ func newHTTPClientWithPooling() *http.Client {
 		Timeout:   60 * time.Second, // Overall request timeout
 	}
 }
-
 
 func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
 	if err := e.Validate(); err != nil {
@@ -477,12 +476,200 @@ func (c *Client) ListExpenses(ctx context.Context, year int, month int) ([]core.
 
 // DeleteExpense implements ports.ExpenseDeleter
 func (c *Client) DeleteExpense(ctx context.Context, id string) error {
-	// For Google Sheets, we need to find the row by expense ID and delete it
-	// Since Google Sheets doesn't have a natural ID system like databases,
-	// we'll need to search for the expense by its properties
-	// For now, return an error indicating that deletion via Google Sheets
-	// should be handled via AMQP sync messages to maintain data consistency
-	return fmt.Errorf("direct Google Sheets deletion not supported - use AMQP sync messages")
+	// For Google Sheets, ID-based deletion is not supported since we need expense data to find the row
+	// This should only be called by non-Google Sheets adapters
+	return fmt.Errorf("Google Sheets deletion requires expense data, use DeleteExpenseByData method instead")
+}
+
+// DeleteExpenseByData provides expense deletion using expense data for Google Sheets
+func (c *Client) DeleteExpenseByData(ctx context.Context, expenseData core.Expense) error {
+	if c.svc == nil {
+		return errors.New("sheets service not initialized")
+	}
+
+	// Validate expense data
+	if err := expenseData.Validate(); err != nil {
+		return fmt.Errorf("invalid expense data for deletion: %w", err)
+	}
+
+	// Read all data from the expenses sheet
+	rng := fmt.Sprintf("%s!A:H", c.expensesSheet)
+	resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rng).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("failed to read expenses sheet %s: %w", c.expensesSheet, err)
+	}
+
+	// Find the row that matches the expense data
+	var targetRow int = -1
+	var matchingRows []int
+	for i, row := range resp.Values {
+		if len(row) < 7 { // Need at least A-G columns
+			continue
+		}
+		
+		cols := toStrings(row)
+		
+		// Skip header rows (first row if it contains non-numeric month)
+		if i == 0 {
+			if _, err := strconv.Atoi(strings.TrimSpace(cols[0])); err != nil {
+				continue
+			}
+		}
+
+		// Match month (column A)
+		month, err := strconv.Atoi(strings.TrimSpace(cols[0]))
+		if err != nil || month != expenseData.Date.Month {
+			continue
+		}
+
+		// Match day (column B)
+		day, err := strconv.Atoi(strings.TrimSpace(cols[1]))
+		if err != nil || day != expenseData.Date.Day {
+			continue
+		}
+
+		// Match description (column C) - handle timestamped descriptions
+		description := strings.TrimSpace(cols[2])
+		// Google Sheets will have timestamp added by worker: "Original Description [ts:1234567890]"
+		// So we need to check if the Google Sheets description starts with our expense description
+		if !strings.HasPrefix(description, expenseData.Description) {
+			continue
+		}
+
+		// Match amount (column D) - convert to cents for comparison
+		cents, ok := parseEurosToCents(cols[3])
+		if !ok {
+			// Try simple float parsing as fallback
+			if f, ferr := strconv.ParseFloat(strings.TrimSpace(cols[3]), 64); ferr == nil {
+				cents = int64((f * 100.0) + 0.5)
+				ok = true
+			}
+		}
+		if !ok || cents != expenseData.Amount.Cents {
+			continue
+		}
+
+		// Match primary category (column G)
+		primary := strings.TrimSpace(cols[6])
+		if primary != expenseData.Primary {
+			continue
+		}
+
+		// Match secondary category (column H) if present
+		if len(cols) >= 8 {
+			secondary := strings.TrimSpace(cols[7])
+			if secondary != expenseData.Secondary {
+				continue
+			}
+		} else if expenseData.Secondary != "" {
+			// Row doesn't have secondary category but expense data does
+			continue
+		}
+
+		// Found a matching row
+		rowIndex := i + 1 // Convert to 1-based indexing for Google Sheets API
+		matchingRows = append(matchingRows, rowIndex)
+		if targetRow == -1 {
+			targetRow = rowIndex // Use the first match
+		}
+	}
+
+	// Check for multiple matches
+	if len(matchingRows) > 1 {
+		slog.WarnContext(ctx, "Multiple matching rows found for expense deletion",
+			"sheet", c.expensesSheet,
+			"matching_rows", matchingRows,
+			"using_row", targetRow,
+			"expense", map[string]interface{}{
+				"month": expenseData.Date.Month,
+				"day": expenseData.Date.Day,
+				"description": expenseData.Description,
+				"amount": float64(expenseData.Amount.Cents)/100.0,
+				"primary": expenseData.Primary,
+				"secondary": expenseData.Secondary,
+			})
+		// With timestamped descriptions, we should ideally have only one match
+		// But we'll proceed with the first match and log the issue
+	}
+
+	if targetRow == -1 {
+		// Log the search details for debugging
+		slog.WarnContext(ctx, "Expense not found in Google Sheets for deletion",
+			"sheet", c.expensesSheet,
+			"month", expenseData.Date.Month,
+			"day", expenseData.Date.Day,
+			"description", expenseData.Description,
+			"amount", float64(expenseData.Amount.Cents)/100.0,
+			"primary", expenseData.Primary,
+			"secondary", expenseData.Secondary,
+			"total_rows_scanned", len(resp.Values))
+		
+		return fmt.Errorf("expense not found in Google Sheets: month=%d day=%d description=%s amount=%.2f primary=%s secondary=%s",
+			expenseData.Date.Month, expenseData.Date.Day, expenseData.Description, 
+			float64(expenseData.Amount.Cents)/100.0, expenseData.Primary, expenseData.Secondary)
+	}
+
+	// Get the sheet ID for the batchUpdate API
+	sheetId := c.getSheetId(ctx, c.expensesSheet)
+	if sheetId == 0 {
+		return fmt.Errorf("could not determine sheet ID for %s", c.expensesSheet)
+	}
+
+	// Delete the found row using the batchUpdate API
+	deleteRequest := &gsheet.BatchUpdateSpreadsheetRequest{
+		Requests: []*gsheet.Request{
+			{
+				DeleteDimension: &gsheet.DeleteDimensionRequest{
+					Range: &gsheet.DimensionRange{
+						SheetId:    sheetId,
+						Dimension:  "ROWS",
+						StartIndex: int64(targetRow - 1), // Convert back to 0-based for API
+						EndIndex:   int64(targetRow),     // Exclusive end, so this deletes just one row
+					},
+				},
+			},
+		},
+	}
+
+	_, err = c.svc.Spreadsheets.BatchUpdate(c.spreadsheetID, deleteRequest).Context(ctx).Do()
+	if err != nil {
+		slog.ErrorContext(ctx, "Google Sheets API delete request failed",
+			"sheet", c.expensesSheet,
+			"sheet_id", sheetId,
+			"target_row", targetRow,
+			"spreadsheet_id", c.spreadsheetID,
+			"error", err)
+		return fmt.Errorf("failed to delete row %d from sheet %s: %w", targetRow, c.expensesSheet, err)
+	}
+
+	slog.InfoContext(ctx, "Successfully deleted expense from Google Sheets",
+		"sheet", c.expensesSheet,
+		"row", targetRow,
+		"month", expenseData.Date.Month,
+		"day", expenseData.Date.Day,
+		"description", expenseData.Description,
+		"amount", float64(expenseData.Amount.Cents)/100.0)
+
+	return nil
+}
+
+// getSheetId retrieves the sheet ID for a given sheet name
+func (c *Client) getSheetId(ctx context.Context, sheetName string) int64 {
+	// Get spreadsheet metadata to find the sheet ID
+	spreadsheet, err := c.svc.Spreadsheets.Get(c.spreadsheetID).Context(ctx).Do()
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to get spreadsheet metadata for sheet ID", "error", err, "sheet", sheetName)
+		return 0
+	}
+
+	for _, sheet := range spreadsheet.Sheets {
+		if sheet.Properties.Title == sheetName {
+			return int64(sheet.Properties.SheetId)
+		}
+	}
+
+	slog.WarnContext(ctx, "Sheet ID not found", "sheet", sheetName)
+	return 0
 }
 
 func indexOf(arr []string, target string) int {

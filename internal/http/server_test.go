@@ -200,7 +200,6 @@ func TestFormatEuros(t *testing.T) {
 	}
 }
 
-
 type fakeList struct{ items []core.Expense }
 
 func (f fakeList) ListExpenses(ctx context.Context, year int, month int) ([]core.Expense, error) {

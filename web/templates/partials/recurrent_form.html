@@ -1,0 +1,50 @@
+{{/* 
+  Recurrent expense form partial template
+  Rendered by /ui/recurrent-form-reset HTMX endpoint after successful submission
+  Expects: .Categories
+*/}}
+{{ define "recurrent_form" }}
+<form id="recurrent-expense-form"
+      class="form"
+      hx-post="/recurrent/create"
+      hx-target="#flash"
+      hx-swap="innerHTML"
+      hx-indicator=".indicator">
+
+  {{/* Description field using component */}}
+  {{ template "form_field" (dict "ID" "description" "Name" "description" "Type" "text" "Label" "Descrizione" "MaxLength" "200" "Placeholder" "es. Abbonamento Netflix" "Required" true) }}
+
+  {{/* Amount field using component */}}
+  {{ template "form_field" (dict "ID" "amount" "Name" "amount" "Type" "number" "Label" "Importo (€)" "Step" "0.01" "Min" "0.01" "Placeholder" "0.00" "Required" true) }}
+
+  {{/* Date fields group using component */}}
+  <div class="field-group">
+    {{ template "form_field" (dict "ID" "start_date" "Name" "start_date" "Type" "date" "Label" "Data inizio" "Required" true "Half" true) }}
+    {{ template "form_field" (dict "ID" "end_date" "Name" "end_date" "Type" "date" "Label" "Data fine (opzionale)" "Half" true) }}
+  </div>
+
+  {{/* Repetition type field */}}
+  <div class="field">
+    <label for="repetition_type">Frequenza</label>
+    <select id="repetition_type" name="repetition_type" required>
+      <option value="">Seleziona frequenza</option>
+      <option value="daily">Giornaliera</option>
+      <option value="weekly">Settimanale</option>
+      <option value="monthly">Mensile</option>
+      <option value="yearly">Annuale</option>
+    </select>
+  </div>
+
+  {{/* Category fields using component */}}
+  {{ template "category_selector" (dict "PrimaryID" "primary" "PrimaryName" "primary" "SecondaryID" "secondary" "SecondaryName" "secondary" "LoadingID" "category-loading" "Categories" .Categories) }}
+
+  {{/* Flash messages using component */}}
+  {{ template "flash_messages" (dict "ID" "flash") }}
+
+  {{/* Submit button and loading indicator */}}
+  <div class="actions">
+    <button class="btn btn-primary btn--block" type="submit">Aggiungi Spesa Ricorrente</button>
+    {{ template "loading_indicator" (dict "Text" "Salvataggio in corso…") }}
+  </div>
+</form>
+{{ end }}
