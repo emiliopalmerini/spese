@@ -1,7 +1,6 @@
 CREATE TABLE expenses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    day INTEGER NOT NULL CHECK (day >= 1 AND day <= 31),
-    month INTEGER NOT NULL CHECK (month >= 1 AND month <= 12),
+    date DATE NOT NULL,
     description TEXT NOT NULL,
     amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
     primary_category TEXT NOT NULL,
@@ -12,7 +11,7 @@ CREATE TABLE expenses (
     sync_status TEXT DEFAULT 'pending' CHECK (sync_status IN ('pending', 'synced', 'error'))
 );
 
-CREATE INDEX idx_expenses_month ON expenses(month, day);
+CREATE INDEX idx_expenses_date ON expenses(date);
 CREATE INDEX idx_expenses_sync_status ON expenses(sync_status);
 CREATE INDEX idx_expenses_created_at ON expenses(created_at);
 
@@ -36,3 +35,23 @@ CREATE TABLE secondary_categories (
 CREATE INDEX idx_secondary_categories_primary_id ON secondary_categories(primary_category_id);
 CREATE INDEX idx_primary_categories_name ON primary_categories(name);
 CREATE INDEX idx_secondary_categories_name ON secondary_categories(name);
+
+-- Recurrent expenses table for managing recurring expenses
+CREATE TABLE recurrent_expenses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    start_date DATE NOT NULL,
+    end_date DATE NULL,
+    repetition_type TEXT NOT NULL CHECK (repetition_type IN ('daily', 'weekly', 'monthly', 'yearly')),
+    description TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+    primary_category TEXT NOT NULL,
+    secondary_category TEXT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for recurrent expenses
+CREATE INDEX idx_recurrent_expenses_active ON recurrent_expenses(is_active);
+CREATE INDEX idx_recurrent_expenses_start_date ON recurrent_expenses(start_date);
+CREATE INDEX idx_recurrent_expenses_repetition ON recurrent_expenses(repetition_type);

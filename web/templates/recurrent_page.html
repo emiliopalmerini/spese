@@ -1,0 +1,148 @@
+{{ define "recurrent_page" }}
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#10b981" />
+    <title>Spese Ricorrenti</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  </head>
+  <body class="theme-ink density-comfortable style-minimal">
+    <header class="topbar">
+      <div class="container topbar__inner">
+        <div class="brand">Spese</div>
+        <nav class="topbar__nav">
+          <a href="/" class="nav-link">Spese</a>
+          <a href="/recurrent" class="nav-link">Spese Ricorrenti</a>
+        </nav>
+      </div>
+    </header>
+    <main class="container page">
+      {{ template "recurrent_content" . }}
+    </main>
+  </body>
+</html>
+{{ end }}
+
+{{ define "recurrent_content" }}
+  <div class="container">
+    {{/* Main recurrent expense form section */}}
+    <section class="page__section">
+      <h1 class="page__title">Registra Spesa Ricorrente</h1>
+      
+      <form id="recurrent-expense-form"
+            class="form"
+            hx-post="/recurrent/create"
+            hx-target="#flash"
+            hx-swap="innerHTML"
+            hx-indicator=".indicator"
+            hx-on::after-request="if(event.detail.successful) { this.reset(); document.getElementById('description').focus(); }">
+
+        {{/* Description field */}}
+        <div class="field">
+          <label for="description">Descrizione</label>
+          <input id="description" type="text" name="description" maxlength="200" placeholder="es. Abbonamento Netflix" required />
+        </div>
+
+        {{/* Amount field */}}
+        <div class="field">
+          <label for="amount">Importo (€)</label>
+          <input id="amount" type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required />
+        </div>
+
+        {{/* Date fields group */}}
+        <div class="field-group">
+          <div class="field field--half">
+            <label for="start_date">Data inizio</label>
+            <input id="start_date" type="date" name="start_date" required />
+          </div>
+
+          <div class="field field--half">
+            <label for="end_date">Data fine (opzionale)</label>
+            <input id="end_date" type="date" name="end_date" />
+          </div>
+        </div>
+
+        {{/* Repetition type field */}}
+        <div class="field">
+          <label for="repetition_type">Frequenza</label>
+          <select id="repetition_type" name="repetition_type" required>
+            <option value="">Seleziona frequenza</option>
+            <option value="daily">Giornaliera</option>
+            <option value="weekly">Settimanale</option>
+            <option value="monthly">Mensile</option>
+            <option value="yearly">Annuale</option>
+          </select>
+        </div>
+
+        {{/* Category fields group */}}
+        <div class="field-group">
+          <div class="field field--half">
+            <label for="primary">Categoria Primaria</label>
+            <select id="primary" name="primary" required
+                    hx-get="/api/categories/secondary"
+                    hx-trigger="change"
+                    hx-target="#secondary"
+                    hx-swap="innerHTML"
+                    hx-indicator="#category-loading">
+              <option value="">Seleziona categoria</option>
+              {{ range .Categories }}<option value="{{ . }}">{{ . }}</option>{{ end }}
+            </select>
+          </div>
+
+          <div class="field field--half">
+            <label for="secondary">Categoria Secondaria</label>
+            <select id="secondary" name="secondary" required>
+              {{/* If we have legacy subcategories (for non-SQLite adapters), show them */}}
+              {{ if .Subcats }}
+                {{ range .Subcats }}<option value="{{ . }}">{{ . }}</option>{{ end }}
+              {{ else }}
+                <option value="">Seleziona prima la categoria primaria</option>
+              {{ end }}
+            </select>
+            <div id="category-loading" class="htmx-indicator" style="display: none; margin-top: 4px; font-size: 0.875rem; color: #6b7280;">
+              Caricamento sottocategorie...
+            </div>
+          </div>
+        </div>
+
+        {{/* Flash messages area */}}
+        <div id="flash" class="flash" aria-live="polite"></div>
+
+        {{/* Submit button and loading indicator */}}
+        <div class="actions">
+          <button class="btn btn-primary btn--block" type="submit">Aggiungi Spesa Ricorrente</button>
+          <div class="indicator htmx-indicator" aria-hidden="true">
+            <span class="spinner"></span>
+            <span>Salvataggio in corso…</span>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    {{/* Monthly overview for recurrent expenses */}}
+    <section class="page__section">
+      <div id="recurrent-monthly-overview" 
+           hx-get="/ui/recurrent-monthly-overview" 
+           hx-trigger="load, recurrent:created from:body, recurrent:updated from:body, recurrent:deleted from:body"
+           hx-target="#recurrent-monthly-overview" 
+           hx-swap="outerHTML">
+        <div class="placeholder">Caricamento panoramica mensile…</div>
+      </div>
+    </section>
+
+    {{/* Recurrent expenses list section that loads via HTMX */}}
+    <section class="page__section">
+      <div id="recurrent-overview" 
+           hx-get="/ui/recurrent-expenses-list" 
+           hx-trigger="load, recurrent:created from:body, recurrent:updated from:body, recurrent:deleted from:body"
+           hx-target="#recurrent-overview" 
+           hx-swap="outerHTML">
+        <div class="placeholder">Caricamento spese ricorrenti…</div>
+      </div>
+    </section>
+  </div>
+{{ end }}

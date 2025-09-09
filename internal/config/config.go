@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -22,13 +23,11 @@ type Config struct {
 	AMQPExchange string
 	AMQPQueue    string
 
-	// Google Sheets (existing)
-	GoogleSpreadsheetID   string
-	GoogleSheetName       string
-	GoogleOAuthClientFile string
-	GoogleOAuthTokenFile  string
-	GoogleOAuthClientJSON string
-	GoogleOAuthTokenJSON  string
+	// Google Sheets (service account)
+	GoogleSpreadsheetID      string
+	GoogleSheetName          string
+	GoogleServiceAccountFile string
+	GoogleServiceAccountJSON string
 
 	// Worker
 	SyncBatchSize int
@@ -47,17 +46,15 @@ func Load() *Config {
 		AMQPExchange: getEnv("AMQP_EXCHANGE", "spese"),
 		AMQPQueue:    getEnv("AMQP_QUEUE", "sync_expenses"),
 
-		GoogleSpreadsheetID:   getEnv("GOOGLE_SPREADSHEET_ID", ""),
-		GoogleSheetName:       getEnv("GOOGLE_SHEET_NAME", ""),
-		GoogleOAuthClientFile: getEnv("GOOGLE_OAUTH_CLIENT_FILE", ""),
-		GoogleOAuthTokenFile:  getEnv("GOOGLE_OAUTH_TOKEN_FILE", ""),
-		GoogleOAuthClientJSON: getEnv("GOOGLE_OAUTH_CLIENT_JSON", ""),
-		GoogleOAuthTokenJSON:  getEnv("GOOGLE_OAUTH_TOKEN_JSON", ""),
+		GoogleSpreadsheetID:      getEnv("GOOGLE_SPREADSHEET_ID", ""),
+		GoogleSheetName:          getEnv("GOOGLE_SHEET_NAME", ""),
+		GoogleServiceAccountFile: getEnv("GOOGLE_SERVICE_ACCOUNT_FILE", ""),
+		GoogleServiceAccountJSON: getEnv("GOOGLE_SERVICE_ACCOUNT_JSON", ""),
 
 		SyncBatchSize: getEnvInt("SYNC_BATCH_SIZE", 10),
 		SyncInterval:  getEnvDuration("SYNC_INTERVAL", 30*time.Second),
 
-		DataBackend: getEnv("DATA_BACKEND", "memory"),
+		DataBackend: getEnv("DATA_BACKEND", "sqlite"),
 	}
 
 	return cfg
@@ -75,14 +72,8 @@ func (c *Config) Validate() error {
 	}
 
 	// Validate data backend
-	validBackends := []string{"memory", "sheets", "sqlite"}
-	isValidBackend := false
-	for _, backend := range validBackends {
-		if c.DataBackend == backend {
-			isValidBackend = true
-			break
-		}
-	}
+	validBackends := []string{"sheets", "sqlite"}
+	isValidBackend := slices.Contains(validBackends, c.DataBackend)
 	if !isValidBackend {
 		errors = append(errors, fmt.Sprintf("invalid data backend '%s': must be one of %v", c.DataBackend, validBackends))
 	}
@@ -132,31 +123,27 @@ func (c *Config) Validate() error {
 			errors = append(errors, "Google Sheet name is required when using sheets backend")
 		}
 
-		// Must have either client file or JSON
-		hasClientFile := c.GoogleOAuthClientFile != ""
-		hasClientJSON := c.GoogleOAuthClientJSON != ""
-		if !hasClientFile && !hasClientJSON {
-			errors = append(errors, "either GOOGLE_OAUTH_CLIENT_FILE or GOOGLE_OAUTH_CLIENT_JSON must be provided for sheets backend")
+		// Must have either service account file or JSON
+		hasServiceAccountFile := c.GoogleServiceAccountFile != ""
+		hasServiceAccountJSON := c.GoogleServiceAccountJSON != ""
+		hasGoogleApplicationCredentials := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") != ""
+		
+		if !hasServiceAccountFile && !hasServiceAccountJSON && !hasGoogleApplicationCredentials {
+			errors = append(errors, "either GOOGLE_SERVICE_ACCOUNT_FILE, GOOGLE_SERVICE_ACCOUNT_JSON, or GOOGLE_APPLICATION_CREDENTIALS must be provided for sheets backend")
 		}
 
-		// Must have either token file or JSON
-		hasTokenFile := c.GoogleOAuthTokenFile != ""
-		hasTokenJSON := c.GoogleOAuthTokenJSON != ""
-		if !hasTokenFile && !hasTokenJSON {
-			errors = append(errors, "either GOOGLE_OAUTH_TOKEN_FILE or GOOGLE_OAUTH_TOKEN_JSON must be provided for sheets backend")
-		}
-
-		// Check if client file exists (if specified)
-		if hasClientFile {
-			if _, err := os.Stat(c.GoogleOAuthClientFile); os.IsNotExist(err) {
-				errors = append(errors, fmt.Sprintf("Google OAuth client file does not exist: %s", c.GoogleOAuthClientFile))
+		// Check if service account file exists (if specified)
+		if hasServiceAccountFile {
+			if _, err := os.Stat(c.GoogleServiceAccountFile); os.IsNotExist(err) {
+				errors = append(errors, fmt.Sprintf("Google service account file does not exist: %s", c.GoogleServiceAccountFile))
 			}
 		}
 
-		// Check if token file exists (if specified)
-		if hasTokenFile {
-			if _, err := os.Stat(c.GoogleOAuthTokenFile); os.IsNotExist(err) {
-				errors = append(errors, fmt.Sprintf("Google OAuth token file does not exist: %s", c.GoogleOAuthTokenFile))
+		// Check if GOOGLE_APPLICATION_CREDENTIALS file exists (if specified)
+		if hasGoogleApplicationCredentials {
+			gacPath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+			if _, err := os.Stat(gacPath); os.IsNotExist(err) {
+				errors = append(errors, fmt.Sprintf("GOOGLE_APPLICATION_CREDENTIALS file does not exist: %s", gacPath))
 			}
 		}
 	}

@@ -33,11 +33,10 @@ DASHBOARD_SHEET_NAME=Dashboard
 # (legacy fallback) Pattern with %d: e.g. "%d Dashboard"
 # DASHBOARD_SHEET_PREFIX="%d Dashboard"
 
-DATA_BACKEND=memory # use 'sheets' to integrate Google Sheets directly or 'sqlite' for local storage + async sync
+DATA_BACKEND=sqlite # use 'sheets' to integrate Google Sheets directly or 'sqlite' for local storage + async sync
 PORT=8080
-# OAuth
-# GOOGLE_OAUTH_CLIENT_FILE=/path/to/client.json
-# GOOGLE_OAUTH_TOKEN_FILE=token.json
+# Google Service Account
+# GOOGLE_SERVICE_ACCOUNT_FILE=/path/to/service-account.json
 ```
 
 2) Start the app:
@@ -47,10 +46,9 @@ PORT=8080
 
 App available at `http://localhost:8080` (`PORT` variable).
 
-With `DATA_BACKEND=memory`, the app loads development data from `./data`:
-- `data/seed_categories.txt` and `data/seed_subcategories.txt`
-- optional `data/seed_expenses.csv` (Month,Day,Description,Amount,Primary,Secondary)
-This data is also used to populate the monthly overview below the form.
+The app supports two backends:
+- `DATA_BACKEND=sqlite`: Uses local SQLite database with optional async Google Sheets sync
+- `DATA_BACKEND=sheets`: Direct Google Sheets integration
 
 **Security and Performance:**
 - Rate limiting: 60 requests per minute per IP
@@ -67,7 +65,7 @@ See `.env.example` for defaults. Main variables:
 - `GOOGLE_SHEET_NAME`: base name of expenses sheet (without year), default `Expenses` → resolved to `"<year> Expenses"`
 - `GOOGLE_CATEGORIES_SHEET_NAME`: base name categories sheet, default `Dashboard` → `"<year> Dashboard"`
 - `GOOGLE_SUBCATEGORIES_SHEET_NAME`: base name subcategories sheet, default `Dashboard` → `"<year> Dashboard"`
-- `DATA_BACKEND`: `memory` (default), `sheets`, or `sqlite`
+- `DATA_BACKEND`: `sqlite` (default), or `sheets`
 - `DASHBOARD_SHEET_NAME`: base name of annual dashboard sheet to read totals from (preferred). Result: `"<year> <name>"`.
 - `DASHBOARD_SHEET_PREFIX`: (legacy) pattern or prefix of annual dashboard sheet (e.g. `%d Dashboard`). Used only if `DASHBOARD_SHEET_NAME` is not set.
 
@@ -79,9 +77,10 @@ SQLite + AMQP (backend `sqlite`):
 - `SYNC_BATCH_SIZE`: worker batch size (default: `10`)
 - `SYNC_INTERVAL`: periodic sync interval (default: `30s`)
 
-OAuth:
-- `GOOGLE_OAUTH_CLIENT_JSON` or `GOOGLE_OAUTH_CLIENT_FILE`: OAuth client credentials (JSON)
-- `GOOGLE_OAUTH_TOKEN_JSON` or `GOOGLE_OAUTH_TOKEN_FILE`: user token generated via consent
+Google Service Account:
+- `GOOGLE_SERVICE_ACCOUNT_JSON`: Service account credentials as JSON string  
+- `GOOGLE_SERVICE_ACCOUNT_FILE`: Path to service account credentials file
+- `GOOGLE_APPLICATION_CREDENTIALS`: Standard Google Cloud credentials file path
 
 ## Useful Makefile Commands
 
@@ -146,23 +145,22 @@ make docker-up
 - Categories sheet (e.g. `2025 Dashboard` column `A2:A65`) 
 - Subcategories sheet (e.g. `2025 Dashboard` column `B2:B65`)
 
-2) OAuth user consent:
-- Create an OAuth Client (Type: Desktop app or Web with redirect `http://localhost:8085/callback`).
-- Export `GOOGLE_OAUTH_CLIENT_FILE=/path/to/client.json` (or `GOOGLE_OAUTH_CLIENT_JSON`).
-- **Option A** - Local: Run `make oauth-init` and complete consent in browser
-- **Option B** - Docker: Run `make oauth-init-docker` for containerized OAuth flow
-- Generates `token.json` (configure `GOOGLE_OAUTH_TOKEN_FILE` if you want a different path).
-- Start the app with `DATA_BACKEND=sheets` and OAuth variables set.
+2) Service Account setup:
+- Create a service account in Google Cloud Console
+- Enable Google Sheets API for your project
+- Generate JSON credentials for the service account
+- Share your spreadsheet with the service account email address
+- Set `GOOGLE_SERVICE_ACCOUNT_FILE=/path/to/service-account.json`
+- Start the app with `DATA_BACKEND=sheets` and service account variables set.
 
-**OAuth Security:**
-- Tokens saved with 0600 permissions (owner only)
-- Auto-refresh of expired tokens
+**Service Account Security:**
+- Credentials file should be stored securely with restricted permissions (e.g., 0600)
+- Service account should have minimum required permissions (Google Sheets API access)
 - No Service Account keys committed to repo
 
-Troubleshooting OAuth (Docker):
-- Place your OAuth client file at `./configs/client.json` or set `GOOGLE_OAUTH_CLIENT_FILE` to a path inside the container and bind-mount it.
-- The compose profile `oauth-init` binds `./configs/client.json` to `${GOOGLE_OAUTH_CLIENT_FILE:-/client.json}` so the default works out-of-the-box.
-- If the token lacks `refresh_token`, revoke previous consent in your Google Account and rerun `make oauth-init-docker` (the flow forces `prompt=consent`).
+Troubleshooting Service Account (Docker):
+- Place your service account file at `./configs/service-account.json` or set `GOOGLE_SERVICE_ACCOUNT_FILE` to a path inside the container and bind-mount it.
+- Ensure the service account email has been granted access to your Google Spreadsheet.
 
 ## Health & Readiness
 

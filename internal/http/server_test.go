@@ -1,18 +1,18 @@
 package http
 
 import (
+	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"spese/internal/core"
 	"strings"
 	"testing"
-
-	"context"
-	"io"
-	"spese/internal/core"
-	ports "spese/internal/sheets"
 	"time"
+
+	ports "spese/internal/sheets"
 )
 
 type fakeTax struct{ cats, subs []string }
@@ -200,109 +200,6 @@ func TestFormatEuros(t *testing.T) {
 	}
 }
 
-// Test caching functionality
-func TestCachingBehavior(t *testing.T) {
-	chdirRepoRoot(t)
-	mockOverview := core.MonthOverview{Year: 2025, Month: 1, Total: core.Money{Cents: 5000}}
-	mockExpenses := []core.Expense{{Description: "test", Amount: core.Money{Cents: 1000}}}
-
-	var ew ports.ExpenseWriter = fakeExp{}
-	var tr ports.TaxonomyReader = fakeTax{}
-	var dr ports.DashboardReader = fakeDash{ov: mockOverview}
-	var lr ports.ExpenseLister = fakeList{items: mockExpenses}
-	srv := NewServer(":0", ew, tr, dr, lr)
-
-	// First call should populate cache
-	ov1, err1 := srv.getOverview(context.Background(), 2025, 1)
-	if err1 != nil {
-		t.Fatalf("getOverview error: %v", err1)
-	}
-	if ov1.Total.Cents != 5000 {
-		t.Fatalf("expected 5000 cents, got %d", ov1.Total.Cents)
-	}
-
-	// Second call should use cache
-	ov2, err2 := srv.getOverview(context.Background(), 2025, 1)
-	if err2 != nil {
-		t.Fatalf("getOverview error: %v", err2)
-	}
-	if ov2.Total.Cents != 5000 {
-		t.Fatalf("expected cached 5000 cents, got %d", ov2.Total.Cents)
-	}
-
-	// Test expenses caching
-	exp1, err3 := srv.getExpenses(context.Background(), 2025, 1)
-	if err3 != nil {
-		t.Fatalf("getExpenses error: %v", err3)
-	}
-	if len(exp1) != 1 || exp1[0].Amount.Cents != 1000 {
-		t.Fatalf("expected 1 expense with 1000 cents, got %+v", exp1)
-	}
-
-	// Test cache invalidation
-	srv.invalidateOverview(2025, 1)
-	srv.invalidateExpenses(2025, 1)
-
-	// Verify cache was cleared by checking that Get returns false
-	key := srv.cacheKey(2025, 1)
-	_, existsOv := srv.overviewCache.Get(key)
-	_, existsExp := srv.itemsCache.Get(key)
-
-	if existsOv {
-		t.Fatal("overview cache should be invalidated")
-	}
-	if existsExp {
-		t.Fatal("expenses cache should be invalidated")
-	}
-}
-
-// Test context timeout in cache methods
-func TestCacheTimeouts(t *testing.T) {
-	// Test overview timeout with failing dashboard reader
-	var ew ports.ExpenseWriter = fakeExp{}
-	var tr ports.TaxonomyReader = fakeTax{}
-	var dr ports.DashboardReader = fakeDash{err: context.DeadlineExceeded}
-	var lr ports.ExpenseLister = fakeListErr{}
-	srv := NewServer(":0", ew, tr, dr, lr)
-
-	// Create a context that's already cancelled
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	_, err := srv.getOverview(ctx, 2025, 1)
-	if err == nil {
-		t.Fatal("expected timeout error")
-	}
-
-	_, err = srv.getExpenses(ctx, 2025, 1)
-	if err == nil {
-		t.Fatal("expected timeout error")
-	}
-}
-
-// Test nil readers in cache methods
-func TestCacheNilReaders(t *testing.T) {
-	var ew ports.ExpenseWriter = fakeExp{}
-	var tr ports.TaxonomyReader = fakeTax{}
-	srv := NewServer(":0", ew, tr, nil, nil) // nil readers
-
-	// Should return empty/default values without error
-	ov, err := srv.getOverview(context.Background(), 2025, 1)
-	if err != nil {
-		t.Fatalf("expected no error with nil dashboard reader, got %v", err)
-	}
-	if ov.Year != 2025 || ov.Month != 1 {
-		t.Fatalf("expected default overview, got %+v", ov)
-	}
-
-	exp, err := srv.getExpenses(context.Background(), 2025, 1)
-	if err != nil {
-		t.Fatalf("expected no error with nil expense lister, got %v", err)
-	}
-	if exp != nil {
-		t.Fatalf("expected nil expenses, got %+v", exp)
-	}
-}
 
 type fakeList struct{ items []core.Expense }
 
@@ -514,26 +411,27 @@ func TestStaticServesWithCacheHeader(t *testing.T) {
 // Test rate limiter functionality
 func TestRateLimiterBehavior(t *testing.T) {
 	rl := newRateLimiter()
+	metrics := &securityMetrics{}
 
 	// First request should be allowed
-	if !rl.allow("192.168.1.1") {
+	if !rl.allow("192.168.1.1", metrics) {
 		t.Fatal("first request should be allowed")
 	}
 
 	// Multiple requests within limit should be allowed
 	for i := 0; i < 59; i++ {
-		if !rl.allow("192.168.1.1") {
+		if !rl.allow("192.168.1.1", metrics) {
 			t.Fatalf("request %d should be allowed", i+2)
 		}
 	}
 
 	// 61st request should be blocked
-	if rl.allow("192.168.1.1") {
+	if rl.allow("192.168.1.1", metrics) {
 		t.Fatal("61st request should be blocked")
 	}
 
 	// Different IP should be allowed
-	if !rl.allow("192.168.1.2") {
+	if !rl.allow("192.168.1.2", metrics) {
 		t.Fatal("different IP should be allowed")
 	}
 }
@@ -541,14 +439,15 @@ func TestRateLimiterBehavior(t *testing.T) {
 // Test rate limiter reset after time window
 func TestRateLimiterReset(t *testing.T) {
 	rl := newRateLimiter()
+	metrics := &securityMetrics{}
 
 	// Fill up the rate limit
 	for i := 0; i < 60; i++ {
-		rl.allow("192.168.1.1")
+		rl.allow("192.168.1.1", metrics)
 	}
 
 	// Should be blocked
-	if rl.allow("192.168.1.1") {
+	if rl.allow("192.168.1.1", metrics) {
 		t.Fatal("should be rate limited")
 	}
 
@@ -559,7 +458,7 @@ func TestRateLimiterReset(t *testing.T) {
 	rl.mu.Unlock()
 
 	// Should be allowed again
-	if !rl.allow("192.168.1.1") {
+	if !rl.allow("192.168.1.1", metrics) {
 		t.Fatal("should be allowed after time window reset")
 	}
 }
@@ -568,11 +467,12 @@ func TestRateLimiterReset(t *testing.T) {
 func TestRateLimiterCleanup(t *testing.T) {
 	rl := newRateLimiter()
 	defer rl.stop() // Ensure cleanup goroutine is stopped
+	metrics := &securityMetrics{}
 
 	// Add some clients
-	rl.allow("192.168.1.1")
-	rl.allow("192.168.1.2")
-	rl.allow("192.168.1.3")
+	rl.allow("192.168.1.1", metrics)
+	rl.allow("192.168.1.2", metrics)
+	rl.allow("192.168.1.3", metrics)
 
 	// Verify clients exist
 	rl.mu.Lock()
@@ -628,7 +528,7 @@ func TestServerShutdownCleanup(t *testing.T) {
 	}
 
 	// Add some activity
-	srv.rateLimiter.allow("192.168.1.1")
+	srv.rateLimiter.allow("192.168.1.1", srv.metrics)
 
 	// Shutdown server
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

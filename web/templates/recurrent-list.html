@@ -1,0 +1,71 @@
+{{ define "recurrent-list" }}
+<div id="recurrent-list" class="recurrent-expenses">
+  {{ if .RecurrentExpenses }}
+    <h2 class="section-title">Le tue spese ricorrenti</h2>
+    
+    <div class="recurrent-list">
+      {{ range .RecurrentExpenses }}
+      <div class="recurrent-item" id="recurrent-{{ .ID }}">
+        <span class="recurrent-frequency">
+          {{ if eq .Every "daily" }}Giornaliera{{ end }}
+          {{ if eq .Every "weekly" }}Settimanale{{ end }}
+          {{ if eq .Every "monthly" }}Mensile{{ end }}
+          {{ if eq .Every "yearly" }}Annuale{{ end }}
+        </span>
+        
+        <div class="recurrent-description">{{ .Description }}</div>
+        
+        <div class="recurrent-categories">
+          <span class="category-primary">{{ .Primary }}</span>
+          <span class="category-separator">/</span>
+          <span class="category-secondary">{{ .Secondary }}</span>
+        </div>
+        
+        <div class="recurrent-dates">
+          Dal {{ formatDate .StartDate.Day .StartDate.Month .StartDate.Year }}
+          {{ if .EndDate.Year }}
+            al {{ formatDate .EndDate.Day .EndDate.Month .EndDate.Year }}
+          {{ else }}
+            (senza fine)
+          {{ end }}
+        </div>
+        
+        <div class="recurrent-amount">{{ printf "€%.2f" (divFloat .Amount.Cents 100) }}</div>
+        
+        <div class="recurrent-actions">
+          <button class="action-icon" 
+                  hx-get="/recurrent/{{ .ID }}/edit" 
+                  hx-target="#recurrent-{{ .ID }}" 
+                  hx-swap="outerHTML"
+                  title="Modifica spesa ricorrente"
+                  aria-label="Modifica spesa ricorrente">
+            <svg viewBox="0 0 24 24">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
+          
+          <button class="action-icon" 
+                  hx-delete="/recurrent/delete?id={{ .ID }}"
+                  hx-target="#recurrent-{{ .ID }}"
+                  hx-swap="outerHTML"
+                  hx-confirm="Sei sicuro di voler eliminare questa spesa ricorrente?"
+                  title="Elimina spesa ricorrente"
+                  aria-label="Elimina spesa ricorrente">
+            <svg viewBox="0 0 24 24">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      {{ end }}
+    </div>
+  {{ else }}
+    <div class="empty-state">
+      <p class="empty-message">Nessuna spesa ricorrente configurata.</p>
+      <p class="empty-hint">Usa il modulo sopra per aggiungere la prima spesa ricorrente.</p>
+    </div>
+  {{ end }}
+</div>
+{{ end }}

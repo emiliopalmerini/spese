@@ -49,6 +49,23 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, e core.Expense) (str
 	return ref, nil
 }
 
+// DeleteExpense soft deletes an expense locally and publishes delete message
+func (s *ExpenseService) DeleteExpense(ctx context.Context, id int64) error {
+	// Soft delete from SQLite first
+	if err := s.storage.SoftDeleteExpense(ctx, id); err != nil {
+		return fmt.Errorf("soft delete expense: %w", err)
+	}
+
+	// Publish async delete message (non-blocking)
+	if err := s.publishDeleteMessage(ctx, id); err != nil {
+		slog.ErrorContext(ctx, "Failed to publish delete message",
+			"id", id, "error", err)
+		// Don't fail the request - expense is deleted locally
+	}
+
+	return nil
+}
+
 func (s *ExpenseService) publishSyncMessage(ctx context.Context, id, version int64) error {
 	if s.amqpClient == nil {
 		slog.WarnContext(ctx, "AMQP client not available, skipping sync message")
@@ -56,6 +73,15 @@ func (s *ExpenseService) publishSyncMessage(ctx context.Context, id, version int
 	}
 
 	return s.amqpClient.PublishExpenseSync(ctx, id, version)
+}
+
+func (s *ExpenseService) publishDeleteMessage(ctx context.Context, id int64) error {
+	if s.amqpClient == nil {
+		slog.WarnContext(ctx, "AMQP client not available, skipping delete message")
+		return nil
+	}
+
+	return s.amqpClient.PublishExpenseDelete(ctx, id)
 }
 
 // Close closes both storage and AMQP connections

@@ -15,16 +15,6 @@ func TestConfig_Validate(t *testing.T) {
 		errorString string
 	}{
 		{
-			name: "valid memory backend config",
-			config: Config{
-				Port:          "8080",
-				DataBackend:   "memory",
-				SyncBatchSize: 10,
-				SyncInterval:  30 * time.Second,
-			},
-			wantErr: false,
-		},
-		{
 			name: "valid sqlite backend config",
 			config: Config{
 				Port:          "8081",
@@ -42,7 +32,8 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid port - non-numeric",
 			config: Config{
 				Port:          "abc",
-				DataBackend:   "memory",
+				DataBackend:   "sqlite",
+				SQLiteDBPath:  "./test.db",
 				SyncBatchSize: 10,
 				SyncInterval:  30 * time.Second,
 			},
@@ -53,7 +44,8 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid port - out of range low",
 			config: Config{
 				Port:          "0",
-				DataBackend:   "memory",
+				DataBackend:   "sqlite",
+				SQLiteDBPath:  "./test.db",
 				SyncBatchSize: 10,
 				SyncInterval:  30 * time.Second,
 			},
@@ -64,7 +56,8 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid port - out of range high",
 			config: Config{
 				Port:          "70000",
-				DataBackend:   "memory",
+				DataBackend:   "sqlite",
+				SQLiteDBPath:  "./test.db",
 				SyncBatchSize: 10,
 				SyncInterval:  30 * time.Second,
 			},
@@ -80,7 +73,7 @@ func TestConfig_Validate(t *testing.T) {
 				SyncInterval:  30 * time.Second,
 			},
 			wantErr:     true,
-			errorString: "invalid data backend 'invalid': must be one of [memory sheets sqlite]",
+			errorString: "invalid data backend 'invalid': must be one of [sheets sqlite]",
 		},
 		{
 			name: "sqlite backend missing database path",
@@ -153,14 +146,13 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "sheets backend missing spreadsheet ID",
 			config: Config{
-				Port:                  "8080",
-				DataBackend:           "sheets",
-				GoogleSpreadsheetID:   "",
-				GoogleSheetName:       "Expenses",
-				GoogleOAuthClientJSON: "{}",
-				GoogleOAuthTokenJSON:  "{}",
-				SyncBatchSize:         10,
-				SyncInterval:          30 * time.Second,
+				Port:                     "8080",
+				DataBackend:              "sheets",
+				GoogleSpreadsheetID:      "",
+				GoogleSheetName:          "Expenses",
+				GoogleServiceAccountJSON: "{}",
+				SyncBatchSize:            10,
+				SyncInterval:             30 * time.Second,
 			},
 			wantErr:     true,
 			errorString: "Google Spreadsheet ID is required when using sheets backend",
@@ -168,51 +160,36 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "sheets backend missing sheet name",
 			config: Config{
-				Port:                  "8080",
-				DataBackend:           "sheets",
-				GoogleSpreadsheetID:   "123456789",
-				GoogleSheetName:       "",
-				GoogleOAuthClientJSON: "{}",
-				GoogleOAuthTokenJSON:  "{}",
-				SyncBatchSize:         10,
-				SyncInterval:          30 * time.Second,
+				Port:                     "8080",
+				DataBackend:              "sheets",
+				GoogleSpreadsheetID:      "123456789",
+				GoogleSheetName:          "",
+				GoogleServiceAccountJSON: "{}",
+				SyncBatchSize:            10,
+				SyncInterval:             30 * time.Second,
 			},
 			wantErr:     true,
 			errorString: "Google Sheet name is required when using sheets backend",
 		},
 		{
-			name: "sheets backend missing OAuth client",
+			name: "sheets backend missing service account",
 			config: Config{
-				Port:                 "8080",
-				DataBackend:          "sheets",
-				GoogleSpreadsheetID:  "123456789",
-				GoogleSheetName:      "Expenses",
-				GoogleOAuthTokenJSON: "{}",
-				SyncBatchSize:        10,
-				SyncInterval:         30 * time.Second,
+				Port:                "8080",
+				DataBackend:         "sheets",
+				GoogleSpreadsheetID: "123456789",
+				GoogleSheetName:     "Expenses",
+				SyncBatchSize:       10,
+				SyncInterval:        30 * time.Second,
 			},
 			wantErr:     true,
-			errorString: "either GOOGLE_OAUTH_CLIENT_FILE or GOOGLE_OAUTH_CLIENT_JSON must be provided for sheets backend",
-		},
-		{
-			name: "sheets backend missing OAuth token",
-			config: Config{
-				Port:                  "8080",
-				DataBackend:           "sheets",
-				GoogleSpreadsheetID:   "123456789",
-				GoogleSheetName:       "Expenses",
-				GoogleOAuthClientJSON: "{}",
-				SyncBatchSize:         10,
-				SyncInterval:          30 * time.Second,
-			},
-			wantErr:     true,
-			errorString: "either GOOGLE_OAUTH_TOKEN_FILE or GOOGLE_OAUTH_TOKEN_JSON must be provided for sheets backend",
+			errorString: "either GOOGLE_SERVICE_ACCOUNT_FILE, GOOGLE_SERVICE_ACCOUNT_JSON, or GOOGLE_APPLICATION_CREDENTIALS must be provided for sheets backend",
 		},
 		{
 			name: "invalid sync batch size - too small",
 			config: Config{
 				Port:          "8080",
-				DataBackend:   "memory",
+				DataBackend:   "sqlite",
+				SQLiteDBPath:  "./test.db",
 				SyncBatchSize: 0,
 				SyncInterval:  30 * time.Second,
 			},
@@ -223,7 +200,8 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid sync batch size - too large",
 			config: Config{
 				Port:          "8080",
-				DataBackend:   "memory",
+				DataBackend:   "sqlite",
+				SQLiteDBPath:  "./test.db",
 				SyncBatchSize: 2000,
 				SyncInterval:  30 * time.Second,
 			},
@@ -234,7 +212,8 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid sync interval - too short",
 			config: Config{
 				Port:          "8080",
-				DataBackend:   "memory",
+				DataBackend:   "sqlite",
+				SQLiteDBPath:  "./test.db",
 				SyncBatchSize: 10,
 				SyncInterval:  500 * time.Millisecond,
 			},
@@ -245,7 +224,8 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid sync interval - too long",
 			config: Config{
 				Port:          "8080",
-				DataBackend:   "memory",
+				DataBackend:   "sqlite",
+				SQLiteDBPath:  "./test.db",
 				SyncBatchSize: 10,
 				SyncInterval:  25 * time.Hour,
 			},
@@ -278,15 +258,11 @@ func TestConfig_ValidateWithFiles(t *testing.T) {
 	// Create temp directory for test files
 	tmpDir := t.TempDir()
 
-	// Create test OAuth files
-	clientFile := filepath.Join(tmpDir, "client.json")
-	tokenFile := filepath.Join(tmpDir, "token.json")
+	// Create test service account file
+	serviceAccountFile := filepath.Join(tmpDir, "service-account.json")
 
-	if err := os.WriteFile(clientFile, []byte(`{"client_id":"test"}`), 0644); err != nil {
-		t.Fatalf("Failed to create test client file: %v", err)
-	}
-	if err := os.WriteFile(tokenFile, []byte(`{"access_token":"test"}`), 0644); err != nil {
-		t.Fatalf("Failed to create test token file: %v", err)
+	if err := os.WriteFile(serviceAccountFile, []byte(`{"type":"service_account","project_id":"test"}`), 0644); err != nil {
+		t.Fatalf("Failed to create test service account file: %v", err)
 	}
 
 	tests := []struct {
@@ -295,44 +271,28 @@ func TestConfig_ValidateWithFiles(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "valid sheets backend with files",
+			name: "valid sheets backend with service account file",
 			config: Config{
-				Port:                  "8080",
-				DataBackend:           "sheets",
-				GoogleSpreadsheetID:   "123456789",
-				GoogleSheetName:       "Expenses",
-				GoogleOAuthClientFile: clientFile,
-				GoogleOAuthTokenFile:  tokenFile,
-				SyncBatchSize:         10,
-				SyncInterval:          30 * time.Second,
+				Port:                     "8080",
+				DataBackend:              "sheets",
+				GoogleSpreadsheetID:      "123456789",
+				GoogleSheetName:          "Expenses",
+				GoogleServiceAccountFile: serviceAccountFile,
+				SyncBatchSize:            10,
+				SyncInterval:             30 * time.Second,
 			},
 			wantErr: false,
 		},
 		{
-			name: "sheets backend with non-existent client file",
+			name: "sheets backend with non-existent service account file",
 			config: Config{
-				Port:                  "8080",
-				DataBackend:           "sheets",
-				GoogleSpreadsheetID:   "123456789",
-				GoogleSheetName:       "Expenses",
-				GoogleOAuthClientFile: "/non/existent/file.json",
-				GoogleOAuthTokenJSON:  "{}",
-				SyncBatchSize:         10,
-				SyncInterval:          30 * time.Second,
-			},
-			wantErr: true,
-		},
-		{
-			name: "sheets backend with non-existent token file",
-			config: Config{
-				Port:                  "8080",
-				DataBackend:           "sheets",
-				GoogleSpreadsheetID:   "123456789",
-				GoogleSheetName:       "Expenses",
-				GoogleOAuthClientJSON: "{}",
-				GoogleOAuthTokenFile:  "/non/existent/file.json",
-				SyncBatchSize:         10,
-				SyncInterval:          30 * time.Second,
+				Port:                     "8080",
+				DataBackend:              "sheets",
+				GoogleSpreadsheetID:      "123456789",
+				GoogleSheetName:          "Expenses",
+				GoogleServiceAccountFile: "/non/existent/file.json",
+				SyncBatchSize:            10,
+				SyncInterval:             30 * time.Second,
 			},
 			wantErr: true,
 		},
@@ -381,8 +341,8 @@ func TestLoad(t *testing.T) {
 		if cfg.Port != "8081" {
 			t.Errorf("Load() Port = %v, want 8081", cfg.Port)
 		}
-		if cfg.DataBackend != "memory" {
-			t.Errorf("Load() DataBackend = %v, want memory", cfg.DataBackend)
+		if cfg.DataBackend != "sqlite" {
+			t.Errorf("Load() DataBackend = %v, want sqlite", cfg.DataBackend)
 		}
 		if cfg.SQLiteDBPath != "./data/spese.db" {
 			t.Errorf("Load() SQLiteDBPath = %v, want ./data/spese.db", cfg.SQLiteDBPath)

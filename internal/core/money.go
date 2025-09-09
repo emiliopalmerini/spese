@@ -74,4 +74,9 @@ func ParseDecimalToCents(s string) (int64, error) {
 	return cents, nil
 }
 
+// Euros returns the euro value as a float64 for display purposes
+func (m Money) Euros() float64 {
+	return float64(m.Cents) / 100.0
+}
+
 var _ = errors.Is // keep errors imported if unused yet

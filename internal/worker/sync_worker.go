@@ -45,8 +45,9 @@ func (w *SyncWorker) HandleSyncMessage(ctx context.Context, msg *amqp.ExpenseSyn
 	// Convert storage expense to core expense
 	coreExpense := core.Expense{
 		Date: core.DateParts{
-			Day:   int(expense.Day),
-			Month: int(expense.Month),
+			Day:   expense.Date.Day(),
+			Month: int(expense.Date.Month()),
+			Year:  expense.Date.Year(),
 		},
 		Description: expense.Description,
 		Amount:      core.Money{Cents: expense.AmountCents},
@@ -58,6 +59,24 @@ func (w *SyncWorker) HandleSyncMessage(ctx context.Context, msg *amqp.ExpenseSyn
 	if err := w.syncExpenseToSheets(ctx, msg.ID, coreExpense); err != nil {
 		return fmt.Errorf("sync expense to sheets: %w", err)
 	}
+
+	return nil
+}
+
+// HandleDeleteMessage processes a single expense delete message from AMQP
+func (w *SyncWorker) HandleDeleteMessage(ctx context.Context, msg *amqp.ExpenseDeleteMessage) error {
+	slog.InfoContext(ctx, "Processing delete message",
+		"id", msg.ID)
+
+	// For now, we just log the delete message
+	// In a future implementation, we could:
+	// 1. Find the corresponding row in Google Sheets
+	// 2. Remove the row or mark it as deleted
+	// 3. Update dashboard calculations
+	
+	slog.InfoContext(ctx, "Delete message processed (Google Sheets sync not yet implemented)",
+		"id", msg.ID,
+		"timestamp", msg.Timestamp)
 
 	return nil
 }
@@ -90,8 +109,9 @@ func (w *SyncWorker) ProcessPendingExpenses(ctx context.Context) error {
 		// Convert and sync
 		coreExpense := core.Expense{
 			Date: core.DateParts{
-				Day:   int(expense.Day),
-				Month: int(expense.Month),
+				Day:   expense.Date.Day(),
+				Month: int(expense.Date.Month()),
+				Year:  expense.Date.Year(),
 			},
 			Description: expense.Description,
 			Amount:      core.Money{Cents: expense.AmountCents},
@@ -144,8 +164,9 @@ func (w *SyncWorker) StartupSyncCheck(ctx context.Context) error {
 		// Convert and sync
 		coreExpense := core.Expense{
 			Date: core.DateParts{
-				Day:   int(expense.Day),
-				Month: int(expense.Month),
+				Day:   expense.Date.Day(),
+				Month: int(expense.Date.Month()),
+				Year:  expense.Date.Year(),
 			},
 			Description: expense.Description,
 			Amount:      core.Money{Cents: expense.AmountCents},

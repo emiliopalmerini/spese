@@ -8,8 +8,6 @@ import (
 	"spese/internal/core"
 	"strings"
 	"testing"
-
-	"golang.org/x/oauth2"
 )
 
 func TestNewFromEnv_MissingSpreadsheetID(t *testing.T) {
@@ -27,28 +25,30 @@ func TestNewFromEnv_MissingSpreadsheetID(t *testing.T) {
 	}
 }
 
-func TestNewFromEnv_WithValidCredentials(t *testing.T) {
-	// This test only verifies that we fail gracefully with invalid JSON
-	// rather than testing the full OAuth flow which would require real credentials
+func TestNewFromEnv_WithMissingCredentials(t *testing.T) {
 	oldID := os.Getenv("GOOGLE_SPREADSHEET_ID")
-	oldClient := os.Getenv("GOOGLE_OAUTH_CLIENT_JSON")
-	oldToken := os.Getenv("GOOGLE_OAUTH_TOKEN_JSON")
+	oldSA := os.Getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+	oldSAFile := os.Getenv("GOOGLE_SERVICE_ACCOUNT_FILE")
+	oldGAC := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
 	defer func() {
 		os.Setenv("GOOGLE_SPREADSHEET_ID", oldID)
-		os.Setenv("GOOGLE_OAUTH_CLIENT_JSON", oldClient)
-		os.Setenv("GOOGLE_OAUTH_TOKEN_JSON", oldToken)
+		os.Setenv("GOOGLE_SERVICE_ACCOUNT_JSON", oldSA)
+		os.Setenv("GOOGLE_SERVICE_ACCOUNT_FILE", oldSAFile)
+		os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", oldGAC)
 	}()
 
+	// Clear all service account credentials
 	os.Setenv("GOOGLE_SPREADSHEET_ID", "test-id")
-	os.Setenv("GOOGLE_OAUTH_CLIENT_JSON", `invalid-json`)
-	os.Setenv("GOOGLE_OAUTH_TOKEN_JSON", `{"access_token":"test"}`)
+	os.Unsetenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+	os.Unsetenv("GOOGLE_SERVICE_ACCOUNT_FILE")
+	os.Unsetenv("GOOGLE_APPLICATION_CREDENTIALS")
 
 	_, err := NewFromEnv(context.Background())
 	if err == nil {
-		t.Fatal("expected error with invalid JSON")
+		t.Fatal("expected error with missing credentials")
 	}
-	if !strings.Contains(err.Error(), "oauth config") {
-		t.Errorf("expected oauth config error, got: %v", err)
+	if !strings.Contains(err.Error(), "missing service account credentials") {
+		t.Errorf("expected service account error, got: %v", err)
 	}
 }
 
@@ -123,39 +123,21 @@ func TestClient_readColParsing(t *testing.T) {
 	}
 }
 
-func TestJsonUnmarshalIndirection(t *testing.T) {
-	// Test that our indirection works
-	data := []byte(`{"access_token":"test","token_type":"Bearer"}`)
-	var token oauth2.Token
 
-	err := jsonUnmarshal(data, &token)
-	if err != nil {
-		t.Fatalf("jsonUnmarshal failed: %v", err)
-	}
-
-	if token.AccessToken != "test" {
-		t.Errorf("expected access token 'test', got %s", token.AccessToken)
-	}
-
-	// Test with invalid JSON
-	invalidData := []byte(`{invalid json}`)
-	err = jsonUnmarshal(invalidData, &token)
-	if err == nil {
-		t.Fatal("expected error with invalid JSON")
-	}
-}
-
-func TestNewSheetsService_MissingOAuthClient(t *testing.T) {
-	// Clear all oauth env vars
+func TestNewSheetsService_MissingServiceAccount(t *testing.T) {
+	// Clear all service account env vars
 	oldVars := map[string]string{
-		"GOOGLE_OAUTH_CLIENT_JSON": os.Getenv("GOOGLE_OAUTH_CLIENT_JSON"),
-		"GOOGLE_OAUTH_CLIENT_FILE": os.Getenv("GOOGLE_OAUTH_CLIENT_FILE"),
-		"GOOGLE_OAUTH_TOKEN_JSON":  os.Getenv("GOOGLE_OAUTH_TOKEN_JSON"),
-		"GOOGLE_OAUTH_TOKEN_FILE":  os.Getenv("GOOGLE_OAUTH_TOKEN_FILE"),
+		"GOOGLE_SERVICE_ACCOUNT_JSON": os.Getenv("GOOGLE_SERVICE_ACCOUNT_JSON"),
+		"GOOGLE_SERVICE_ACCOUNT_FILE": os.Getenv("GOOGLE_SERVICE_ACCOUNT_FILE"),
+		"GOOGLE_APPLICATION_CREDENTIALS": os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"),
 	}
 	defer func() {
 		for k, v := range oldVars {
-			os.Setenv(k, v)
+			if v == "" {
+				os.Unsetenv(k)
+			} else {
+				os.Setenv(k, v)
+			}
 		}
 	}()
 
@@ -165,36 +147,9 @@ func TestNewSheetsService_MissingOAuthClient(t *testing.T) {
 
 	_, err := newSheetsService(context.Background())
 	if err == nil {
-		t.Fatal("expected error for missing oauth client")
+		t.Fatal("expected error for missing service account")
 	}
-	expectedMsg := "missing oauth client (set GOOGLE_OAUTH_CLIENT_JSON or GOOGLE_OAUTH_CLIENT_FILE)"
-	if err.Error() != expectedMsg {
-		t.Errorf("expected %q, got %q", expectedMsg, err.Error())
-	}
-}
-
-func TestNewSheetsService_MissingOAuthToken(t *testing.T) {
-	oldVars := map[string]string{
-		"GOOGLE_OAUTH_CLIENT_JSON": os.Getenv("GOOGLE_OAUTH_CLIENT_JSON"),
-		"GOOGLE_OAUTH_TOKEN_JSON":  os.Getenv("GOOGLE_OAUTH_TOKEN_JSON"),
-		"GOOGLE_OAUTH_TOKEN_FILE":  os.Getenv("GOOGLE_OAUTH_TOKEN_FILE"),
-	}
-	defer func() {
-		for k, v := range oldVars {
-			os.Setenv(k, v)
-		}
-	}()
-
-	// Set client but not token
-	os.Setenv("GOOGLE_OAUTH_CLIENT_JSON", `{"installed":{"client_id":"test","client_secret":"test","redirect_uris":["http://localhost"],"auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token"}}`)
-	os.Unsetenv("GOOGLE_OAUTH_TOKEN_JSON")
-	os.Unsetenv("GOOGLE_OAUTH_TOKEN_FILE")
-
-	_, err := newSheetsService(context.Background())
-	if err == nil {
-		t.Fatal("expected error for missing oauth token")
-	}
-	expectedMsg := "missing oauth token (set GOOGLE_OAUTH_TOKEN_JSON or GOOGLE_OAUTH_TOKEN_FILE)"
+	expectedMsg := "missing service account credentials (set GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_SERVICE_ACCOUNT_FILE, or GOOGLE_APPLICATION_CREDENTIALS)"
 	if err.Error() != expectedMsg {
 		t.Errorf("expected %q, got %q", expectedMsg, err.Error())
 	}
@@ -337,50 +292,6 @@ func TestDefaultSheetNames(t *testing.T) {
 	}
 }
 
-// Test OAuth credential parsing
-func TestOAuthCredentialParsing(t *testing.T) {
-	oldVars := map[string]string{
-		"GOOGLE_OAUTH_CLIENT_JSON": os.Getenv("GOOGLE_OAUTH_CLIENT_JSON"),
-		"GOOGLE_OAUTH_CLIENT_FILE": os.Getenv("GOOGLE_OAUTH_CLIENT_FILE"),
-		"GOOGLE_OAUTH_TOKEN_JSON":  os.Getenv("GOOGLE_OAUTH_TOKEN_JSON"),
-		"GOOGLE_OAUTH_TOKEN_FILE":  os.Getenv("GOOGLE_OAUTH_TOKEN_FILE"),
-	}
-	defer func() {
-		for k, v := range oldVars {
-			if v == "" {
-				os.Unsetenv(k)
-			} else {
-				os.Setenv(k, v)
-			}
-		}
-	}()
-
-	// Test valid client JSON but invalid token JSON
-	os.Setenv("GOOGLE_OAUTH_CLIENT_JSON", `{"installed":{"client_id":"test","client_secret":"test","redirect_uris":["http://localhost"],"auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token"}}`)
-	os.Setenv("GOOGLE_OAUTH_TOKEN_JSON", `invalid-json`)
-	os.Unsetenv("GOOGLE_OAUTH_CLIENT_FILE")
-	os.Unsetenv("GOOGLE_OAUTH_TOKEN_FILE")
-
-	_, err := newSheetsService(context.Background())
-	if err == nil {
-		t.Fatal("expected error with invalid token JSON")
-	}
-	if !strings.Contains(err.Error(), "oauth token") {
-		t.Errorf("expected token parsing error, got: %v", err)
-	}
-
-	// Test invalid client JSON
-	os.Setenv("GOOGLE_OAUTH_CLIENT_JSON", `invalid-json`)
-	os.Setenv("GOOGLE_OAUTH_TOKEN_JSON", `{"access_token":"test","token_type":"Bearer"}`)
-
-	_, err = newSheetsService(context.Background())
-	if err == nil {
-		t.Fatal("expected error with invalid client JSON")
-	}
-	if !strings.Contains(err.Error(), "oauth config") {
-		t.Errorf("expected client parsing error, got: %v", err)
-	}
-}
 
 // Test expense validation edge cases
 func TestExpenseValidationEdgeCases(t *testing.T) {

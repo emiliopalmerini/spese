@@ -35,3 +35,31 @@ func ExpenseSyncMessageFromJSON(data []byte) (*ExpenseSyncMessage, error) {
 	}
 	return &msg, nil
 }
+
+// ExpenseDeleteMessage represents a message for deleting an expense from Google Sheets
+type ExpenseDeleteMessage struct {
+	ID        int64     `json:"id"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// NewExpenseDeleteMessage creates a new delete message
+func NewExpenseDeleteMessage(id int64) *ExpenseDeleteMessage {
+	return &ExpenseDeleteMessage{
+		ID:        id,
+		Timestamp: time.Now(),
+	}
+}
+
+// ToJSON converts the delete message to JSON bytes
+func (m *ExpenseDeleteMessage) ToJSON() ([]byte, error) {
+	return json.Marshal(m)
+}
+
+// ExpenseDeleteMessageFromJSON creates a delete message from JSON bytes
+func ExpenseDeleteMessageFromJSON(data []byte) (*ExpenseDeleteMessage, error) {
+	var msg ExpenseDeleteMessage
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return nil, err
+	}
+	return &msg, nil
+}

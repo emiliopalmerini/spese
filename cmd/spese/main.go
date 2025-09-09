@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	"spese/internal/adapters"
 	"spese/internal/amqp"
 	"spese/internal/config"
@@ -16,11 +17,13 @@ import (
 	"spese/internal/services"
 	ports "spese/internal/sheets"
 	gsheet "spese/internal/sheets/google"
-	mem "spese/internal/sheets/memory"
 	"spese/internal/storage"
 )
 
 func main() {
+	// Load .env file for local development (ignore errors in production/docker)
+	_ = godotenv.Load()
+
 	// Setup structured logging
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
@@ -37,11 +40,13 @@ func main() {
 	}
 
 	var (
-		expWriter  ports.ExpenseWriter
-		taxReader  ports.TaxonomyReader
-		dashReader ports.DashboardReader
-		expLister  ports.ExpenseLister
-		cleanup    func() error
+		expWriter       ports.ExpenseWriter
+		taxReader       ports.TaxonomyReader
+		dashReader      ports.DashboardReader
+		expLister       ports.ExpenseLister
+		expDeleter      ports.ExpenseDeleter
+		expListerWithID ports.ExpenseListerWithID
+		cleanup         func() error
 	)
 
 	switch cfg.DataBackend {
@@ -68,7 +73,7 @@ func main() {
 		expenseService := services.NewExpenseService(sqliteRepo, amqpClient)
 		adapter := adapters.NewSQLiteAdapter(sqliteRepo, expenseService)
 
-		expWriter, taxReader, dashReader, expLister = adapter, adapter, adapter, adapter
+		expWriter, taxReader, dashReader, expLister, expDeleter, expListerWithID = adapter, adapter, adapter, adapter, adapter, adapter
 		cleanup = expenseService.Close
 
 		logger.Info("Initialized SQLite backend", "db_path", cfg.SQLiteDBPath, "amqp_enabled", amqpClient != nil)
@@ -79,16 +84,16 @@ func main() {
 			logger.Error("Failed to initialize Google Sheets client", "error", err)
 			os.Exit(1)
 		}
-		expWriter, taxReader, dashReader, expLister = cli, cli, cli, cli
+		expWriter, taxReader, dashReader, expLister, expDeleter = cli, cli, cli, cli, cli
+		expListerWithID = nil // Google Sheets backend doesn't support listing with IDs yet
 		logger.Info("Initialized Google Sheets backend")
 
 	default:
-		store := mem.NewFromFiles("data")
-		expWriter, taxReader, dashReader, expLister = store, store, store, store
-		logger.Info("Initialized memory backend", "backend", cfg.DataBackend)
+		logger.Error("Unsupported data backend", "backend", cfg.DataBackend)
+		os.Exit(1)
 	}
 
-	srv := apphttp.NewServer(":"+cfg.Port, expWriter, taxReader, dashReader, expLister)
+	srv := apphttp.NewServer(":"+cfg.Port, expWriter, taxReader, dashReader, expLister, expDeleter, expListerWithID)
 
 	// Configure server timeouts and limits
 	srv.ReadTimeout = 10 * time.Second

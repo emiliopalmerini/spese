@@ -11,16 +11,23 @@ import (
 type Querier interface {
 	CreateExpense(ctx context.Context, arg CreateExpenseParams) (Expense, error)
 	CreatePrimaryCategory(ctx context.Context, name string) (PrimaryCategory, error)
+	// Recurrent Expenses queries
+	CreateRecurrentExpense(ctx context.Context, arg CreateRecurrentExpenseParams) (RecurrentExpense, error)
 	CreateSecondaryCategory(ctx context.Context, arg CreateSecondaryCategoryParams) (SecondaryCategory, error)
+	DeactivateRecurrentExpense(ctx context.Context, id int64) error
 	DeletePrimaryCategory(ctx context.Context, name string) error
+	DeleteRecurrentExpense(ctx context.Context, id int64) error
 	DeleteSecondaryCategory(ctx context.Context, name string) error
-	GetCategorySums(ctx context.Context, month int64) ([]GetCategorySumsRow, error)
+	GetActiveRecurrentExpensesByDate(ctx context.Context, arg GetActiveRecurrentExpensesByDateParams) ([]RecurrentExpense, error)
+	GetCategorySums(ctx context.Context, printf interface{}) ([]GetCategorySumsRow, error)
 	GetExpense(ctx context.Context, id int64) (Expense, error)
-	GetExpensesByMonth(ctx context.Context, month int64) ([]Expense, error)
-	GetMonthTotal(ctx context.Context, month int64) (int64, error)
+	GetExpensesByMonth(ctx context.Context, printf interface{}) ([]Expense, error)
+	GetMonthTotal(ctx context.Context, printf interface{}) (int64, error)
 	GetPendingSyncExpenses(ctx context.Context, limit int64) ([]GetPendingSyncExpensesRow, error)
 	// Primary Categories queries
 	GetPrimaryCategories(ctx context.Context) ([]string, error)
+	GetRecurrentExpenseByID(ctx context.Context, id int64) (RecurrentExpense, error)
+	GetRecurrentExpenses(ctx context.Context) ([]RecurrentExpense, error)
 	GetSecondariesByPrimary(ctx context.Context, name string) ([]string, error)
 	// Secondary Categories queries
 	GetSecondaryCategories(ctx context.Context) ([]string, error)
@@ -28,6 +35,8 @@ type Querier interface {
 	MarkExpenseSynced(ctx context.Context, id int64) error
 	RefreshCategories(ctx context.Context) error
 	RefreshPrimaryCategories(ctx context.Context) error
+	SoftDeleteExpense(ctx context.Context, id int64) error
+	UpdateRecurrentExpense(ctx context.Context, arg UpdateRecurrentExpenseParams) error
 }
 
 var _ Querier = (*Queries)(nil)

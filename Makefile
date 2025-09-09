@@ -4,7 +4,7 @@ PKG := ./...
 BIN := bin/$(APP_NAME)
 WORKER_BIN := bin/$(WORKER_NAME)
 
-.PHONY: all help setup tidy fmt vet lint test build build-worker build-all run run-worker logs clean docker-build docker-up docker-logs docker-down up smoke cover oauth-init sqlc-generate refresh-categories
+.PHONY: all help setup tidy fmt vet lint test build build-worker build-all run run-worker logs clean docker-build docker-up docker-logs docker-down up smoke cover sqlc-generate refresh-categories
 
 all: help
 
@@ -44,10 +44,6 @@ help: ## Show this help message
 	@echo "🗄️  Database Commands:"
 	@echo "  sqlc-generate Generate sqlc code from queries"
 	@echo "  refresh-categories  Clear and reload category cache from Google Sheets"
-	@echo ""
-	@echo "🔐 OAuth Commands:"
-	@echo "  oauth-init         Initialize OAuth flow locally"
-	@echo "  oauth-init-docker  Initialize OAuth flow in Docker"
 	@echo ""
 	@echo "💡 Examples:"
 	@echo "  make build-all              # Build everything"
@@ -119,25 +115,8 @@ smoke:
 
 cover:
 	@echo "Running coverage for selected packages..."
-	go test -coverprofile=coverage.out ./internal/core ./internal/http ./internal/sheets/memory
+	go test -coverprofile=coverage.out ./internal/core ./internal/http
 	go tool cover -func=coverage.out | tail -n1 | awk '{print $$3}' | grep -qx '100.0%' && echo "Coverage 100%" || (echo "Coverage below 100%" && go tool cover -func=coverage.out && exit 1)
-
-oauth-init:
-	@echo "Starting OAuth flow (redirect to http://localhost:$${OAUTH_REDIRECT_PORT:-8085}/callback)"
-	@echo "Token will be saved to: $${GOOGLE_OAUTH_TOKEN_FILE:-token.json}"
-	go run ./cmd/oauth-init
-
-oauth-init-docker:
-	@echo "Starting OAuth flow in Docker container"
-	@echo "The OAuth callback server will run on port $${OAUTH_REDIRECT_PORT:-8085}"
-	@echo "Open the displayed URL in your browser on the HOST machine"
-	@echo "Token will be saved to .secrets/token.json"
-	@mkdir -p .secrets
-	docker compose --profile oauth up --build oauth-init
-
-oauth-init-docker-clean:
-	@echo "Cleaning up OAuth container"
-	docker compose --profile oauth down oauth-init
 
 refresh-categories:
 	@echo "Refreshing category cache from Google Sheets"

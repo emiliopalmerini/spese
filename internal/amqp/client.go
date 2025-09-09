@@ -317,6 +317,97 @@ func (c *Client) PublishExpenseSync(ctx context.Context, id, version int64) erro
 	return fmt.Errorf("failed to publish message after %d attempts: %w", maxRetries, err)
 }
 
+// PublishExpenseDelete publishes an expense delete message with circuit breaker and retry
+func (c *Client) PublishExpenseDelete(ctx context.Context, id int64) error {
+	// Check circuit breaker
+	if c.isCircuitOpen() {
+		return fmt.Errorf("circuit breaker is open, skipping publish")
+	}
+
+	msg := NewExpenseDeleteMessage(id)
+	body, err := msg.ToJSON()
+	if err != nil {
+		return fmt.Errorf("marshal delete message: %w", err)
+	}
+
+	// Retry logic with exponential backoff (similar to sync messages)
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+
+		err = c.channel.PublishWithContext(
+			publishCtx,
+			c.exchangeName, // exchange
+			c.queueName,    // routing key
+			false,          // mandatory
+			false,          // immediate
+			amqp091.Publishing{
+				ContentType:  "application/json",
+				DeliveryMode: amqp091.Persistent, // make message persistent
+				Timestamp:    time.Now(),
+				Type:         "expense_delete", // message type for routing
+				Body:         body,
+			},
+		)
+		cancel()
+
+		if err == nil {
+			c.recordSuccess()
+			slog.InfoContext(ctx, "Published expense delete message",
+				"id", id,
+				"exchange", c.exchangeName,
+				"queue", c.queueName,
+				"attempt", attempt+1)
+			return nil
+		}
+
+		// Handle connection errors and retries (same logic as sync messages)
+		if isConnectionError(err) {
+			slog.WarnContext(ctx, "AMQP connection error during delete publish, attempting reconnection",
+				"error", err, "attempt", attempt+1)
+
+			if reconnectErr := c.reconnect(ctx); reconnectErr != nil {
+				slog.ErrorContext(ctx, "Failed to reconnect for delete message", "error", reconnectErr)
+				c.recordFailure()
+
+				if attempt < maxRetries-1 {
+					delay := exponentialBackoff(attempt)
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-time.After(delay):
+						continue
+					}
+				}
+			} else {
+				continue // Reconnection successful, retry immediately
+			}
+		} else {
+			c.recordFailure()
+			slog.WarnContext(ctx, "Failed to publish delete message, retrying",
+				"error", err, "attempt", attempt+1, "id", id)
+
+			if attempt < maxRetries-1 {
+				delay := exponentialBackoff(attempt)
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(delay):
+					continue
+				}
+			}
+		}
+	}
+
+	c.recordFailure()
+	return fmt.Errorf("failed to publish delete message after %d attempts: %w", maxRetries, err)
+}
+
 // isConnectionError checks if the error indicates a connection problem
 func isConnectionError(err error) bool {
 	if err == nil {
@@ -383,6 +474,84 @@ func (c *Client) ConsumeExpenseSync(ctx context.Context, handler func(context.Co
 			slog.InfoContext(ctx, "Successfully processed expense sync message",
 				"id", msg.ID,
 				"version", msg.Version)
+		}
+	}
+}
+
+// ConsumeMessages consumes both sync and delete messages
+func (c *Client) ConsumeMessages(ctx context.Context, syncHandler func(context.Context, *ExpenseSyncMessage) error, deleteHandler func(context.Context, *ExpenseDeleteMessage) error) error {
+	msgs, err := c.channel.Consume(
+		c.queueName, // queue
+		"",          // consumer
+		false,       // auto-ack (we want manual ack)
+		false,       // exclusive
+		false,       // no-local
+		false,       // no-wait
+		nil,         // args
+	)
+	if err != nil {
+		return fmt.Errorf("start consuming: %w", err)
+	}
+
+	slog.InfoContext(ctx, "Started consuming expense messages", "queue", c.queueName)
+
+	for {
+		select {
+		case <-ctx.Done():
+			slog.InfoContext(ctx, "Stopping message consumption", "reason", ctx.Err())
+			return ctx.Err()
+		case delivery, ok := <-msgs:
+			if !ok {
+				return fmt.Errorf("message channel closed")
+			}
+
+			// Check message type to determine how to process it
+			msgType := delivery.Type
+			
+			switch msgType {
+			case "expense_delete":
+				msg, err := ExpenseDeleteMessageFromJSON(delivery.Body)
+				if err != nil {
+					slog.ErrorContext(ctx, "Failed to unmarshal delete message", "error", err)
+					delivery.Nack(false, false) // reject and don't requeue
+					continue
+				}
+
+				slog.InfoContext(ctx, "Processing expense delete message", "id", msg.ID)
+
+				if err := deleteHandler(ctx, msg); err != nil {
+					slog.ErrorContext(ctx, "Failed to handle delete message",
+						"error", err, "id", msg.ID)
+					delivery.Nack(false, true) // reject and requeue
+					continue
+				}
+
+				delivery.Ack(false)
+				slog.InfoContext(ctx, "Successfully processed expense delete message", "id", msg.ID)
+
+			default:
+				// Default to sync message (for backward compatibility)
+				msg, err := ExpenseSyncMessageFromJSON(delivery.Body)
+				if err != nil {
+					slog.ErrorContext(ctx, "Failed to unmarshal sync message", "error", err)
+					delivery.Nack(false, false) // reject and don't requeue
+					continue
+				}
+
+				slog.InfoContext(ctx, "Processing expense sync message",
+					"id", msg.ID, "version", msg.Version)
+
+				if err := syncHandler(ctx, msg); err != nil {
+					slog.ErrorContext(ctx, "Failed to handle sync message",
+						"error", err, "id", msg.ID, "version", msg.Version)
+					delivery.Nack(false, true) // reject and requeue
+					continue
+				}
+
+				delivery.Ack(false)
+				slog.InfoContext(ctx, "Successfully processed expense sync message",
+					"id", msg.ID, "version", msg.Version)
+			}
 		}
 	}
 }
