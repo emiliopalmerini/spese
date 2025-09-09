@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	"spese/internal/adapters"
 	"spese/internal/amqp"
 	"spese/internal/config"
@@ -20,6 +21,9 @@ import (
 )
 
 func main() {
+	// Load .env file for local development (ignore errors in production/docker)
+	_ = godotenv.Load()
+
 	// Setup structured logging
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,

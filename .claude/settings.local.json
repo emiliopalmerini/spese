@@ -23,7 +23,8 @@
       "Bash(go build:*)",
       "Bash(DATA_BACKEND=memory timeout 5s /tmp/spese)",
       "Bash(git commit:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(go get:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,0 +1,2 @@
+GOOGLE_SPREADSHEET_ID=1CJf-cbHqTKOJRUi0unnwycLvnh4Smo13tzXzNUdimgc GOOGLE_SERVICE_ACCOUNT_FILE=.configs/service-account.json go run ./cmd/spese-worker
+

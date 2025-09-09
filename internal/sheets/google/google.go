@@ -101,9 +101,15 @@ func newSheetsService(ctx context.Context) (*gsheet.Service, error) {
 	serviceAccountJSON := strings.TrimSpace(os.Getenv("GOOGLE_SERVICE_ACCOUNT_JSON"))
 	serviceAccountFile := strings.TrimSpace(os.Getenv("GOOGLE_SERVICE_ACCOUNT_FILE"))
 	
+	slog.InfoContext(ctx, "Checking Service Account environment variables",
+		"has_json", serviceAccountJSON != "",
+		"file_path", serviceAccountFile,
+		"json_length", len(serviceAccountJSON))
+	
 	// Also check the standard Google Cloud environment variable
 	if serviceAccountJSON == "" && serviceAccountFile == "" {
 		serviceAccountFile = strings.TrimSpace(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))
+		slog.InfoContext(ctx, "Checking GOOGLE_APPLICATION_CREDENTIALS", "path", serviceAccountFile)
 	}
 
 	var credentialsJSON []byte
@@ -111,24 +117,35 @@ func newSheetsService(ctx context.Context) (*gsheet.Service, error) {
 
 	switch {
 	case serviceAccountJSON != "":
+		slog.InfoContext(ctx, "Using inline JSON credentials")
 		credentialsJSON = []byte(serviceAccountJSON)
 	case serviceAccountFile != "":
+		slog.InfoContext(ctx, "Reading credentials from file", "path", serviceAccountFile)
 		credentialsJSON, err = os.ReadFile(serviceAccountFile)
 		if err != nil {
 			return nil, fmt.Errorf("read service account file: %w", err)
 		}
+		slog.InfoContext(ctx, "Successfully read credentials file", "size", len(credentialsJSON))
 	default:
 		return nil, errors.New("missing service account credentials (set GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_SERVICE_ACCOUNT_FILE, or GOOGLE_APPLICATION_CREDENTIALS)")
 	}
 
-	// Create HTTP client with connection pooling and proper timeouts
-	baseClient := newHTTPClientWithPooling()
-
 	// Create service using service account credentials
-	return gsheet.NewService(ctx, 
+	slog.InfoContext(ctx, "Creating Google Sheets service with Service Account",
+		"credentials_size", len(credentialsJSON),
+		"scope", gsheet.SpreadsheetsScope)
+	
+	// Try without custom HTTP client first to debug
+	service, err := gsheet.NewService(ctx, 
 		goption.WithCredentialsJSON(credentialsJSON),
-		goption.WithScopes(gsheet.SpreadsheetsScope),
-		goption.WithHTTPClient(baseClient))
+		goption.WithScopes(gsheet.SpreadsheetsScope))
+	
+	if err != nil {
+		return nil, fmt.Errorf("create sheets service: %w", err)
+	}
+	
+	slog.InfoContext(ctx, "Google Sheets service created successfully")
+	return service, nil
 }
 
 // newHTTPClientWithPooling creates an HTTP client optimized for Google Sheets API
