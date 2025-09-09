@@ -32,32 +32,7 @@
         
         <div class="recurrent-amount">{{ printf "€%.2f" (divFloat .Amount.Cents 100) }}</div>
         
-        <div class="recurrent-actions">
-          <button class="action-icon" 
-                  hx-get="/recurrent/{{ .ID }}/edit" 
-                  hx-target="#recurrent-{{ .ID }}" 
-                  hx-swap="outerHTML"
-                  title="Modifica spesa ricorrente"
-                  aria-label="Modifica spesa ricorrente">
-            <svg viewBox="0 0 24 24">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-              <path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-          </button>
-          
-          <button class="action-icon" 
-                  hx-delete="/recurrent/delete?id={{ .ID }}"
-                  hx-target="#recurrent-{{ .ID }}"
-                  hx-swap="outerHTML"
-                  hx-confirm="Sei sicuro di voler eliminare questa spesa ricorrente?"
-                  title="Elimina spesa ricorrente"
-                  aria-label="Elimina spesa ricorrente">
-            <svg viewBox="0 0 24 24">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
+        {{ template "action_buttons" (dict "ShowEdit" true "ShowDelete" true "EditURL" (printf "/recurrent/%d/edit" .ID) "EditTarget" (printf "#recurrent-%d" .ID) "DeleteURL" (printf "/recurrent/delete?id=%d" .ID) "DeleteTarget" (printf "#recurrent-%d" .ID) "DeleteConfirm" "Sei sicuro di voler eliminare questa spesa ricorrente?") }}
       </div>
       {{ end }}
     </div>

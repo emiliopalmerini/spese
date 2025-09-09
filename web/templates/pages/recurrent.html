@@ -1,0 +1,104 @@
+{{ define "recurrent_page" }}
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#10b981" />
+    <title>Spese</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  </head>
+  <body class="theme-ink density-comfortable style-minimal">
+    <header class="topbar">
+      <div class="container topbar__inner">
+        <div class="brand">Spese</div>
+        <nav class="topbar__nav">
+          <a href="/" class="nav-link">Spese</a>
+          <a href="/recurrent" class="nav-link">Spese Ricorrenti</a>
+        </nav>
+      </div>
+    </header>
+    <main class="container page">
+      {{ template "recurrent_content" . }}
+    </main>
+  </body>
+</html>
+{{ end }}
+
+{{ define "recurrent_content" }}
+<div class="container">
+  {{/* Main recurrent expense form section */}}
+  <section class="page__section">
+    <h1 class="page__title">Registra Spesa Ricorrente</h1>
+    
+    <form id="recurrent-expense-form"
+          class="form"
+          hx-post="/recurrent/create"
+          hx-target="#flash"
+          hx-swap="innerHTML"
+          hx-indicator=".indicator"
+          hx-on::after-request="if(event.detail.successful) { this.reset(); document.getElementById('description').focus(); }">
+
+      {{/* Description field using component */}}
+      {{ template "form_field" (dict "ID" "description" "Name" "description" "Type" "text" "Label" "Descrizione" "MaxLength" "200" "Placeholder" "es. Abbonamento Netflix" "Required" true) }}
+
+      {{/* Amount field using component */}}
+      {{ template "form_field" (dict "ID" "amount" "Name" "amount" "Type" "number" "Label" "Importo (€)" "Step" "0.01" "Min" "0.01" "Placeholder" "0.00" "Required" true) }}
+
+      {{/* Date fields group using component */}}
+      <div class="field-group">
+        {{ template "form_field" (dict "ID" "start_date" "Name" "start_date" "Type" "date" "Label" "Data inizio" "Required" true "Half" true) }}
+        {{ template "form_field" (dict "ID" "end_date" "Name" "end_date" "Type" "date" "Label" "Data fine (opzionale)" "Half" true) }}
+      </div>
+
+      {{/* Repetition type field */}}
+      <div class="field">
+        <label for="repetition_type">Frequenza</label>
+        <select id="repetition_type" name="repetition_type" required>
+          <option value="">Seleziona frequenza</option>
+          <option value="daily">Giornaliera</option>
+          <option value="weekly">Settimanale</option>
+          <option value="monthly">Mensile</option>
+          <option value="yearly">Annuale</option>
+        </select>
+      </div>
+
+      {{/* Category fields using component */}}
+      {{ template "category_selector" (dict "PrimaryID" "primary" "PrimaryName" "primary" "SecondaryID" "secondary" "SecondaryName" "secondary" "LoadingID" "category-loading" "Categories" .Categories "Subcats" .Subcats) }}
+
+      {{/* Flash messages using component */}}
+      {{ template "flash_messages" (dict "ID" "flash") }}
+
+      {{/* Submit button and loading indicator */}}
+      <div class="actions">
+        <button class="btn btn-primary btn--block" type="submit">Aggiungi Spesa Ricorrente</button>
+        {{ template "loading_indicator" (dict "Text" "Salvataggio in corso…") }}
+      </div>
+    </form>
+  </section>
+
+  {{/* Monthly overview for recurrent expenses */}}
+  <section class="page__section">
+    <div id="recurrent-monthly-overview" 
+         hx-get="/ui/recurrent-monthly-overview" 
+         hx-trigger="load, recurrent:created from:body, recurrent:updated from:body, recurrent:deleted from:body"
+         hx-target="#recurrent-monthly-overview" 
+         hx-swap="outerHTML">
+      <div class="placeholder">Caricamento panoramica mensile…</div>
+    </div>
+  </section>
+
+  {{/* Recurrent expenses list section that loads via HTMX */}}
+  <section class="page__section">
+    <div id="recurrent-overview" 
+         hx-get="/ui/recurrent-expenses-list" 
+         hx-trigger="load, recurrent:created from:body, recurrent:updated from:body, recurrent:deleted from:body"
+         hx-target="#recurrent-overview" 
+         hx-swap="outerHTML">
+      <div class="placeholder">Caricamento spese ricorrenti…</div>
+    </div>
+  </section>
+</div>
+{{ end }}

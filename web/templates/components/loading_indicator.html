@@ -1,0 +1,7 @@
+{{/* Loading indicator component */}}
+{{ define "loading_indicator" }}
+<div class="indicator htmx-indicator" aria-hidden="true">
+  <span class="spinner"></span>
+  <span>{{ if .Text }}{{ .Text }}{{ else }}Caricamento…{{ end }}</span>
+</div>
+{{ end }}

@@ -1,0 +1,81 @@
+{{ define "index_page" }}
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#10b981" />
+    <title>Spese</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  </head>
+  <body class="theme-ink density-comfortable style-minimal">
+    <header class="topbar">
+      <div class="container topbar__inner">
+        <div class="brand">Spese</div>
+        <nav class="topbar__nav">
+          <a href="/" class="nav-link">Spese</a>
+          <a href="/recurrent" class="nav-link">Spese Ricorrenti</a>
+        </nav>
+      </div>
+    </header>
+    <main class="container page">
+      {{ template "index_content" . }}
+    </main>
+  </body>
+</html>
+{{ end }}
+
+{{ define "index_content" }}
+<div class="container">
+  {{/* Main expense form section */}}
+  <section class="page__section">
+    <h1 class="page__title">Registra Spesa</h1>
+    
+    <form id="expense-form"
+          class="form"
+          hx-post="/expenses"
+          hx-target="#flash"
+          hx-swap="innerHTML"
+          hx-indicator=".indicator"
+          hx-on::after-request="if(event.detail.successful) { this.reset(); document.getElementById('description').focus(); }">
+
+      {{/* Date fields group using component */}}
+      <div class="field-group">
+        {{ template "form_field" (dict "ID" "day" "Name" "day" "Type" "number" "Label" "Giorno" "Min" "1" "Max" "31" "Value" .Day "Required" true "Half" true) }}
+        {{ template "form_field" (dict "ID" "month" "Name" "month" "Type" "number" "Label" "Mese" "Min" "1" "Max" "12" "Value" .Month "Required" true "Half" true) }}
+      </div>
+
+      {{/* Description field using component */}}
+      {{ template "form_field" (dict "ID" "description" "Name" "description" "Type" "text" "Label" "Descrizione" "MaxLength" "200" "Placeholder" "es. Supermercato" "Required" true) }}
+
+      {{/* Amount field using component */}}
+      {{ template "form_field" (dict "ID" "amount" "Name" "amount" "Type" "number" "Label" "Importo (€)" "Step" "0.01" "Min" "0.01" "Placeholder" "0.00" "Required" true) }}
+
+      {{/* Category fields using component */}}
+      {{ template "category_selector" (dict "PrimaryID" "primary" "PrimaryName" "primary" "SecondaryID" "secondary" "SecondaryName" "secondary" "LoadingID" "category-loading" "Categories" .Categories "Subcats" .Subcats) }}
+
+      {{/* Flash messages using component */}}
+      {{ template "flash_messages" (dict "ID" "flash") }}
+
+      {{/* Submit button and loading indicator */}}
+      <div class="actions">
+        <button class="btn btn-primary btn--block" type="submit">Aggiungi Spesa</button>
+        {{ template "loading_indicator" (dict "Text" "Salvataggio in corso…") }}
+      </div>
+    </form>
+  </section>
+
+  {{/* Month overview section that loads via HTMX */}}
+  <section class="page__section">
+    <div id="month-overview" 
+         hx-get="/ui/month-overview" 
+         hx-trigger="load, expense:created from:body, expense:deleted from:body"
+         hx-target="#month-overview" 
+         hx-swap="outerHTML">
+      <div class="placeholder">Caricamento panoramica mensile…</div>
+    </div>
+  </section>
+</div>
+{{ end }}

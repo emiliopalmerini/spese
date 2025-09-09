@@ -1,0 +1,19 @@
+{{/* Form field component - supports text, number, date inputs */}}
+{{ define "form_field" }}
+<div class="field {{ if .Half }}field--half{{ end }}">
+  <label for="{{ .ID }}">{{ .Label }}</label>
+  <input 
+    id="{{ .ID }}" 
+    type="{{ .Type }}" 
+    name="{{ .Name }}" 
+    {{ if .Value }}value="{{ .Value }}"{{ end }}
+    {{ if .Placeholder }}placeholder="{{ .Placeholder }}"{{ end }}
+    {{ if .Min }}min="{{ .Min }}"{{ end }}
+    {{ if .Max }}max="{{ .Max }}"{{ end }}
+    {{ if .Step }}step="{{ .Step }}"{{ end }}
+    {{ if .MaxLength }}maxlength="{{ .MaxLength }}"{{ end }}
+    {{ if .Required }}required{{ end }}
+    {{ if .Class }}class="{{ .Class }}"{{ end }}
+  />
+</div>
+{{ end }}

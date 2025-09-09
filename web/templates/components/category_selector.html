@@ -1,0 +1,31 @@
+{{/* Category selector component with HTMX for dynamic secondary loading */}}
+{{ define "category_selector" }}
+<div class="field-group">
+  <div class="field field--half">
+    <label for="{{ .PrimaryID }}">Categoria Primaria</label>
+    <select id="{{ .PrimaryID }}" name="{{ .PrimaryName }}" required
+            hx-get="/api/categories/secondary"
+            hx-trigger="change"
+            hx-target="#{{ .SecondaryID }}"
+            hx-swap="innerHTML"
+            hx-indicator="#{{ .LoadingID }}">
+      <option value="">Seleziona categoria</option>
+      {{ range .Categories }}<option value="{{ . }}" {{ if eq . $.SelectedPrimary }}selected{{ end }}>{{ . }}</option>{{ end }}
+    </select>
+  </div>
+
+  <div class="field field--half">
+    <label for="{{ .SecondaryID }}">Categoria Secondaria</label>
+    <select id="{{ .SecondaryID }}" name="{{ .SecondaryName }}" required>
+      {{ if .Subcats }}
+        {{ range .Subcats }}<option value="{{ . }}" {{ if eq . $.SelectedSecondary }}selected{{ end }}>{{ . }}</option>{{ end }}
+      {{ else }}
+        <option value="">Seleziona prima la categoria primaria</option>
+      {{ end }}
+    </select>
+    <div id="{{ .LoadingID }}" class="htmx-indicator" style="display: none; margin-top: 4px; font-size: 0.875rem; color: #6b7280;">
+      Caricamento sottocategorie...
+    </div>
+  </div>
+</div>
+{{ end }}

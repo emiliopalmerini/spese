@@ -351,9 +351,23 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 		"formatDate": func(day, month, year int) string {
 			return fmt.Sprintf("%02d/%02d/%d", day, month, year)
 		},
+		"dict": func(values ...interface{}) map[string]interface{} {
+			if len(values)%2 != 0 {
+				return nil
+			}
+			dict := make(map[string]interface{}, len(values)/2)
+			for i := 0; i < len(values); i += 2 {
+				key, ok := values[i].(string)
+				if !ok {
+					return nil
+				}
+				dict[key] = values[i+1]
+			}
+			return dict
+		},
 	}
 
-	t, err := template.New("").Funcs(funcMap).ParseFS(appweb.TemplatesFS, "templates/*.html")
+	t, err := template.New("").Funcs(funcMap).ParseFS(appweb.TemplatesFS, "templates/**/*.html")
 	if err != nil {
 		slog.Error("Failed parsing templates", "error", err)
 		panic(fmt.Sprintf("Failed to parse templates: %v", err))

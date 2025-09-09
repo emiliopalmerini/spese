@@ -25,7 +25,10 @@
       "Bash(git commit:*)",
       "Bash(git add:*)",
       "Bash(go get:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []
