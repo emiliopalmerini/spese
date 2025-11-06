@@ -98,7 +98,7 @@ class NotificationManager {
         const notification = document.createElement('div');
         notification.className = `notification ${type}`;
         notification.dataset.autoDismiss = duration;
-        notification.innerHTML = message;
+        notification.textContent = message;
 
         // Add to container
         this.container.appendChild(notification);
