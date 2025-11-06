@@ -1,10 +1,12 @@
 APP_NAME := spese
 WORKER_NAME := spese-worker
+RECURRING_WORKER_NAME := recurring-worker
 PKG := ./...
 BIN := bin/$(APP_NAME)
 WORKER_BIN := bin/$(WORKER_NAME)
+RECURRING_WORKER_BIN := bin/$(RECURRING_WORKER_NAME)
 
-.PHONY: all help setup tidy fmt vet lint test build build-worker build-all run run-worker logs clean docker-build docker-up docker-logs docker-down up smoke cover sqlc-generate refresh-categories
+.PHONY: all help setup tidy fmt vet lint test build build-worker build-recurring-worker build-all run run-worker run-recurring-worker logs clean docker-build docker-up docker-logs docker-down up smoke cover sqlc-generate refresh-categories
 
 all: help
 
@@ -14,15 +16,17 @@ help: ## Show this help message
 	@echo "📋 Available commands:"
 	@echo ""
 	@echo "🏗️  Build Commands:"
-	@echo "  build         Build main application"
-	@echo "  build-worker  Build background worker"
-	@echo "  build-all     Build both main app and worker"
-	@echo "  clean         Remove build artifacts"
+	@echo "  build                  Build main application"
+	@echo "  build-worker           Build background sync worker"
+	@echo "  build-recurring-worker Build recurring expenses worker"
+	@echo "  build-all              Build all (app + both workers)"
+	@echo "  clean                  Remove build artifacts"
 	@echo ""
 	@echo "🚀 Development Commands:"
-	@echo "  run           Run main application locally"
-	@echo "  run-worker    Run background worker locally"
-	@echo "  logs          Watch logs for both app and worker (Docker)"
+	@echo "  run                    Run main application locally"
+	@echo "  run-worker             Run background sync worker locally"
+	@echo "  run-recurring-worker   Run recurring expenses worker locally"
+	@echo "  logs                   Watch logs for all services (Docker)"
 	@echo "  setup         Setup development environment"
 	@echo "  tidy          Run go mod tidy"
 	@echo ""
@@ -77,7 +81,10 @@ build:
 build-worker:
 	CGO_ENABLED=0 go build -ldflags='-s -w' -o $(WORKER_BIN) ./cmd/spese-worker
 
-build-all: build build-worker
+build-recurring-worker:
+	CGO_ENABLED=0 go build -ldflags='-s -w' -o $(RECURRING_WORKER_BIN) ./cmd/recurring-worker
+
+build-all: build build-worker build-recurring-worker
 
 run:
 	go run ./cmd/spese
@@ -85,8 +92,11 @@ run:
 run-worker:
 	go run ./cmd/spese-worker
 
+run-recurring-worker:
+	go run ./cmd/recurring-worker
+
 logs:
-	docker compose logs -f $(APP_NAME) $(WORKER_NAME)
+	docker compose logs -f $(APP_NAME) $(WORKER_NAME) $(RECURRING_WORKER_NAME)
 
 sqlc-generate:
 	@echo "Generating sqlc code..."

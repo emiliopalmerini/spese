@@ -686,3 +686,70 @@ func (r *SQLiteRepository) DeleteRecurrentExpense(ctx context.Context, id int64)
 	slog.InfoContext(ctx, "Recurrent expense deactivated", "id", id)
 	return nil
 }
+
+// GetActiveRecurrentExpensesForProcessing returns all active recurring expenses that may need processing
+func (r *SQLiteRepository) GetActiveRecurrentExpensesForProcessing(ctx context.Context, now time.Time) ([]core.RecurrentExpenses, error) {
+	dbExpenses, err := r.readQueries.GetActiveRecurrentExpensesForProcessing(ctx, GetActiveRecurrentExpensesForProcessingParams{
+		StartDate: now,
+		EndDate:   now,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get active recurrent expenses for processing: %w", err)
+	}
+
+	expenses := make([]core.RecurrentExpenses, len(dbExpenses))
+	for i, e := range dbExpenses {
+		expenses[i] = core.RecurrentExpenses{
+			ID: e.ID,
+			StartDate: core.DateParts{
+				Day:   e.StartDate.Day(),
+				Month: int(e.StartDate.Month()),
+				Year:  e.StartDate.Year(),
+			},
+			Every:       core.RepetitionTypes(e.RepetitionType),
+			Description: e.Description,
+			Amount:      core.Money{Cents: e.AmountCents},
+			Primary:     e.PrimaryCategory,
+			Secondary:   e.SecondaryCategory,
+		}
+
+		// Parse EndDate if present
+		if endDate, ok := e.EndDate.(time.Time); ok && !endDate.IsZero() {
+			expenses[i].EndDate = core.DateParts{
+				Day:   endDate.Day(),
+				Month: int(endDate.Month()),
+				Year:  endDate.Year(),
+			}
+		}
+	}
+
+	return expenses, nil
+}
+
+// UpdateRecurrentLastExecution updates the last_execution_date for a recurring expense
+func (r *SQLiteRepository) UpdateRecurrentLastExecution(ctx context.Context, id int64, executionDate time.Time) error {
+	err := r.queries.UpdateRecurrentLastExecution(ctx, UpdateRecurrentLastExecutionParams{
+		ID:                id,
+		LastExecutionDate: executionDate,
+	})
+	if err != nil {
+		return fmt.Errorf("update recurrent last execution: %w", err)
+	}
+
+	slog.InfoContext(ctx, "Updated recurrent expense last execution",
+		"id", id,
+		"execution_date", executionDate.Format("2006-01-02"))
+
+	return nil
+}
+
+// GetRecurrentExpenseRaw returns the raw database record for a recurring expense
+// This includes the last_execution_date field which is used for processing logic
+func (r *SQLiteRepository) GetRecurrentExpenseRaw(ctx context.Context, id int64) (*RecurrentExpense, error) {
+	dbExpense, err := r.readQueries.GetRecurrentExpenseByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get recurrent expense raw: %w", err)
+	}
+
+	return &dbExpense, nil
+}
