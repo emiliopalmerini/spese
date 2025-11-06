@@ -1267,8 +1267,13 @@ func (s *Server) handleCreateRecurrentExpense(w http.ResponseWriter, r *http.Req
 
 	slog.InfoContext(r.Context(), "Recurrent expense created", "id", id, "description", re.Description)
 
-	// Reload the page to show the updated recurrent expenses list
-	w.Header().Set("HX-Refresh", "true")
+	// Trigger client refresh for form, recurrent lists + show notification
+	successMsg := fmt.Sprintf("Spesa ricorrente '%s' creata con successo", re.Description)
+	w.Header().Set("HX-Trigger", fmt.Sprintf(`{
+		"recurrent:created": {},
+		"form:reset": {},
+		"show-notification": {"type": "success", "message": "%s", "duration": 3000}
+	}`, template.JSEscapeString(successMsg)))
 	
 	w.WriteHeader(http.StatusCreated)
 	_, _ = w.Write([]byte("")) // Empty response, notifications handled via JavaScript
