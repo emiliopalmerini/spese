@@ -459,7 +459,7 @@ func (c *Client) ListExpenses(ctx context.Context, year int, month int) ([]core.
 			secondary = strings.TrimSpace(cols[7])
 		}
 		e := core.Expense{
-			Date:        core.DateParts{Day: day, Month: month},
+			Date:        core.NewDate(time.Now().Year(), month, day),
 			Description: desc,
 			Amount:      core.Money{Cents: cents},
 			Primary:     primary,
@@ -518,13 +518,13 @@ func (c *Client) DeleteExpenseByData(ctx context.Context, expenseData core.Expen
 
 		// Match month (column A)
 		month, err := strconv.Atoi(strings.TrimSpace(cols[0]))
-		if err != nil || month != expenseData.Date.Month {
+		if err != nil || month != expenseData.Date.Month() {
 			continue
 		}
 
 		// Match day (column B)
 		day, err := strconv.Atoi(strings.TrimSpace(cols[1]))
-		if err != nil || day != expenseData.Date.Day {
+		if err != nil || day != expenseData.Date.Day() {
 			continue
 		}
 
@@ -605,8 +605,8 @@ func (c *Client) DeleteExpenseByData(ctx context.Context, expenseData core.Expen
 			"total_rows_scanned", len(resp.Values))
 		
 		return fmt.Errorf("expense not found in Google Sheets: month=%d day=%d description=%s amount=%.2f primary=%s secondary=%s",
-			expenseData.Date.Month, expenseData.Date.Day, expenseData.Description, 
-			float64(expenseData.Amount.Cents)/100.0, expenseData.Primary, expenseData.Secondary)
+		expenseData.Date.Month(), expenseData.Date.Day(), expenseData.Description,
+		float64(expenseData.Amount.Cents)/100.0, expenseData.Primary, expenseData.Secondary)
 	}
 
 	// Get the sheet ID for the batchUpdate API

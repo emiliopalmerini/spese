@@ -87,7 +87,7 @@ func TestIntegration_GoogleSheetsFlow(t *testing.T) {
 
 		// Create test expense
 		testExpense := core.Expense{
-			Date:        core.DateParts{Day: time.Now().Day(), Month: int(time.Now().Month())},
+			Date:        core.Date{Time: time.Now()},
 			Description: "Integration Test Expense",
 			Amount:      core.Money{Cents: 1234}, // €12.34
 			Primary:     categories[0],
@@ -224,7 +224,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 
 		// Test with invalid expense
 		invalidExpense := core.Expense{
-			Date:        core.DateParts{Day: 0, Month: 1}, // Invalid day
+			Date:        core.Date{Time: time.Date(2025, 1, 0, 0, 0, 0, 0, time.UTC)}, // Invalid day
 			Description: "Test",
 			Amount:      core.Money{Cents: 100},
 			Primary:     "Test",

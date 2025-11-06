@@ -46,11 +46,7 @@ func (w *SyncWorker) HandleSyncMessage(ctx context.Context, msg *amqp.ExpenseSyn
 
 	// Convert storage expense to core expense
 	coreExpense := core.Expense{
-		Date: core.DateParts{
-			Day:   expense.Date.Day(),
-			Month: int(expense.Date.Month()),
-			Year:  expense.Date.Year(),
-		},
+		Date:        core.Date{Time: expense.Date},
 		Description: expense.Description,
 		Amount:      core.Money{Cents: expense.AmountCents},
 		Primary:     expense.PrimaryCategory,
@@ -80,10 +76,7 @@ func (w *SyncWorker) HandleDeleteMessage(ctx context.Context, msg *amqp.ExpenseD
 	// For Google Sheets deletion, we need the expense data to find the row
 	// Reconstruct the expense from the message data
 	expenseData := core.Expense{
-		Date: core.DateParts{
-			Day:   msg.Day,
-			Month: msg.Month,
-		},
+		Date:        core.NewDate(time.Now().Year(), msg.Month, msg.Day),
 		Description: msg.Description,
 		Amount:      core.Money{Cents: msg.AmountCents},
 		Primary:     msg.Primary,
@@ -157,11 +150,7 @@ func (w *SyncWorker) ProcessPendingExpenses(ctx context.Context) error {
 
 		// Convert and sync
 		coreExpense := core.Expense{
-			Date: core.DateParts{
-				Day:   expense.Date.Day(),
-				Month: int(expense.Date.Month()),
-				Year:  expense.Date.Year(),
-			},
+			Date:        core.Date{Time: expense.Date},
 			Description: expense.Description,
 			Amount:      core.Money{Cents: expense.AmountCents},
 			Primary:     expense.PrimaryCategory,
@@ -212,11 +201,7 @@ func (w *SyncWorker) StartupSyncCheck(ctx context.Context) error {
 
 		// Convert and sync
 		coreExpense := core.Expense{
-			Date: core.DateParts{
-				Day:   expense.Date.Day(),
-				Month: int(expense.Date.Month()),
-				Year:  expense.Date.Year(),
-			},
+			Date:        core.Date{Time: expense.Date},
 			Description: expense.Description,
 			Amount:      core.Money{Cents: expense.AmountCents},
 			Primary:     expense.PrimaryCategory,

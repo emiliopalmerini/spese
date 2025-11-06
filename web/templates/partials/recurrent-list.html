@@ -23,7 +23,7 @@
         
         <div class="recurrent-dates">
           Dal {{ formatDate .StartDate.Day .StartDate.Month .StartDate.Year }}
-          {{ if .EndDate.Year }}
+          {{ if not .EndDate.IsZero }}
             al {{ formatDate .EndDate.Day .EndDate.Month .EndDate.Year }}
           {{ else }}
             (senza fine)

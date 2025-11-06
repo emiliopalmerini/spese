@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"strings"
+	"time"
 )
 
 const (
@@ -15,10 +16,8 @@ const (
 type (
 	RepetitionTypes string
 
-	DateParts struct {
-		Day   int
-		Month int
-		Year  int
+	Date struct {
+		time.Time
 	}
 
 	Money struct {
@@ -26,7 +25,7 @@ type (
 	}
 
 	Expense struct {
-		Date        DateParts
+		Date        Date
 		Description string
 		Amount      Money
 		Primary     string // Primary category
@@ -35,8 +34,8 @@ type (
 
 	RecurrentExpenses struct {
 		ID          int64 // Database ID for operations
-		StartDate   DateParts
-		EndDate     DateParts
+		StartDate   Date
+		EndDate     Date
 		Every       RepetitionTypes
 		Description string
 		Amount      Money
@@ -54,14 +53,44 @@ var (
 	ErrEmptySecondary   = errors.New("empty secondary category")
 )
 
-func (d DateParts) Validate() error {
-	if d.Day < 1 || d.Day > 31 {
+func (d Date) Validate() error {
+	if d.IsZero() {
+		return errors.New("date cannot be zero")
+	}
+	// Check basic ranges
+	_, month, day := d.Date()
+	if day < 1 || day > 31 {
 		return ErrInvalidDay
 	}
-	if d.Month < 1 || d.Month > 12 {
+	if month < 1 || month > 12 {
 		return ErrInvalidMonth
 	}
 	return nil
+}
+
+// Day returns the day of the month
+func (d Date) Day() int {
+	return d.Time.Day()
+}
+
+// Month returns the month
+func (d Date) Month() int {
+	return int(d.Time.Month())
+}
+
+// Year returns the year
+func (d Date) Year() int {
+	return d.Time.Year()
+}
+
+// NewDate creates a new Date from year, month, day
+func NewDate(year, month, day int) Date {
+	return Date{Time: time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)}
+}
+
+// IsEmpty returns true if the date is zero (for backward compatibility with optional dates)
+func (d Date) IsEmpty() bool {
+	return d.IsZero()
 }
 
 func (m Money) Validate() error {
@@ -100,15 +129,13 @@ func (re RecurrentExpenses) Validate() error {
 	}
 
 	// Validate end date if provided
-	if re.EndDate.Year > 0 || re.EndDate.Month > 0 || re.EndDate.Day > 0 {
+	if !re.EndDate.IsZero() {
 		if err := re.EndDate.Validate(); err != nil {
 			return errors.New("invalid end date: " + err.Error())
 		}
 
 		// Ensure end date is after start date
-		startTime := re.StartDate.Year*10000 + re.StartDate.Month*100 + re.StartDate.Day
-		endTime := re.EndDate.Year*10000 + re.EndDate.Month*100 + re.EndDate.Day
-		if endTime < startTime {
+		if !re.EndDate.After(re.StartDate.Time) && !re.EndDate.Equal(re.StartDate.Time) {
 			return errors.New("end date must be after start date")
 		}
 	}

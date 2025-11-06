@@ -66,10 +66,7 @@ func (p *RecurringProcessor) ProcessDueExpenses(ctx context.Context, now time.Ti
 
 		// Create the actual expense
 		expense := core.Expense{
-			Date: core.DateParts{
-				Day:   now.Day(),
-				Month: int(now.Month()),
-			},
+			Date:        core.Date{Time: now},
 			Description: re.Description,
 			Amount:      re.Amount,
 			Primary:     re.Primary,
@@ -133,9 +130,9 @@ func (p *RecurringProcessor) isDueForProcessing(ctx context.Context, dbExpense *
 	case core.Weekly:
 		return p.isDueWeekly(lastExecution, now), nil
 	case core.Monthly:
-		return p.isDueMonthly(lastExecution, now, dbExpense.StartDate.Day), nil
+		return p.isDueMonthly(lastExecution, now, dbExpense.StartDate.Day()), nil
 	case core.Yearly:
-		return p.isDueYearly(lastExecution, now, dbExpense.StartDate.Month, dbExpense.StartDate.Day), nil
+		return p.isDueYearly(lastExecution, now, dbExpense.StartDate.Month(), dbExpense.StartDate.Day()), nil
 	default:
 		return false, fmt.Errorf("unknown repetition type: %s", dbExpense.Every)
 	}
