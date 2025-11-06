@@ -344,16 +344,16 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 
 	// Parse embedded templates at startup with custom functions.
 	funcMap := template.FuncMap{
-		"divFloat": func(a, b int64) float64 {
+		"divFloat": func(a, b int64) float64 { // Safe float division for template calculations
 			return float64(a) / float64(b)
 		},
-		"formatDate": func(day, month, year int) string {
+		"formatDate": func(day, month, year int) string { // Format date components as DD/MM/YYYY
 			return fmt.Sprintf("%02d/%02d/%d", day, month, year)
 		},
-		"not": func(v bool) bool {
+		"not": func(v bool) bool { // Logical NOT for template conditionals
 			return !v
 		},
-		"dict": func(values ...interface{}) map[string]interface{} {
+		"dict": func(values ...interface{}) map[string]interface{} { // Create map from key-value pairs for template data
 			if len(values)%2 != 0 {
 				return nil
 			}
@@ -731,6 +731,19 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleCreateExpense processes expense creation requests from the web form.
+// It parses form data, validates input, creates an Expense entity, and saves it to the database.
+// Returns HTMX-compatible HTML fragments for success or error states.
+//
+// Expected form fields:
+//   - day: Day of month (1-31)
+//   - month: Month (1-12)
+//   - description: Expense description (required, max 200 chars)
+//   - amount: Monetary amount (decimal string like "12.34")
+//   - primary: Primary category (required)
+//   - secondary: Secondary category (required)
+//
+// Returns 200 on success with success message, 400/422 for validation errors.
 func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")

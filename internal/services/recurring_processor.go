@@ -1,3 +1,8 @@
+// Package services provides business logic and orchestration services.
+//
+// This package contains services that coordinate between the domain layer
+// and infrastructure layers, implementing complex business operations
+// like recurring expense processing.
 package services
 
 import (
@@ -9,13 +14,16 @@ import (
 	"time"
 )
 
-// RecurringProcessor handles the automatic creation of expenses from recurring expense templates
+// RecurringProcessor handles the automatic creation of expenses from recurring expense templates.
+// It processes configured recurrent expenses and creates actual expense entries
+// based on their frequency (daily, weekly, monthly, yearly) and date ranges.
 type RecurringProcessor struct {
-	storage        *storage.SQLiteRepository
-	expenseService *ExpenseService
+	storage        *storage.SQLiteRepository // Database access for recurrent expenses
+	expenseService *ExpenseService          // Service for creating regular expenses
 }
 
-// NewRecurringProcessor creates a new recurring expense processor
+// NewRecurringProcessor creates a new recurring expense processor.
+// It requires a storage repository and an expense service to function.
 func NewRecurringProcessor(storage *storage.SQLiteRepository, expenseService *ExpenseService) *RecurringProcessor {
 	return &RecurringProcessor{
 		storage:        storage,

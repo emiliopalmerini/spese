@@ -532,7 +532,9 @@ func (r *SQLiteRepository) RefreshCategories(ctx context.Context) error {
 
 // Recurrent Expenses methods
 
-// CreateRecurrentExpense creates a new recurrent expense
+// CreateRecurrentExpense creates a new recurrent expense configuration in the database.
+// It handles both indefinite (no end date) and definite (with end date) recurrences.
+// Returns the database ID of the created recurrent expense.
 func (r *SQLiteRepository) CreateRecurrentExpense(ctx context.Context, re core.RecurrentExpenses) (int64, error) {
 	var endDate interface{}
 	if !re.EndDate.IsZero() {
