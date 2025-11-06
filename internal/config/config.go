@@ -33,6 +33,9 @@ type Config struct {
 	SyncBatchSize int
 	SyncInterval  time.Duration
 
+	// Recurring Processor
+	RecurringProcessorInterval time.Duration
+
 	// Backend selection
 	DataBackend string
 }
@@ -53,6 +56,8 @@ func Load() *Config {
 
 		SyncBatchSize: getEnvInt("SYNC_BATCH_SIZE", 10),
 		SyncInterval:  getEnvDuration("SYNC_INTERVAL", 30*time.Second),
+
+		RecurringProcessorInterval: getEnvDuration("RECURRING_PROCESSOR_INTERVAL", 1*time.Hour),
 
 		DataBackend: getEnv("DATA_BACKEND", "sqlite"),
 	}
@@ -159,6 +164,13 @@ func (c *Config) Validate() error {
 		errors = append(errors, fmt.Sprintf("invalid sync interval %v: must be at least 1 second", c.SyncInterval))
 	} else if c.SyncInterval > 24*time.Hour {
 		errors = append(errors, fmt.Sprintf("invalid sync interval %v: must be at most 24 hours", c.SyncInterval))
+	}
+
+	// Validate recurring processor configuration
+	if c.RecurringProcessorInterval < time.Minute {
+		errors = append(errors, fmt.Sprintf("invalid recurring processor interval %v: must be at least 1 minute", c.RecurringProcessorInterval))
+	} else if c.RecurringProcessorInterval > 7*24*time.Hour {
+		errors = append(errors, fmt.Sprintf("invalid recurring processor interval %v: must be at most 7 days", c.RecurringProcessorInterval))
 	}
 
 	// Return combined errors

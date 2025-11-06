@@ -54,12 +54,12 @@
     {{/* Dates - simplified inline */}}
     <div class="recurrent-dates recurrent-dates--editing">
       <span class="date-label">Dal</span>
-      <input type="date" 
-             name="start_date" 
-             value="{{ printf "%d-%02d-%02d" .StartDate.Year .StartDate.Month .StartDate.Day }}"
-             required
-             class="date-input">
-      {{ if .EndDate.Year }}
+      <input type="date"
+      name="start_date"
+      value="{{ printf "%d-%02d-%02d" .StartDate.Year .StartDate.Month .StartDate.Day }}"
+      required
+      class="date-input">
+      {{ if not .EndDate.IsZero }}
         <span class="date-label">al</span>
         <input type="date" 
                name="end_date" 

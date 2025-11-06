@@ -104,12 +104,8 @@ func (r *SQLiteRepository) Close() error {
 
 // Append implements sheets.ExpenseWriter
 func (r *SQLiteRepository) Append(ctx context.Context, e core.Expense) (string, error) {
-	// Convert DateParts to date string format, defaulting to current year if not provided
-	year := e.Date.Year
-	if year == 0 {
-		year = time.Now().Year()
-	}
-	dateStr := fmt.Sprintf("%04d-%02d-%02d", year, e.Date.Month, e.Date.Day)
+	// Format date as string for SQLite
+	dateStr := fmt.Sprintf("%04d-%02d-%02d", e.Date.Year(), e.Date.Month(), e.Date.Day())
 
 	expense, err := r.queries.CreateExpense(ctx, CreateExpenseParams{
 		Date:              dateStr,
@@ -199,11 +195,7 @@ func (r *SQLiteRepository) ListExpenses(ctx context.Context, year int, month int
 	expenses := make([]core.Expense, len(dbExpenses))
 	for i, e := range dbExpenses {
 		expenses[i] = core.Expense{
-			Date: core.DateParts{
-				Day:   e.Date.Day(),
-				Month: int(e.Date.Month()),
-				Year:  e.Date.Year(),
-			},
+			Date:        core.Date{Time: e.Date},
 			Description: e.Description,
 			Amount:      core.Money{Cents: e.AmountCents},
 			Primary:     e.PrimaryCategory,
@@ -226,11 +218,7 @@ func (r *SQLiteRepository) ListExpensesWithID(ctx context.Context, year int, mon
 		expensesWithID[i] = ExpenseWithID{
 			ID: strconv.FormatInt(e.ID, 10),
 			Expense: core.Expense{
-				Date: core.DateParts{
-					Day:   e.Date.Day(),
-					Month: int(e.Date.Month()),
-					Year:  e.Date.Year(),
-				},
+				Date:        core.Date{Time: e.Date},
 				Description: e.Description,
 				Amount:      core.Money{Cents: e.AmountCents},
 				Primary:     e.PrimaryCategory,
@@ -544,18 +532,17 @@ func (r *SQLiteRepository) RefreshCategories(ctx context.Context) error {
 
 // Recurrent Expenses methods
 
-// CreateRecurrentExpense creates a new recurrent expense
+// CreateRecurrentExpense creates a new recurrent expense configuration in the database.
+// It handles both indefinite (no end date) and definite (with end date) recurrences.
+// Returns the database ID of the created recurrent expense.
 func (r *SQLiteRepository) CreateRecurrentExpense(ctx context.Context, re core.RecurrentExpenses) (int64, error) {
-	// Convert DateParts to time.Time
-	startDate := time.Date(re.StartDate.Year, time.Month(re.StartDate.Month), re.StartDate.Day, 0, 0, 0, 0, time.UTC)
-
 	var endDate interface{}
-	if re.EndDate.Year > 0 {
-		endDate = time.Date(re.EndDate.Year, time.Month(re.EndDate.Month), re.EndDate.Day, 0, 0, 0, 0, time.UTC)
+	if !re.EndDate.IsZero() {
+		endDate = re.EndDate.Time
 	}
 
 	expense, err := r.queries.CreateRecurrentExpense(ctx, CreateRecurrentExpenseParams{
-		StartDate:         startDate,
+		StartDate:         re.StartDate.Time,
 		EndDate:           endDate,
 		RepetitionType:    string(re.Every),
 		Description:       re.Description,
@@ -586,12 +573,8 @@ func (r *SQLiteRepository) GetRecurrentExpenses(ctx context.Context) ([]core.Rec
 	expenses := make([]core.RecurrentExpenses, len(dbExpenses))
 	for i, e := range dbExpenses {
 		expenses[i] = core.RecurrentExpenses{
-			ID: e.ID,
-			StartDate: core.DateParts{
-				Day:   e.StartDate.Day(),
-				Month: int(e.StartDate.Month()),
-				Year:  e.StartDate.Year(),
-			},
+			ID:          e.ID,
+			StartDate:   core.Date{Time: e.StartDate},
 			Every:       core.RepetitionTypes(e.RepetitionType),
 			Description: e.Description,
 			Amount:      core.Money{Cents: e.AmountCents},
@@ -601,11 +584,7 @@ func (r *SQLiteRepository) GetRecurrentExpenses(ctx context.Context) ([]core.Rec
 
 		// Handle nullable EndDate
 		if endTime, ok := e.EndDate.(time.Time); ok {
-			expenses[i].EndDate = core.DateParts{
-				Day:   endTime.Day(),
-				Month: int(endTime.Month()),
-				Year:  endTime.Year(),
-			}
+			expenses[i].EndDate = core.Date{Time: endTime}
 		}
 	}
 
@@ -623,12 +602,8 @@ func (r *SQLiteRepository) GetRecurrentExpenseByID(ctx context.Context, id int64
 	}
 
 	expense := &core.RecurrentExpenses{
-		ID: dbExpense.ID,
-		StartDate: core.DateParts{
-			Day:   dbExpense.StartDate.Day(),
-			Month: int(dbExpense.StartDate.Month()),
-			Year:  dbExpense.StartDate.Year(),
-		},
+		ID:          dbExpense.ID,
+		StartDate:   core.Date{Time: dbExpense.StartDate},
 		Every:       core.RepetitionTypes(dbExpense.RepetitionType),
 		Description: dbExpense.Description,
 		Amount:      core.Money{Cents: dbExpense.AmountCents},
@@ -638,11 +613,7 @@ func (r *SQLiteRepository) GetRecurrentExpenseByID(ctx context.Context, id int64
 
 	// Handle nullable EndDate
 	if endTime, ok := dbExpense.EndDate.(time.Time); ok {
-		expense.EndDate = core.DateParts{
-			Day:   endTime.Day(),
-			Month: int(endTime.Month()),
-			Year:  endTime.Year(),
-		}
+		expense.EndDate = core.Date{Time: endTime}
 	}
 
 	return expense, nil
@@ -650,17 +621,14 @@ func (r *SQLiteRepository) GetRecurrentExpenseByID(ctx context.Context, id int64
 
 // UpdateRecurrentExpense updates an existing recurrent expense
 func (r *SQLiteRepository) UpdateRecurrentExpense(ctx context.Context, id int64, re core.RecurrentExpenses) error {
-	// Convert DateParts to time.Time
-	startDate := time.Date(re.StartDate.Year, time.Month(re.StartDate.Month), re.StartDate.Day, 0, 0, 0, 0, time.UTC)
-
 	var endDate interface{}
-	if re.EndDate.Year > 0 {
-		endDate = time.Date(re.EndDate.Year, time.Month(re.EndDate.Month), re.EndDate.Day, 0, 0, 0, 0, time.UTC)
+	if !re.EndDate.IsZero() {
+		endDate = re.EndDate.Time
 	}
 
 	err := r.queries.UpdateRecurrentExpense(ctx, UpdateRecurrentExpenseParams{
 		ID:                id,
-		StartDate:         startDate,
+		StartDate:         re.StartDate.Time,
 		EndDate:           endDate,
 		RepetitionType:    string(re.Every),
 		Description:       re.Description,
@@ -685,4 +653,63 @@ func (r *SQLiteRepository) DeleteRecurrentExpense(ctx context.Context, id int64)
 
 	slog.InfoContext(ctx, "Recurrent expense deactivated", "id", id)
 	return nil
+}
+
+// GetActiveRecurrentExpensesForProcessing returns all active recurring expenses that may need processing
+func (r *SQLiteRepository) GetActiveRecurrentExpensesForProcessing(ctx context.Context, now time.Time) ([]core.RecurrentExpenses, error) {
+	dbExpenses, err := r.readQueries.GetActiveRecurrentExpensesForProcessing(ctx, GetActiveRecurrentExpensesForProcessingParams{
+		StartDate: now,
+		EndDate:   now,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get active recurrent expenses for processing: %w", err)
+	}
+
+	expenses := make([]core.RecurrentExpenses, len(dbExpenses))
+	for i, e := range dbExpenses {
+		expenses[i] = core.RecurrentExpenses{
+			ID:          e.ID,
+			StartDate:   core.Date{Time: e.StartDate},
+			Every:       core.RepetitionTypes(e.RepetitionType),
+			Description: e.Description,
+			Amount:      core.Money{Cents: e.AmountCents},
+			Primary:     e.PrimaryCategory,
+			Secondary:   e.SecondaryCategory,
+		}
+
+		// Parse EndDate if present
+		if endDate, ok := e.EndDate.(time.Time); ok && !endDate.IsZero() {
+			expenses[i].EndDate = core.Date{Time: endDate}
+		}
+	}
+
+	return expenses, nil
+}
+
+// UpdateRecurrentLastExecution updates the last_execution_date for a recurring expense
+func (r *SQLiteRepository) UpdateRecurrentLastExecution(ctx context.Context, id int64, executionDate time.Time) error {
+	err := r.queries.UpdateRecurrentLastExecution(ctx, UpdateRecurrentLastExecutionParams{
+		ID:                id,
+		LastExecutionDate: executionDate,
+	})
+	if err != nil {
+		return fmt.Errorf("update recurrent last execution: %w", err)
+	}
+
+	slog.InfoContext(ctx, "Updated recurrent expense last execution",
+		"id", id,
+		"execution_date", executionDate.Format("2006-01-02"))
+
+	return nil
+}
+
+// GetRecurrentExpenseRaw returns the raw database record for a recurring expense
+// This includes the last_execution_date field which is used for processing logic
+func (r *SQLiteRepository) GetRecurrentExpenseRaw(ctx context.Context, id int64) (*RecurrentExpense, error) {
+	dbExpense, err := r.readQueries.GetRecurrentExpenseByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get recurrent expense raw: %w", err)
+	}
+
+	return &dbExpense, nil
 }

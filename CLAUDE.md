@@ -36,7 +36,7 @@ Key packages:
 
 ## Core Domain (internal/core)
 
-- **Expense**: Main entity with DateParts, Money, categories
+- **Expense**: Main entity with Date (time.Time wrapper), Money, categories
 - **Money**: Value object using cents to avoid float precision issues  
 - **MonthOverview**: Aggregated monthly data with category breakdowns
 - **Domain validation**: All business rules enforced in domain layer, not controllers

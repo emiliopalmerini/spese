@@ -127,3 +127,16 @@ WHERE is_active = 1
   AND start_date <= ?
   AND (end_date IS NULL OR end_date >= ?)
 ORDER BY start_date DESC;
+
+-- name: UpdateRecurrentLastExecution :exec
+UPDATE recurrent_expenses
+SET last_execution_date = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- name: GetActiveRecurrentExpensesForProcessing :many
+SELECT * FROM recurrent_expenses
+WHERE is_active = 1
+  AND start_date <= ?
+  AND (end_date IS NULL OR end_date >= ?)
+ORDER BY start_date ASC;

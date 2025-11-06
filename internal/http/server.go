@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -345,13 +344,16 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 
 	// Parse embedded templates at startup with custom functions.
 	funcMap := template.FuncMap{
-		"divFloat": func(a, b int64) float64 {
+		"divFloat": func(a, b int64) float64 { // Safe float division for template calculations
 			return float64(a) / float64(b)
 		},
-		"formatDate": func(day, month, year int) string {
+		"formatDate": func(day, month, year int) string { // Format date components as DD/MM/YYYY
 			return fmt.Sprintf("%02d/%02d/%d", day, month, year)
 		},
-		"dict": func(values ...interface{}) map[string]interface{} {
+		"not": func(v bool) bool { // Logical NOT for template conditionals
+			return !v
+		},
+		"dict": func(values ...interface{}) map[string]interface{} { // Create map from key-value pairs for template data
 			if len(values)%2 != 0 {
 				return nil
 			}
@@ -729,6 +731,19 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleCreateExpense processes expense creation requests from the web form.
+// It parses form data, validates input, creates an Expense entity, and saves it to the database.
+// Returns HTMX-compatible HTML fragments for success or error states.
+//
+// Expected form fields:
+//   - day: Day of month (1-31)
+//   - month: Month (1-12)
+//   - description: Expense description (required, max 200 chars)
+//   - amount: Monetary amount (decimal string like "12.34")
+//   - primary: Primary category (required)
+//   - secondary: Secondary category (required)
+//
+// Returns 200 on success with success message, 400/422 for validation errors.
 func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
@@ -769,7 +784,7 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 	}
 
 	exp := core.Expense{
-		Date:        core.DateParts{Day: day, Month: month},
+		Date:        core.NewDate(time.Now().Year(), month, day),
 		Description: desc,
 		Amount:      core.Money{Cents: cents},
 		Primary:     primary,
@@ -1091,7 +1106,7 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 					Amt  string
 					Cat  string
 					Sub  string
-				}{ID: e.ID, Day: e.Expense.Date.Day, Desc: template.HTMLEscapeString(e.Expense.Description), Amt: formatEuros(e.Expense.Amount.Cents), Cat: e.Expense.Primary, Sub: e.Expense.Secondary})
+				}{ID: e.ID, Day: e.Expense.Date.Day(), Desc: template.HTMLEscapeString(e.Expense.Description), Amt: formatEuros(e.Expense.Amount.Cents), Cat: e.Expense.Primary, Sub: e.Expense.Secondary})
 			}
 		}
 	}
@@ -1193,7 +1208,7 @@ func (s *Server) handleCreateRecurrentExpense(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var endDate core.DateParts
+	var endDate core.Date
 	if endDateStr != "" {
 		endDate, err = parseDate(endDateStr)
 		if err != nil {
@@ -1303,7 +1318,7 @@ func (s *Server) handleUpdateRecurrentExpense(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var endDate core.DateParts
+	var endDate core.Date
 	if endDateStr != "" {
 		endDate, err = parseDate(endDateStr)
 		if err != nil {
@@ -1412,28 +1427,12 @@ func (s *Server) handleDeleteRecurrentExpense(w http.ResponseWriter, r *http.Req
 }
 
 // Helper function to parse date from string (YYYY-MM-DD format)
-func parseDate(dateStr string) (core.DateParts, error) {
-	parts := strings.Split(dateStr, "-")
-	if len(parts) != 3 {
-		return core.DateParts{}, errors.New("invalid date format")
-	}
-
-	year, err := strconv.Atoi(parts[0])
+func parseDate(dateStr string) (core.Date, error) {
+	parsedTime, err := time.Parse("2006-01-02", dateStr)
 	if err != nil {
-		return core.DateParts{}, err
+		return core.Date{}, err
 	}
-
-	month, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return core.DateParts{}, err
-	}
-
-	day, err := strconv.Atoi(parts[2])
-	if err != nil {
-		return core.DateParts{}, err
-	}
-
-	return core.DateParts{Year: year, Month: month, Day: day}, nil
+	return core.Date{Time: parsedTime}, nil
 }
 
 func (s *Server) handleGetSecondaryCategories(w http.ResponseWriter, r *http.Request) {
@@ -2014,7 +2013,7 @@ func (s *Server) handleMonthExpenses(w http.ResponseWriter, r *http.Request) {
 					Sub  string
 				}{
 					ID:   e.ID,
-					Day:  e.Expense.Date.Day,
+					Day:  e.Expense.Date.Day(),
 					Desc: template.HTMLEscapeString(e.Expense.Description),
 					Amt:  formatEuros(e.Expense.Amount.Cents),
 					Cat:  e.Expense.Primary,

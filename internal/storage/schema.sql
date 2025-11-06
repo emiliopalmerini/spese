@@ -47,6 +47,7 @@ CREATE TABLE recurrent_expenses (
     primary_category TEXT NOT NULL,
     secondary_category TEXT NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT 1,
+    last_execution_date DATE NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -55,3 +56,4 @@ CREATE TABLE recurrent_expenses (
 CREATE INDEX idx_recurrent_expenses_active ON recurrent_expenses(is_active);
 CREATE INDEX idx_recurrent_expenses_start_date ON recurrent_expenses(start_date);
 CREATE INDEX idx_recurrent_expenses_repetition ON recurrent_expenses(repetition_type);
+CREATE INDEX idx_recurrent_expenses_last_execution ON recurrent_expenses(last_execution_date);

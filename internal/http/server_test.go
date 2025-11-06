@@ -72,15 +72,15 @@ func TestHandleMonthOverview(t *testing.T) {
 		},
 	}
 	mockExpenses := []core.Expense{
-		{Date: core.DateParts{Day: 1, Month: 1}, Description: "Groceries", Amount: core.Money{Cents: 5000}, Primary: "Food", Secondary: "Supermarket"},
-		{Date: core.DateParts{Day: 2, Month: 1}, Description: "Bus ticket", Amount: core.Money{Cents: 345}, Primary: "Transport", Secondary: "Public"},
+		{Date: core.NewDate(2025, 1, 1), Description: "Groceries", Amount: core.Money{Cents: 5000}, Primary: "Food", Secondary: "Supermarket"},
+		{Date: core.NewDate(2025, 1, 2), Description: "Bus ticket", Amount: core.Money{Cents: 345}, Primary: "Transport", Secondary: "Public"},
 	}
 
 	var ew ports.ExpenseWriter = fakeExp{}
 	var tr ports.TaxonomyReader = fakeTax{cats: []string{"Food", "Transport"}, subs: []string{"Supermarket", "Public"}}
 	var dr ports.DashboardReader = fakeDash{ov: mockOverview}
 	var lr ports.ExpenseLister = fakeList{items: mockExpenses}
-	srv := NewServer(":0", ew, tr, dr, lr)
+	srv := NewServer(":0", ew, tr, dr, lr, nil, nil)
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/ui/month-overview", nil)
@@ -112,7 +112,7 @@ func TestHandleMonthOverviewWithParams(t *testing.T) {
 	var tr ports.TaxonomyReader = fakeTax{}
 	var dr ports.DashboardReader = fakeDash{ov: mockOverview}
 	var lr ports.ExpenseLister = fakeList{}
-	srv := NewServer(":0", ew, tr, dr, lr)
+	srv := NewServer(":0", ew, tr, dr, lr, nil, nil)
 
 	// Test with valid year/month params
 	rr := httptest.NewRecorder()
@@ -148,7 +148,7 @@ func TestHandleMonthOverviewErrors(t *testing.T) {
 	var tr ports.TaxonomyReader = fakeTax{}
 	var dr ports.DashboardReader = fakeDash{err: context.DeadlineExceeded}
 	var lr ports.ExpenseLister = fakeList{}
-	srv := NewServer(":0", ew, tr, dr, lr)
+	srv := NewServer(":0", ew, tr, dr, lr, nil, nil)
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/ui/month-overview", nil)
@@ -233,7 +233,7 @@ func TestIndexAndHealth(t *testing.T) {
 	chdirRepoRoot(t)
 	var ew ports.ExpenseWriter = fakeExp{}
 	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
-	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{}, nil, nil)
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -259,7 +259,7 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
 	chdirRepoRoot(t)
 	var ew ports.ExpenseWriter = fakeExp{}
 	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
-	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{}, nil, nil)
 
 	// Wrong method
 	rr := httptest.NewRecorder()
@@ -327,7 +327,7 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
 
 	// Append error -> 500
 	var ewErr ports.ExpenseWriter = fakeExpErr{}
-	srv = NewServer(":0", ewErr, tr, fakeDash{}, fakeList{})
+	srv = NewServer(":0", ewErr, tr, fakeDash{}, fakeList{}, nil, nil)
 	rr = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/expenses", strings.NewReader("description=ok&amount=1.23&primary=A&secondary=X"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -343,7 +343,7 @@ func TestTaxonomyErrorStillRenders(t *testing.T) {
 	chdirRepoRoot(t)
 	var ew ports.ExpenseWriter = fakeExp{}
 	var tr ports.TaxonomyReader = fakeTaxErr{}
-	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{}, nil, nil)
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	srv.Handler.ServeHTTP(rr, req)
@@ -356,7 +356,7 @@ func TestTaxonomyErrorStillRenders(t *testing.T) {
 func TestIndexMissingTemplates(t *testing.T) {
 	var ew ports.ExpenseWriter = fakeExp{}
 	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
-	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{}, nil, nil)
 	srv.templates = nil // Simulate missing templates
 
 	rr := httptest.NewRecorder()
@@ -391,7 +391,7 @@ func TestStaticServesWithCacheHeader(t *testing.T) {
 	chdirRepoRoot(t)
 	var ew ports.ExpenseWriter = fakeExp{}
 	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
-	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{}, nil, nil)
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/static/style.css", nil)
@@ -519,7 +519,7 @@ func TestServerShutdownCleanup(t *testing.T) {
 	chdirRepoRoot(t)
 	var ew ports.ExpenseWriter = fakeExp{}
 	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
-	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{}, nil, nil)
 
 	// Verify rate limiter is running
 	if srv.rateLimiter == nil {
@@ -549,7 +549,7 @@ func TestSecurityHeaders(t *testing.T) {
 	chdirRepoRoot(t)
 	var ew ports.ExpenseWriter = fakeExp{}
 	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
-	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{}, nil, nil)
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -576,7 +576,7 @@ func TestRateLimitingPOST(t *testing.T) {
 	chdirRepoRoot(t)
 	var ew ports.ExpenseWriter = fakeExp{}
 	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
-	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{}, nil, nil)
 
 	// Fill up rate limit
 	for i := 0; i < 60; i++ {
@@ -609,7 +609,7 @@ func TestClientIPExtraction(t *testing.T) {
 	chdirRepoRoot(t)
 	var ew ports.ExpenseWriter = fakeExp{}
 	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
-	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{})
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{}, nil, nil)
 
 	tests := []struct {
 		name            string

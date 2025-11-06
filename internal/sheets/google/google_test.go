@@ -8,6 +8,7 @@ import (
 	"spese/internal/core"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNewFromEnv_MissingSpreadsheetID(t *testing.T) {
@@ -57,7 +58,7 @@ func TestClient_validateExpense(t *testing.T) {
 
 	// Test with invalid expense
 	invalidExp := core.Expense{
-		Date:        core.DateParts{Day: 0, Month: 1}, // invalid day
+		Date:        core.Date{Time: time.Date(2025, 1, 0, 0, 0, 0, 0, time.UTC)}, // invalid day
 		Description: "test",
 		Amount:      core.Money{Cents: 100},
 		Primary:     "test",
@@ -303,7 +304,7 @@ func TestExpenseValidationEdgeCases(t *testing.T) {
 		{
 			name: "ValidExpense",
 			expense: core.Expense{
-				Date:        core.DateParts{Day: 15, Month: 6},
+				Date:        core.NewDate(2025, 6, 15),
 				Description: "Test expense",
 				Amount:      core.Money{Cents: 1000},
 				Primary:     "Food",
@@ -314,7 +315,7 @@ func TestExpenseValidationEdgeCases(t *testing.T) {
 		{
 			name: "InvalidMonth",
 			expense: core.Expense{
-				Date:        core.DateParts{Day: 15, Month: 13},
+				Date:        core.Date{Time: time.Date(2025, 13, 15, 0, 0, 0, 0, time.UTC)},
 				Description: "Test",
 				Amount:      core.Money{Cents: 1000},
 				Primary:     "Food",
@@ -325,7 +326,7 @@ func TestExpenseValidationEdgeCases(t *testing.T) {
 		{
 			name: "NegativeAmount",
 			expense: core.Expense{
-				Date:        core.DateParts{Day: 15, Month: 6},
+				Date:        core.NewDate(2025, 6, 15),
 				Description: "Test",
 				Amount:      core.Money{Cents: -100},
 				Primary:     "Food",
@@ -336,7 +337,7 @@ func TestExpenseValidationEdgeCases(t *testing.T) {
 		{
 			name: "EmptyDescription",
 			expense: core.Expense{
-				Date:        core.DateParts{Day: 15, Month: 6},
+				Date:        core.NewDate(2025, 6, 15),
 				Description: "   ", // Only whitespace
 				Amount:      core.Money{Cents: 1000},
 				Primary:     "Food",
@@ -347,7 +348,7 @@ func TestExpenseValidationEdgeCases(t *testing.T) {
 		{
 			name: "EmptyPrimary",
 			expense: core.Expense{
-				Date:        core.DateParts{Day: 15, Month: 6},
+				Date:        core.NewDate(2025, 6, 15),
 				Description: "Test",
 				Amount:      core.Money{Cents: 1000},
 				Primary:     "",
@@ -358,7 +359,7 @@ func TestExpenseValidationEdgeCases(t *testing.T) {
 		{
 			name: "EmptySecondary",
 			expense: core.Expense{
-				Date:        core.DateParts{Day: 15, Month: 6},
+				Date:        core.NewDate(2025, 6, 15),
 				Description: "Test",
 				Amount:      core.Money{Cents: 1000},
 				Primary:     "Food",

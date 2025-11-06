@@ -1,3 +1,7 @@
+// Package core provides money parsing and handling utilities.
+//
+// This file contains functions for parsing monetary amounts from strings
+// and converting between cents and euro representations.
 package core
 
 import (
@@ -7,7 +11,17 @@ import (
 	"unicode"
 )
 
-// ParseDecimalToCents converts a decimal string (e.g., "12.34" or "12,34") to cents with half-up rounding.
+// ParseDecimalToCents converts a decimal string to cents with proper rounding.
+//
+// It accepts both dot (12.34) and comma (12,34) decimal separators and performs
+// half-up rounding on the third decimal place. The result is always positive cents.
+// Returns an error for invalid formats, negative values, or zero amounts.
+//
+// Examples:
+//   ParseDecimalToCents("12.34") -> 1234, nil
+//   ParseDecimalToCents("12,34") -> 1234, nil
+//   ParseDecimalToCents("12.345") -> 1234, nil (rounds down)
+//   ParseDecimalToCents("12.346") -> 1235, nil (rounds up)
 func ParseDecimalToCents(s string) (int64, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -74,7 +88,9 @@ func ParseDecimalToCents(s string) (int64, error) {
 	return cents, nil
 }
 
-// Euros returns the euro value as a float64 for display purposes
+// Euros returns the euro value as a float64 for display purposes.
+// This method is primarily used for formatting money amounts in user interfaces.
+// Note: Use cents for calculations to avoid floating-point precision issues.
 func (m Money) Euros() float64 {
 	return float64(m.Cents) / 100.0
 }
