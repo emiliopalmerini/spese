@@ -6,6 +6,7 @@
 class NotificationManager {
     constructor() {
         this.container = null;
+        this.initialized = false;
         this.init();
     }
 
@@ -19,24 +20,34 @@ class NotificationManager {
     }
 
     setup() {
+        if (this.initialized) return; // Prevent multiple initialization
+
         this.container = document.getElementById('notifications');
         if (!this.container) {
             console.warn('Notification container not found');
             return;
         }
 
-        // Listen for HTMX events for notifications
-        document.addEventListener('htmx:afterRequest', (event) => {
-            this.handleResponse(event.detail);
-        });
+        // Listen for HTMX events for notifications (only once)
+        if (!this.htmxListenerAdded) {
+            document.addEventListener('htmx:afterRequest', (event) => {
+                this.handleResponse(event.detail);
+            });
+            this.htmxListenerAdded = true;
+        }
 
-        // Listen for custom notification events
-        document.addEventListener('show-notification', (event) => {
-            this.show(event.detail);
-        });
+        // Listen for custom notification events (only once)
+        if (!this.customListenerAdded) {
+            document.addEventListener('show-notification', (event) => {
+                this.show(event.detail);
+            });
+            this.customListenerAdded = true;
+        }
 
         // Setup mutation observer to handle auto-dismiss
         this.observeNotifications();
+
+        this.initialized = true;
     }
 
     observeNotifications() {
@@ -134,8 +145,10 @@ class NotificationManager {
     }
 }
 
-// Initialize notification manager
-window.notificationManager = new NotificationManager();
+// Initialize notification manager (only once)
+if (!window.notificationManager) {
+    window.notificationManager = new NotificationManager();
+}
 
 // Export for use in other scripts
 window.showNotification = (options) => window.notificationManager.show(options);
