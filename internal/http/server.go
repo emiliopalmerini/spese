@@ -350,6 +350,9 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 		"formatDate": func(day, month, year int) string {
 			return fmt.Sprintf("%02d/%02d/%d", day, month, year)
 		},
+		"not": func(v bool) bool {
+			return !v
+		},
 		"dict": func(values ...interface{}) map[string]interface{} {
 			if len(values)%2 != 0 {
 				return nil
