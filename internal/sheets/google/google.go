@@ -259,7 +259,7 @@ func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
 	// Update only the specific columns we want, skipping E and F
 	// Update A:D (Month, Day, Description, Amount)
 	dataRange1 := fmt.Sprintf("%s!A%d:D%d", c.expensesSheet, nextRow, nextRow)
-	vr1 := &gsheet.ValueRange{Values: [][]any{{e.Date.Month, e.Date.Day, e.Description, euros}}}
+	vr1 := &gsheet.ValueRange{Values: [][]any{{e.Date.Month(), e.Date.Day(), e.Description, euros}}}
 
 	_, err = c.svc.Spreadsheets.Values.Update(c.spreadsheetID, dataRange1, vr1).
 		ValueInputOption("USER_ENTERED").Context(ctx).Do()
