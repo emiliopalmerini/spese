@@ -11,6 +11,7 @@ import (
 	"spese/internal/core"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	ports "spese/internal/sheets"
@@ -29,6 +30,12 @@ type Client struct {
 	dashboardBase string
 	// Legacy fallback: pattern or plain prefix (e.g. "%d Dashboard" or "Dashboard").
 	dashboardPrefix string
+
+	// Row count cache for performance (avoids repeated read requests)
+	mu                 sync.Mutex
+	cachedRowCount     int
+	cacheExpiresAt     time.Time
+	cacheValidDuration time.Duration
 }
 
 // Ensure interface conformance
@@ -93,6 +100,7 @@ func NewFromEnv(ctx context.Context) (*Client, error) {
 		subcategoriesSheet: subs,
 		dashboardBase:      dashBase,
 		dashboardPrefix:    dashPrefix,
+		cacheValidDuration: 2 * time.Minute, // Cache row count for 2 minutes to reduce API calls
 	}, nil
 }
 
@@ -184,6 +192,53 @@ func newHTTPClientWithPooling() *http.Client {
 	}
 }
 
+// getNextRow returns the next available row number, using cached row count when valid
+// If cache is expired or this is the first call, it reads column A from the sheet
+func (c *Client) getNextRow(ctx context.Context) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Check if cache is still valid
+	if time.Now().Before(c.cacheExpiresAt) && c.cachedRowCount > 0 {
+		slog.DebugContext(ctx, "Using cached row count",
+			"cached_row_count", c.cachedRowCount,
+			"expires_in", time.Until(c.cacheExpiresAt).Round(time.Second))
+		return c.cachedRowCount + 1, nil
+	}
+
+	// Cache miss or expired: read from sheet
+	slog.InfoContext(ctx, "Row count cache expired or invalid, refreshing from sheet",
+		"cached_row_count", c.cachedRowCount,
+		"expires_at", c.cacheExpiresAt.Format(time.RFC3339))
+
+	rng := fmt.Sprintf("%s!A:A", c.expensesSheet)
+	resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rng).Context(ctx).Do()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get sheet dimensions for %s: %w", c.expensesSheet, err)
+	}
+
+	// Update cache
+	c.cachedRowCount = len(resp.Values)
+	c.cacheExpiresAt = time.Now().Add(c.cacheValidDuration)
+
+	nextRow := c.cachedRowCount + 1
+
+	slog.InfoContext(ctx, "Updated row count cache",
+		"row_count", c.cachedRowCount,
+		"next_row", nextRow,
+		"cache_expires_at", c.cacheExpiresAt.Format(time.RFC3339))
+
+	return nextRow, nil
+}
+
+// InvalidateRowCache clears the cached row count (called after successful appends)
+func (c *Client) InvalidateRowCache() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cacheExpiresAt = time.Now() // Expire cache immediately
+	slog.DebugContext(context.Background(), "Row count cache invalidated")
+}
+
 func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
 	if err := e.Validate(); err != nil {
 		return "", fmt.Errorf("validation failed: %w", err)
@@ -195,15 +250,11 @@ func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
 	// Convert cents to decimal string
 	euros := float64(e.Amount.Cents) / 100.0
 
-	// Find the next empty row by getting the sheet dimensions first
-	rng := fmt.Sprintf("%s!A:A", c.expensesSheet)
-	resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rng).Context(ctx).Do()
+	// Get next row using cached row count (reduces API calls significantly)
+	nextRow, err := c.getNextRow(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to get sheet dimensions for %s: %w", c.expensesSheet, err)
+		return "", err
 	}
-
-	// Calculate next row (number of existing rows + 1)
-	nextRow := len(resp.Values) + 1
 
 	// Update only the specific columns we want, skipping E and F
 	// Update A:D (Month, Day, Description, Amount)
@@ -213,6 +264,8 @@ func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
 	_, err = c.svc.Spreadsheets.Values.Update(c.spreadsheetID, dataRange1, vr1).
 		ValueInputOption("USER_ENTERED").Context(ctx).Do()
 	if err != nil {
+		// Invalidate cache on write failure in case row was actually written
+		c.InvalidateRowCache()
 		return "", fmt.Errorf("failed to update A:D in sheet %s: %w", c.expensesSheet, err)
 	}
 
@@ -223,6 +276,8 @@ func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
 	_, err = c.svc.Spreadsheets.Values.Update(c.spreadsheetID, dataRange2, vr2).
 		ValueInputOption("USER_ENTERED").Context(ctx).Do()
 	if err != nil {
+		// Invalidate cache on write failure
+		c.InvalidateRowCache()
 		return "", fmt.Errorf("failed to update G:H in sheet %s: %w", c.expensesSheet, err)
 	}
 

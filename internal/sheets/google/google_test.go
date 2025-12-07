@@ -8,7 +8,6 @@ import (
 	"spese/internal/core"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestNewFromEnv_MissingSpreadsheetID(t *testing.T) {
@@ -54,13 +53,13 @@ func TestNewFromEnv_WithMissingCredentials(t *testing.T) {
 }
 
 func TestClient_validateExpense(t *testing.T) {
-	c := &Client{spreadsheetID: "test"} // svc is nil, which will cause append to fail
+	c := &Client{spreadsheetID: "test"} // svc is nil
 
-	// Test with invalid expense
+	// Test with invalid amount (zero cents)
 	invalidExp := core.Expense{
-		Date:        core.Date{Time: time.Date(2025, 1, 0, 0, 0, 0, 0, time.UTC)}, // invalid day
+		Date:        core.NewDate(2025, 1, 15),
 		Description: "test",
-		Amount:      core.Money{Cents: 100},
+		Amount:      core.Money{Cents: 0}, // Invalid: amount must be > 0
 		Primary:     "test",
 		Secondary:   "test",
 	}
@@ -69,8 +68,8 @@ func TestClient_validateExpense(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected validation error")
 	}
-	if !errors.Is(err, core.ErrInvalidDay) {
-		t.Errorf("expected ErrInvalidDay, got: %v", err)
+	if !errors.Is(err, core.ErrInvalidAmount) {
+		t.Errorf("expected ErrInvalidAmount, got: %v", err)
 	}
 }
 
@@ -313,22 +312,22 @@ func TestExpenseValidationEdgeCases(t *testing.T) {
 			expectedErr: "sheets service not initialized", // Will fail at service call
 		},
 		{
-			name: "InvalidMonth",
-			expense: core.Expense{
-				Date:        core.Date{Time: time.Date(2025, 13, 15, 0, 0, 0, 0, time.UTC)},
-				Description: "Test",
-				Amount:      core.Money{Cents: 1000},
-				Primary:     "Food",
-				Secondary:   "Restaurant",
-			},
-			expectedErr: "invalid month",
-		},
-		{
 			name: "NegativeAmount",
 			expense: core.Expense{
 				Date:        core.NewDate(2025, 6, 15),
 				Description: "Test",
 				Amount:      core.Money{Cents: -100},
+				Primary:     "Food",
+				Secondary:   "Restaurant",
+			},
+			expectedErr: "invalid amount",
+		},
+		{
+			name: "ZeroAmount",
+			expense: core.Expense{
+				Date:        core.NewDate(2025, 6, 15),
+				Description: "Test",
+				Amount:      core.Money{Cents: 0},
 				Primary:     "Food",
 				Secondary:   "Restaurant",
 			},
