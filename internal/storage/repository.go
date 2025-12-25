@@ -22,6 +22,35 @@ type SQLiteRepository struct {
 	readQueries *Queries       // Queries using read-only connection
 }
 
+// WithID is a generic wrapper that pairs an entity with its string ID.
+// This eliminates the need for separate ExpenseWithID, IncomeWithID types.
+type WithID[T any] struct {
+	ID     string
+	Entity T
+}
+
+// mapList is a generic helper that transforms a slice using a mapper function.
+// This eliminates repeated for-loop transformation patterns.
+func mapList[T any, DB any](items []DB, mapper func(DB) T) []T {
+	result := make([]T, len(items))
+	for i, item := range items {
+		result[i] = mapper(item)
+	}
+	return result
+}
+
+// mapListWithID is a generic helper that transforms a slice and adds string IDs.
+func mapListWithID[T any, DB any](items []DB, getID func(DB) int64, mapper func(DB) T) []WithID[T] {
+	result := make([]WithID[T], len(items))
+	for i, item := range items {
+		result[i] = WithID[T]{
+			ID:     strconv.FormatInt(getID(item), 10),
+			Entity: mapper(item),
+		}
+	}
+	return result
+}
+
 func NewSQLiteRepository(dbPath string) (*SQLiteRepository, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 		return nil, fmt.Errorf("create db directory: %w", err)
@@ -100,6 +129,27 @@ func (r *SQLiteRepository) Close() error {
 	}
 	
 	return nil
+}
+
+// mapExpense converts a database Expense to a core.Expense.
+func mapExpense(e Expense) core.Expense {
+	return core.Expense{
+		Date:        core.Date{Time: e.Date},
+		Description: e.Description,
+		Amount:      core.Money{Cents: e.AmountCents},
+		Primary:     e.PrimaryCategory,
+		Secondary:   e.SecondaryCategory,
+	}
+}
+
+// mapIncome converts a database Income to a core.Income.
+func mapIncome(i Income) core.Income {
+	return core.Income{
+		Date:        core.Date{Time: i.Date},
+		Description: i.Description,
+		Amount:      core.Money{Cents: i.AmountCents},
+		Category:    i.Category,
+	}
 }
 
 // Append implements sheets.ExpenseWriter
@@ -191,19 +241,7 @@ func (r *SQLiteRepository) ListExpenses(ctx context.Context, year int, month int
 	if err != nil {
 		return nil, fmt.Errorf("get expenses by month: %w", err)
 	}
-
-	expenses := make([]core.Expense, len(dbExpenses))
-	for i, e := range dbExpenses {
-		expenses[i] = core.Expense{
-			Date:        core.Date{Time: e.Date},
-			Description: e.Description,
-			Amount:      core.Money{Cents: e.AmountCents},
-			Primary:     e.PrimaryCategory,
-			Secondary:   e.SecondaryCategory,
-		}
-	}
-
-	return expenses, nil
+	return mapList(dbExpenses, mapExpense), nil
 }
 
 // ListExpensesWithID returns expenses with their IDs for the specified year and month
@@ -213,21 +251,13 @@ func (r *SQLiteRepository) ListExpensesWithID(ctx context.Context, year int, mon
 		return nil, fmt.Errorf("get expenses by month: %w", err)
 	}
 
-	expensesWithID := make([]ExpenseWithID, len(dbExpenses))
-	for i, e := range dbExpenses {
-		expensesWithID[i] = ExpenseWithID{
-			ID: strconv.FormatInt(e.ID, 10),
-			Expense: core.Expense{
-				Date:        core.Date{Time: e.Date},
-				Description: e.Description,
-				Amount:      core.Money{Cents: e.AmountCents},
-				Primary:     e.PrimaryCategory,
-				Secondary:   e.SecondaryCategory,
-			},
-		}
+	// Use generic helper, then convert to legacy type for backward compatibility
+	withIDs := mapListWithID(dbExpenses, func(e Expense) int64 { return e.ID }, mapExpense)
+	result := make([]ExpenseWithID, len(withIDs))
+	for i, w := range withIDs {
+		result[i] = ExpenseWithID{ID: w.ID, Expense: w.Entity}
 	}
-
-	return expensesWithID, nil
+	return result, nil
 }
 
 // GetPendingSyncExpenses returns expenses that need to be synced to Google Sheets
@@ -532,6 +562,25 @@ func (r *SQLiteRepository) RefreshCategories(ctx context.Context) error {
 
 // Recurrent Expenses methods
 
+// mapRecurrentExpense converts a database RecurrentExpense to a core.RecurrentExpenses.
+// This helper consolidates the repeated mapping logic used in multiple methods.
+func mapRecurrentExpense(e RecurrentExpense) core.RecurrentExpenses {
+	re := core.RecurrentExpenses{
+		ID:          e.ID,
+		StartDate:   core.Date{Time: e.StartDate},
+		Every:       core.RepetitionTypes(e.RepetitionType),
+		Description: e.Description,
+		Amount:      core.Money{Cents: e.AmountCents},
+		Primary:     e.PrimaryCategory,
+		Secondary:   e.SecondaryCategory,
+	}
+	// Handle nullable EndDate
+	if endTime, ok := e.EndDate.(time.Time); ok && !endTime.IsZero() {
+		re.EndDate = core.Date{Time: endTime}
+	}
+	return re
+}
+
 // CreateRecurrentExpense creates a new recurrent expense configuration in the database.
 // It handles both indefinite (no end date) and definite (with end date) recurrences.
 // Returns the database ID of the created recurrent expense.
@@ -569,26 +618,7 @@ func (r *SQLiteRepository) GetRecurrentExpenses(ctx context.Context) ([]core.Rec
 	if err != nil {
 		return nil, fmt.Errorf("get recurrent expenses: %w", err)
 	}
-
-	expenses := make([]core.RecurrentExpenses, len(dbExpenses))
-	for i, e := range dbExpenses {
-		expenses[i] = core.RecurrentExpenses{
-			ID:          e.ID,
-			StartDate:   core.Date{Time: e.StartDate},
-			Every:       core.RepetitionTypes(e.RepetitionType),
-			Description: e.Description,
-			Amount:      core.Money{Cents: e.AmountCents},
-			Primary:     e.PrimaryCategory,
-			Secondary:   e.SecondaryCategory,
-		}
-
-		// Handle nullable EndDate
-		if endTime, ok := e.EndDate.(time.Time); ok {
-			expenses[i].EndDate = core.Date{Time: endTime}
-		}
-	}
-
-	return expenses, nil
+	return mapList(dbExpenses, mapRecurrentExpense), nil
 }
 
 // GetRecurrentExpenseByID returns a single recurrent expense by ID
@@ -601,22 +631,8 @@ func (r *SQLiteRepository) GetRecurrentExpenseByID(ctx context.Context, id int64
 		return nil, fmt.Errorf("get recurrent expense: %w", err)
 	}
 
-	expense := &core.RecurrentExpenses{
-		ID:          dbExpense.ID,
-		StartDate:   core.Date{Time: dbExpense.StartDate},
-		Every:       core.RepetitionTypes(dbExpense.RepetitionType),
-		Description: dbExpense.Description,
-		Amount:      core.Money{Cents: dbExpense.AmountCents},
-		Primary:     dbExpense.PrimaryCategory,
-		Secondary:   dbExpense.SecondaryCategory,
-	}
-
-	// Handle nullable EndDate
-	if endTime, ok := dbExpense.EndDate.(time.Time); ok {
-		expense.EndDate = core.Date{Time: endTime}
-	}
-
-	return expense, nil
+	expense := mapRecurrentExpense(dbExpense)
+	return &expense, nil
 }
 
 // UpdateRecurrentExpense updates an existing recurrent expense
@@ -664,26 +680,9 @@ func (r *SQLiteRepository) GetActiveRecurrentExpensesForProcessing(ctx context.C
 	if err != nil {
 		return nil, fmt.Errorf("get active recurrent expenses for processing: %w", err)
 	}
-
-	expenses := make([]core.RecurrentExpenses, len(dbExpenses))
-	for i, e := range dbExpenses {
-		expenses[i] = core.RecurrentExpenses{
-			ID:          e.ID,
-			StartDate:   core.Date{Time: e.StartDate},
-			Every:       core.RepetitionTypes(e.RepetitionType),
-			Description: e.Description,
-			Amount:      core.Money{Cents: e.AmountCents},
-			Primary:     e.PrimaryCategory,
-			Secondary:   e.SecondaryCategory,
-		}
-
-		// Parse EndDate if present
-		if endDate, ok := e.EndDate.(time.Time); ok && !endDate.IsZero() {
-			expenses[i].EndDate = core.Date{Time: endDate}
-		}
-	}
-
-	return expenses, nil
+	return mapList(dbExpenses, func(e GetActiveRecurrentExpensesForProcessingRow) core.RecurrentExpenses {
+		return mapRecurrentExpense(RecurrentExpense(e))
+	}), nil
 }
 
 // UpdateRecurrentLastExecution updates the last_execution_date for a recurring expense
@@ -786,18 +785,7 @@ func (r *SQLiteRepository) ListIncomes(ctx context.Context, year int, month int)
 	if err != nil {
 		return nil, fmt.Errorf("get incomes by month: %w", err)
 	}
-
-	incomes := make([]core.Income, len(dbIncomes))
-	for i, inc := range dbIncomes {
-		incomes[i] = core.Income{
-			Date:        core.Date{Time: inc.Date},
-			Description: inc.Description,
-			Amount:      core.Money{Cents: inc.AmountCents},
-			Category:    inc.Category,
-		}
-	}
-
-	return incomes, nil
+	return mapList(dbIncomes, mapIncome), nil
 }
 
 // IncomeWithID represents an income with its database ID
@@ -813,20 +801,13 @@ func (r *SQLiteRepository) ListIncomesWithID(ctx context.Context, year int, mont
 		return nil, fmt.Errorf("get incomes by month: %w", err)
 	}
 
-	incomesWithID := make([]IncomeWithID, len(dbIncomes))
-	for i, inc := range dbIncomes {
-		incomesWithID[i] = IncomeWithID{
-			ID: strconv.FormatInt(inc.ID, 10),
-			Income: core.Income{
-				Date:        core.Date{Time: inc.Date},
-				Description: inc.Description,
-				Amount:      core.Money{Cents: inc.AmountCents},
-				Category:    inc.Category,
-			},
-		}
+	// Use generic helper, then convert to legacy type for backward compatibility
+	withIDs := mapListWithID(dbIncomes, func(i Income) int64 { return i.ID }, mapIncome)
+	result := make([]IncomeWithID, len(withIDs))
+	for i, w := range withIDs {
+		result[i] = IncomeWithID{ID: w.ID, Income: w.Entity}
 	}
-
-	return incomesWithID, nil
+	return result, nil
 }
 
 // HardDeleteIncome permanently deletes an income (hard delete)
