@@ -761,10 +761,7 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		slog.ErrorContext(r.Context(), "Parse form error", "error", err, "method", r.Method, "url", r.URL.Path)
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`<div class="error">Formato richiesta non valido</div>`))
+	if s.handleFormParseError(w, r, r.ParseForm()) {
 		return
 	}
 
@@ -789,8 +786,7 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 
 	cents, err := core.ParseDecimalToCents(amountStr)
 	if err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`<div class="error">Importo non valido</div>`))
+		renderHTMLError(w, http.StatusUnprocessableEntity, "Importo non valido")
 		return
 	}
 
@@ -802,8 +798,7 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		Secondary:   secondary,
 	}
 	if err := exp.Validate(); err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`<div class="error">Invalid data: ` + template.HTMLEscapeString(err.Error()) + `</div>`))
+		renderHTMLError(w, http.StatusUnprocessableEntity, "Invalid data: "+err.Error())
 		return
 	}
 
@@ -817,8 +812,7 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 			"secondary_category", exp.Secondary,
 			"component", "expense_writer",
 			"operation", "append")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`<div class="error">Error saving expense</div>`))
+		renderHTMLError(w, http.StatusInternalServerError, "Error saving expense")
 		return
 	}
 
@@ -871,8 +865,7 @@ func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "Read body error", "error", err, "method", r.Method, "url", r.URL.Path)
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`<div class="error">Errore lettura richiesta</div>`))
+			renderHTMLError(w, http.StatusBadRequest, "Errore lettura richiesta")
 			return
 		}
 		
@@ -888,8 +881,7 @@ func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
 		if len(body) > 0 && (body[0] == '{' || body[0] == '[') {
 			if err := json.Unmarshal(body, &requestBody); err != nil {
 				slog.ErrorContext(r.Context(), "Parse JSON body error", "error", err, "method", r.Method, "url", r.URL.Path, "content_type", contentType, "body", string(body))
-				w.WriteHeader(http.StatusBadRequest)
-				_, _ = w.Write([]byte(`<div class="error">Formato richiesta JSON non valido</div>`))
+				renderHTMLError(w, http.StatusBadRequest, "Formato richiesta JSON non valido")
 				return
 			}
 			
@@ -907,8 +899,7 @@ func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
 			formData, err := url.ParseQuery(string(body))
 			if err != nil {
 				slog.ErrorContext(r.Context(), "Parse form data from body error", "error", err, "method", r.Method, "url", r.URL.Path, "content_type", contentType, "body", string(body))
-				w.WriteHeader(http.StatusBadRequest)
-				_, _ = w.Write([]byte(`<div class="error">Formato dati form non valido</div>`))
+				renderHTMLError(w, http.StatusBadRequest, "Formato dati form non valido")
 				return
 			}
 			
@@ -917,27 +908,22 @@ func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// Handle form data (traditional POST requests)
-		if err := r.ParseForm(); err != nil {
-			slog.ErrorContext(r.Context(), "Parse form error", "error", err, "method", r.Method, "url", r.URL.Path, "content_type", contentType)
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`<div class="error">Formato richiesta non valido</div>`))
+		if s.handleFormParseError(w, r, r.ParseForm()) {
 			return
 		}
-		
+
 		expenseID = sanitizeInput(r.Form.Get("id"))
 		slog.InfoContext(r.Context(), "Delete expense request (Form)", "method", r.Method, "form_values", r.Form, "expense_id", expenseID)
 	}
 
 	if expenseID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`<div class="error">ID spesa mancante</div>`))
+		renderHTMLError(w, http.StatusBadRequest, "ID spesa mancante")
 		return
 	}
 
 	if s.expDeleter == nil {
 		slog.ErrorContext(r.Context(), "Expense deleter not configured")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`<div class="error">Servizio di cancellazione non disponibile</div>`))
+		renderHTMLError(w, http.StatusInternalServerError, "Servizio di cancellazione non disponibile")
 		return
 	}
 
@@ -948,8 +934,7 @@ func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
 			"expense_id", expenseID,
 			"component", "expense_deleter",
 			"operation", "delete")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`<div class="error">Errore nella cancellazione della spesa</div>`))
+		renderHTMLError(w, http.StatusInternalServerError, "Errore nella cancellazione della spesa")
 		return
 	}
 
@@ -986,6 +971,44 @@ func sanitizeInput(s string) string {
 		return r
 	}, s)
 	return result
+}
+
+// renderHTMLError writes an HTML error response with the given status code and message.
+// This consolidates the repeated pattern of writing error divs throughout handlers.
+func renderHTMLError(w http.ResponseWriter, status int, message string) {
+	w.WriteHeader(status)
+	_, _ = w.Write([]byte(`<div class="error">` + template.HTMLEscapeString(message) + `</div>`))
+}
+
+// handleFormParseError logs and writes a standard form parse error response.
+// Returns true if an error occurred (caller should return), false if parsing succeeded.
+func (s *Server) handleFormParseError(w http.ResponseWriter, r *http.Request, err error) bool {
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Parse form error", "error", err, "method", r.Method, "url", r.URL.Path)
+		renderHTMLError(w, http.StatusBadRequest, "Formato richiesta non valido")
+		return true
+	}
+	return false
+}
+
+// getYearMonthParams extracts year and month from request query parameters.
+// If not specified, defaults to the current year and month.
+func getYearMonthParams(r *http.Request) (year, month int) {
+	now := time.Now()
+	year = now.Year()
+	month = int(now.Month())
+
+	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
+		if y, err := strconv.Atoi(v); err == nil {
+			year = y
+		}
+	}
+	if v := strings.TrimSpace(r.URL.Query().Get("month")); v != "" {
+		if m, err := strconv.Atoi(v); err == nil {
+			month = m
+		}
+	}
+	return year, month
 }
 
 func (s *Server) getOverview(ctx context.Context, year, month int) (core.MonthOverview, error) {
@@ -1031,21 +1054,10 @@ func (s *Server) getExpensesWithID(ctx context.Context, year, month int) ([]shee
 // handleMonthOverview renders the monthly overview partial.
 func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	now := time.Now()
-	year := now.Year()
-	month := int(now.Month())
-	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
-		if y, err := strconv.Atoi(v); err == nil {
-			year = y
-		}
-	}
-	if v := strings.TrimSpace(r.URL.Query().Get("month")); v != "" {
-		if m, err := strconv.Atoi(v); err == nil {
-			month = m
-		}
-	}
+	year, month := getYearMonthParams(r)
 	// Validate month range
 	if month < 1 || month > 12 {
+		now := time.Now()
 		slog.WarnContext(r.Context(), "Invalid month parameter", "year", year, "month", month, "corrected_to", int(now.Month()))
 		month = int(now.Month())
 	}
@@ -1195,10 +1207,7 @@ func (s *Server) handleCreateRecurrentExpense(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
-		slog.ErrorContext(r.Context(), "Parse form error", "error", err)
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`<div class="error">Formato richiesta non valido</div>`))
+	if s.handleFormParseError(w, r, r.ParseForm()) {
 		return
 	}
 
@@ -1214,8 +1223,7 @@ func (s *Server) handleCreateRecurrentExpense(w http.ResponseWriter, r *http.Req
 	// Parse dates
 	startDate, err := parseDate(startDateStr)
 	if err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`<div class="error">Data inizio non valida</div>`))
+		renderHTMLError(w, http.StatusUnprocessableEntity, "Data inizio non valida")
 		return
 	}
 
@@ -1223,8 +1231,7 @@ func (s *Server) handleCreateRecurrentExpense(w http.ResponseWriter, r *http.Req
 	if endDateStr != "" {
 		endDate, err = parseDate(endDateStr)
 		if err != nil {
-			w.WriteHeader(http.StatusUnprocessableEntity)
-			_, _ = w.Write([]byte(`<div class="error">Data fine non valida</div>`))
+			renderHTMLError(w, http.StatusUnprocessableEntity, "Data fine non valida")
 			return
 		}
 	}
@@ -1232,8 +1239,7 @@ func (s *Server) handleCreateRecurrentExpense(w http.ResponseWriter, r *http.Req
 	// Parse amount
 	cents, err := core.ParseDecimalToCents(amountStr)
 	if err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`<div class="error">Importo non valido</div>`))
+		renderHTMLError(w, http.StatusUnprocessableEntity, "Importo non valido")
 		return
 	}
 
@@ -1249,8 +1255,7 @@ func (s *Server) handleCreateRecurrentExpense(w http.ResponseWriter, r *http.Req
 	}
 
 	if err := re.Validate(); err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`<div class="error">` + template.HTMLEscapeString(err.Error()) + `</div>`))
+		renderHTMLError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -1263,16 +1268,14 @@ func (s *Server) handleCreateRecurrentExpense(w http.ResponseWriter, r *http.Req
 		repo = adapter.GetStorage()
 	} else {
 		slog.ErrorContext(r.Context(), "Recurrent expenses not supported with current backend")
-		w.WriteHeader(http.StatusNotImplemented)
-		_, _ = w.Write([]byte(`<div class="error">Spese ricorrenti non disponibili</div>`))
+		renderHTMLError(w, http.StatusNotImplemented, "Spese ricorrenti non disponibili")
 		return
 	}
 
 	id, err := repo.CreateRecurrentExpense(r.Context(), re)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "Failed to create recurrent expense", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`<div class="error">Errore nel salvare la spesa ricorrente</div>`))
+		renderHTMLError(w, http.StatusInternalServerError, "Errore nel salvare la spesa ricorrente")
 		return
 	}
 
@@ -1301,15 +1304,11 @@ func (s *Server) handleUpdateRecurrentExpense(w http.ResponseWriter, r *http.Req
 	idStr := r.URL.Query().Get("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`<div class="error">ID non valido</div>`))
+		renderHTMLError(w, http.StatusBadRequest, "ID non valido")
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
-		slog.ErrorContext(r.Context(), "Parse form error", "error", err)
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`<div class="error">Formato richiesta non valido</div>`))
+	if s.handleFormParseError(w, r, r.ParseForm()) {
 		return
 	}
 
@@ -1324,8 +1323,7 @@ func (s *Server) handleUpdateRecurrentExpense(w http.ResponseWriter, r *http.Req
 
 	startDate, err := parseDate(startDateStr)
 	if err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`<div class="error">Data inizio non valida</div>`))
+		renderHTMLError(w, http.StatusUnprocessableEntity, "Data inizio non valida")
 		return
 	}
 
@@ -1333,16 +1331,14 @@ func (s *Server) handleUpdateRecurrentExpense(w http.ResponseWriter, r *http.Req
 	if endDateStr != "" {
 		endDate, err = parseDate(endDateStr)
 		if err != nil {
-			w.WriteHeader(http.StatusUnprocessableEntity)
-			_, _ = w.Write([]byte(`<div class="error">Data fine non valida</div>`))
+			renderHTMLError(w, http.StatusUnprocessableEntity, "Data fine non valida")
 			return
 		}
 	}
 
 	cents, err := core.ParseDecimalToCents(amountStr)
 	if err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`<div class="error">Importo non valido</div>`))
+		renderHTMLError(w, http.StatusUnprocessableEntity, "Importo non valido")
 		return
 	}
 
@@ -1357,8 +1353,7 @@ func (s *Server) handleUpdateRecurrentExpense(w http.ResponseWriter, r *http.Req
 	}
 
 	if err := re.Validate(); err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`<div class="error">` + template.HTMLEscapeString(err.Error()) + `</div>`))
+		renderHTMLError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -1371,15 +1366,13 @@ func (s *Server) handleUpdateRecurrentExpense(w http.ResponseWriter, r *http.Req
 		repo = adapter.GetStorage()
 	} else {
 		slog.ErrorContext(r.Context(), "Recurrent expenses not supported with current backend")
-		w.WriteHeader(http.StatusNotImplemented)
-		_, _ = w.Write([]byte(`<div class="error">Spese ricorrenti non disponibili</div>`))
+		renderHTMLError(w, http.StatusNotImplemented, "Spese ricorrenti non disponibili")
 		return
 	}
 
 	if err := repo.UpdateRecurrentExpense(r.Context(), id, re); err != nil {
 		slog.ErrorContext(r.Context(), "Failed to update recurrent expense", "error", err, "id", id)
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`<div class="error">Errore nell'aggiornare la spesa ricorrente</div>`))
+		renderHTMLError(w, http.StatusInternalServerError, "Errore nell'aggiornare la spesa ricorrente")
 		return
 	}
 
@@ -1861,21 +1854,7 @@ func (s *Server) handleMonthTotal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	
-	now := time.Now()
-	year := now.Year()
-	month := int(now.Month())
-	
-	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
-		if y, err := strconv.Atoi(v); err == nil {
-			year = y
-		}
-	}
-	if v := strings.TrimSpace(r.URL.Query().Get("month")); v != "" {
-		if m, err := strconv.Atoi(v); err == nil {
-			month = m
-		}
-	}
+	year, month := getYearMonthParams(r)
 
 	ov, err := s.getOverview(r.Context(), year, month)
 	if err != nil {
@@ -1905,21 +1884,7 @@ func (s *Server) handleMonthCategories(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	
-	now := time.Now()
-	year := now.Year()
-	month := int(now.Month())
-	
-	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
-		if y, err := strconv.Atoi(v); err == nil {
-			year = y
-		}
-	}
-	if v := strings.TrimSpace(r.URL.Query().Get("month")); v != "" {
-		if m, err := strconv.Atoi(v); err == nil {
-			month = m
-		}
-	}
+	year, month := getYearMonthParams(r)
 
 	ov, err := s.getOverview(r.Context(), year, month)
 	if err != nil {
@@ -1983,21 +1948,7 @@ func (s *Server) handleMonthExpenses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	now := time.Now()
-	year := now.Year()
-	month := int(now.Month())
-
-	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
-		if y, err := strconv.Atoi(v); err == nil {
-			year = y
-		}
-	}
-	if v := strings.TrimSpace(r.URL.Query().Get("month")); v != "" {
-		if m, err := strconv.Atoi(v); err == nil {
-			month = m
-		}
-	}
+	year, month := getYearMonthParams(r)
 
 	// Fetch detailed items with IDs
 	var items []struct {
@@ -2108,10 +2059,7 @@ func (s *Server) handleCreateIncome(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		slog.ErrorContext(r.Context(), "Parse form error", "error", err, "method", r.Method, "url", r.URL.Path)
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`<div class="error">Formato richiesta non valido</div>`))
+	if s.handleFormParseError(w, r, r.ParseForm()) {
 		return
 	}
 
@@ -2135,8 +2083,7 @@ func (s *Server) handleCreateIncome(w http.ResponseWriter, r *http.Request) {
 
 	cents, err := core.ParseDecimalToCents(amountStr)
 	if err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`<div class="error">Importo non valido</div>`))
+		renderHTMLError(w, http.StatusUnprocessableEntity, "Importo non valido")
 		return
 	}
 
@@ -2147,8 +2094,7 @@ func (s *Server) handleCreateIncome(w http.ResponseWriter, r *http.Request) {
 		Category:    category,
 	}
 	if err := income.Validate(); err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = w.Write([]byte(`<div class="error">Dati non validi: ` + template.HTMLEscapeString(err.Error()) + `</div>`))
+		renderHTMLError(w, http.StatusUnprocessableEntity, "Dati non validi: "+err.Error())
 		return
 	}
 
@@ -2156,8 +2102,7 @@ func (s *Server) handleCreateIncome(w http.ResponseWriter, r *http.Request) {
 	adapter, ok := s.expWriter.(*adapters.SQLiteAdapter)
 	if !ok {
 		slog.ErrorContext(r.Context(), "Income not supported with current backend")
-		w.WriteHeader(http.StatusNotImplemented)
-		_, _ = w.Write([]byte(`<div class="error">Entrate non disponibili</div>`))
+		renderHTMLError(w, http.StatusNotImplemented, "Entrate non disponibili")
 		return
 	}
 
@@ -2170,8 +2115,7 @@ func (s *Server) handleCreateIncome(w http.ResponseWriter, r *http.Request) {
 			"category", income.Category,
 			"component", "income_writer",
 			"operation", "append")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`<div class="error">Errore nel salvare l'entrata</div>`))
+		renderHTMLError(w, http.StatusInternalServerError, "Errore nel salvare l'entrata")
 		return
 	}
 
@@ -2217,8 +2161,7 @@ func (s *Server) handleDeleteIncome(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "Read body error", "error", err)
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`<div class="error">Errore lettura richiesta</div>`))
+			renderHTMLError(w, http.StatusBadRequest, "Errore lettura richiesta")
 			return
 		}
 
@@ -2226,8 +2169,7 @@ func (s *Server) handleDeleteIncome(w http.ResponseWriter, r *http.Request) {
 		if len(body) > 0 && (body[0] == '{' || body[0] == '[') {
 			if err := json.Unmarshal(body, &requestBody); err != nil {
 				slog.ErrorContext(r.Context(), "Parse JSON body error", "error", err)
-				w.WriteHeader(http.StatusBadRequest)
-				_, _ = w.Write([]byte(`<div class="error">Formato richiesta JSON non valido</div>`))
+				renderHTMLError(w, http.StatusBadRequest, "Formato richiesta JSON non valido")
 				return
 			}
 
@@ -2237,33 +2179,27 @@ func (s *Server) handleDeleteIncome(w http.ResponseWriter, r *http.Request) {
 		} else {
 			formData, err := url.ParseQuery(string(body))
 			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				_, _ = w.Write([]byte(`<div class="error">Formato dati form non valido</div>`))
+				renderHTMLError(w, http.StatusBadRequest, "Formato dati form non valido")
 				return
 			}
 			incomeID = sanitizeInput(formData.Get("id"))
 		}
 	} else {
-		if err := r.ParseForm(); err != nil {
-			slog.ErrorContext(r.Context(), "Parse form error", "error", err)
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`<div class="error">Formato richiesta non valido</div>`))
+		if s.handleFormParseError(w, r, r.ParseForm()) {
 			return
 		}
 		incomeID = sanitizeInput(r.Form.Get("id"))
 	}
 
 	if incomeID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`<div class="error">ID entrata mancante</div>`))
+		renderHTMLError(w, http.StatusBadRequest, "ID entrata mancante")
 		return
 	}
 
 	adapter, ok := s.expWriter.(*adapters.SQLiteAdapter)
 	if !ok {
 		slog.ErrorContext(r.Context(), "Income delete not supported with current backend")
-		w.WriteHeader(http.StatusNotImplemented)
-		_, _ = w.Write([]byte(`<div class="error">Cancellazione entrate non disponibile</div>`))
+		renderHTMLError(w, http.StatusNotImplemented, "Cancellazione entrate non disponibile")
 		return
 	}
 
@@ -2272,8 +2208,7 @@ func (s *Server) handleDeleteIncome(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "Failed to delete income",
 			"error", err,
 			"income_id", incomeID)
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`<div class="error">Errore nella cancellazione dell'entrata</div>`))
+		renderHTMLError(w, http.StatusInternalServerError, "Errore nella cancellazione dell'entrata")
 		return
 	}
 
@@ -2293,19 +2228,7 @@ func (s *Server) handleDeleteIncome(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleIncomeMonthOverview(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	now := time.Now()
-	year := now.Year()
-	month := int(now.Month())
-	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
-		if y, err := strconv.Atoi(v); err == nil {
-			year = y
-		}
-	}
-	if v := strings.TrimSpace(r.URL.Query().Get("month")); v != "" {
-		if m, err := strconv.Atoi(v); err == nil {
-			month = m
-		}
-	}
+	year, month := getYearMonthParams(r)
 
 	adapter, ok := s.expWriter.(*adapters.SQLiteAdapter)
 	if !ok {
@@ -2394,21 +2317,7 @@ func (s *Server) handleIncomeMonthTotal(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	now := time.Now()
-	year := now.Year()
-	month := int(now.Month())
-
-	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
-		if y, err := strconv.Atoi(v); err == nil {
-			year = y
-		}
-	}
-	if v := strings.TrimSpace(r.URL.Query().Get("month")); v != "" {
-		if m, err := strconv.Atoi(v); err == nil {
-			month = m
-		}
-	}
+	year, month := getYearMonthParams(r)
 
 	adapter, ok := s.expWriter.(*adapters.SQLiteAdapter)
 	if !ok {
@@ -2443,21 +2352,7 @@ func (s *Server) handleIncomeMonthCategories(w http.ResponseWriter, r *http.Requ
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	now := time.Now()
-	year := now.Year()
-	month := int(now.Month())
-
-	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
-		if y, err := strconv.Atoi(v); err == nil {
-			year = y
-		}
-	}
-	if v := strings.TrimSpace(r.URL.Query().Get("month")); v != "" {
-		if m, err := strconv.Atoi(v); err == nil {
-			month = m
-		}
-	}
+	year, month := getYearMonthParams(r)
 
 	adapter, ok := s.expWriter.(*adapters.SQLiteAdapter)
 	if !ok {
@@ -2525,21 +2420,7 @@ func (s *Server) handleIncomeMonthIncomes(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	now := time.Now()
-	year := now.Year()
-	month := int(now.Month())
-
-	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
-		if y, err := strconv.Atoi(v); err == nil {
-			year = y
-		}
-	}
-	if v := strings.TrimSpace(r.URL.Query().Get("month")); v != "" {
-		if m, err := strconv.Atoi(v); err == nil {
-			month = m
-		}
-	}
+	year, month := getYearMonthParams(r)
 
 	adapter, ok := s.expWriter.(*adapters.SQLiteAdapter)
 	if !ok {

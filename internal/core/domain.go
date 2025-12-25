@@ -20,6 +20,11 @@ const (
 	Daily   RepetitionTypes = "daily"   // Daily recurrence
 )
 
+// Validation constants
+const (
+	MaxDescriptionLength = 200 // Maximum length for description fields
+)
+
 // RepetitionTypes represents the frequency type for recurrent expenses.
 // It is a string type that can be one of the predefined constants.
 type RepetitionTypes string
@@ -88,7 +93,8 @@ var (
 	ErrEmptyDescription = errors.New("empty description")     // Description field is empty or whitespace-only
 	ErrEmptyPrimary     = errors.New("empty primary category") // Primary category is empty
 	ErrEmptySecondary   = errors.New("empty secondary category") // Secondary category is empty
-	ErrEmptyCategory    = errors.New("empty category")        // Category is empty (for income)
+	ErrEmptyCategory       = errors.New("empty category")                      // Category is empty (for income)
+	ErrDescriptionTooLong  = errors.New("description too long (max 200 characters)") // Description exceeds max length
 )
 
 // Validate checks if the Date represents a valid date.
@@ -156,8 +162,8 @@ func (e Expense) Validate() error {
 	if len(strings.TrimSpace(e.Description)) == 0 {
 		return ErrEmptyDescription
 	}
-	if len(e.Description) > 200 {
-		return errors.New("description too long (max 200 characters)")
+	if len(e.Description) > MaxDescriptionLength {
+		return ErrDescriptionTooLong
 	}
 	if err := e.Amount.Validate(); err != nil {
 		return err
@@ -204,8 +210,8 @@ func (re RecurrentExpenses) Validate() error {
 	if len(strings.TrimSpace(re.Description)) == 0 {
 		return ErrEmptyDescription
 	}
-	if len(re.Description) > 200 {
-		return errors.New("description too long (max 200 characters)")
+	if len(re.Description) > MaxDescriptionLength {
+		return ErrDescriptionTooLong
 	}
 
 	// Validate amount
@@ -234,8 +240,8 @@ func (i Income) Validate() error {
 	if len(strings.TrimSpace(i.Description)) == 0 {
 		return ErrEmptyDescription
 	}
-	if len(i.Description) > 200 {
-		return errors.New("description too long (max 200 characters)")
+	if len(i.Description) > MaxDescriptionLength {
+		return ErrDescriptionTooLong
 	}
 	if err := i.Amount.Validate(); err != nil {
 		return err

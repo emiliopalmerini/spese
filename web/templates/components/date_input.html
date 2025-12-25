@@ -1,0 +1,14 @@
+{{/*
+  Date input component for day/month fields.
+  Consolidates the repeated day/month field group pattern.
+
+  Parameters:
+    - Day: Initial day value
+    - Month: Initial month value
+*/}}
+{{ define "date_input" }}
+<div class="field-group">
+  {{ template "form_field" (dict "ID" "day" "Name" "day" "Type" "number" "Label" "Giorno" "Min" "1" "Max" "31" "Value" .Day "Required" true "Half" true) }}
+  {{ template "form_field" (dict "ID" "month" "Name" "month" "Type" "number" "Label" "Mese" "Min" "1" "Max" "12" "Value" .Month "Required" true "Half" true) }}
+</div>
+{{ end }}

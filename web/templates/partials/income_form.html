@@ -12,10 +12,7 @@
       hx-indicator=".indicator">
 
   {{/* Date fields group using component */}}
-  <div class="field-group">
-    {{ template "form_field" (dict "ID" "day" "Name" "day" "Type" "number" "Label" "Giorno" "Min" "1" "Max" "31" "Value" .Day "Required" true "Half" true) }}
-    {{ template "form_field" (dict "ID" "month" "Name" "month" "Type" "number" "Label" "Mese" "Min" "1" "Max" "12" "Value" .Month "Required" true "Half" true) }}
-  </div>
+  {{ template "date_input" . }}
 
   {{/* Description field using component */}}
   {{ template "form_field" (dict "ID" "description" "Name" "description" "Type" "text" "Label" "Descrizione" "MaxLength" "200" "Placeholder" "es. Stipendio dicembre" "Required" true) }}
