@@ -17,6 +17,15 @@ type SQLiteAdapter struct {
 	service *services.ExpenseService
 }
 
+// parseID converts a string ID to int64, with a descriptive error for the entity type.
+func parseID(id, entityType string) (int64, error) {
+	parsed, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s ID: %w", entityType, err)
+	}
+	return parsed, nil
+}
+
 func NewSQLiteAdapter(storage *storage.SQLiteRepository, service *services.ExpenseService) *SQLiteAdapter {
 	return &SQLiteAdapter{
 		storage: storage,
@@ -51,11 +60,10 @@ func (a *SQLiteAdapter) GetSecondariesByPrimary(ctx context.Context, primaryCate
 
 // DeleteExpense implements sheets.ExpenseDeleter
 func (a *SQLiteAdapter) DeleteExpense(ctx context.Context, id string) error {
-	expenseID, err := strconv.ParseInt(id, 10, 64)
+	expenseID, err := parseID(id, "expense")
 	if err != nil {
-		return fmt.Errorf("invalid expense ID: %w", err)
+		return err
 	}
-
 	return a.service.DeleteExpense(ctx, expenseID)
 }
 
@@ -113,9 +121,9 @@ func (a *SQLiteAdapter) ListIncomesWithID(ctx context.Context, year int, month i
 
 // DeleteIncome deletes an income entry
 func (a *SQLiteAdapter) DeleteIncome(ctx context.Context, id string) error {
-	incomeID, err := strconv.ParseInt(id, 10, 64)
+	incomeID, err := parseID(id, "income")
 	if err != nil {
-		return fmt.Errorf("invalid income ID: %w", err)
+		return err
 	}
 	return a.storage.HardDeleteIncome(ctx, incomeID)
 }
