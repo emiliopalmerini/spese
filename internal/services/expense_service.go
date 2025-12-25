@@ -87,13 +87,13 @@ func (s *ExpenseService) publishDeleteMessage(ctx context.Context, expense *stor
 		return nil
 	}
 
-	return s.amqpClient.PublishExpenseDelete(ctx, 
-		expense.ID, 
-		expense.Date.Day(), 
-		int(expense.Date.Month()), 
-		expense.Description, 
-		expense.AmountCents, 
-		expense.PrimaryCategory, 
+	return s.amqpClient.PublishExpenseDelete(ctx,
+		expense.ID,
+		expense.Date.Day(),
+		int(expense.Date.Month()),
+		expense.Description,
+		expense.AmountCents,
+		expense.PrimaryCategory,
 		expense.SecondaryCategory)
 }
 
