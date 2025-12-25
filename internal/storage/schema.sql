@@ -57,3 +57,29 @@ CREATE INDEX idx_recurrent_expenses_active ON recurrent_expenses(is_active);
 CREATE INDEX idx_recurrent_expenses_start_date ON recurrent_expenses(start_date);
 CREATE INDEX idx_recurrent_expenses_repetition ON recurrent_expenses(repetition_type);
 CREATE INDEX idx_recurrent_expenses_last_execution ON recurrent_expenses(last_execution_date);
+
+-- Income categories table
+CREATE TABLE income_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Incomes table
+CREATE TABLE incomes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date DATE NOT NULL,
+    description TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+    category TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    synced_at DATETIME NULL,
+    sync_status TEXT DEFAULT 'pending' CHECK (sync_status IN ('pending', 'synced', 'error'))
+);
+
+-- Create indexes for incomes
+CREATE INDEX idx_incomes_date ON incomes(date);
+CREATE INDEX idx_incomes_category ON incomes(category);
+CREATE INDEX idx_incomes_sync_status ON incomes(sync_status);
+CREATE INDEX idx_income_categories_name ON income_categories(name);

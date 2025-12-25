@@ -1,0 +1,146 @@
+{{/*
+  Income month overview partial template
+  Expects: .Year, .Month, .Total, .MaxName, .Max, .Rows, .Items
+*/}}
+{{ define "income_month_overview.html" }}
+<section id="income-month-overview" class="month-overview">
+  <div class="overview-header">
+    <span class="overview-label">Totale Entrate</span>
+    <span class="overview-amount">{{ .Total }}</span>
+  </div>
+
+  {{ if .MaxName }}
+  <div class="overview-legend">
+    <span class="legend-label">Categoria principale:</span>
+    <span class="legend-value">{{ .MaxName }} ({{ .Max }})</span>
+  </div>
+  {{ end }}
+
+  <div class="category-bars">
+    {{ range .Rows }}
+    <div class="category-row">
+      <span class="category-name">{{ .Name }}</span>
+      <div class="category-bar-container">
+        <div class="category-bar" style="width: {{ .Width }}%"></div>
+      </div>
+      <span class="category-amount">{{ .Amount }}</span>
+    </div>
+    {{ end }}
+  </div>
+
+  {{ if .Items }}
+  <div class="expense-list">
+    <h3>Dettaglio Entrate</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Giorno</th>
+          <th>Descrizione</th>
+          <th>Importo</th>
+          <th>Categoria</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Items }}
+        <tr id="income-{{ .ID }}">
+          <td>{{ .Day }}</td>
+          <td>{{ .Desc }}</td>
+          <td>{{ .Amt }}</td>
+          <td>{{ .Cat }}</td>
+          <td>
+            <button class="btn btn-danger btn-sm"
+                    hx-delete="/incomes/delete"
+                    hx-vals='{"id": "{{ .ID }}"}'
+                    hx-target="#income-{{ .ID }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Sei sicuro di voler cancellare questa entrata?">
+              Elimina
+            </button>
+          </td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+  {{ else }}
+  <div class="empty-state">
+    <p class="empty-message">Nessuna entrata registrata questo mese</p>
+  </div>
+  {{ end }}
+</section>
+{{ end }}
+
+{{/* Income month total partial */}}
+{{ define "income_month_total" }}
+<div class="overview-header">
+  <span class="overview-label">Totale Entrate</span>
+  <span class="overview-amount">{{ .Total }}</span>
+</div>
+{{ end }}
+
+{{/* Income month categories partial */}}
+{{ define "income_month_categories" }}
+{{ if .MaxName }}
+<div class="overview-legend">
+  <span class="legend-label">Categoria principale:</span>
+  <span class="legend-value">{{ .MaxName }} ({{ .Max }})</span>
+</div>
+{{ end }}
+
+<div class="category-bars">
+  {{ range .Rows }}
+  <div class="category-row">
+    <span class="category-name">{{ .Name }}</span>
+    <div class="category-bar-container">
+      <div class="category-bar" style="width: {{ .Width }}%"></div>
+    </div>
+    <span class="category-amount">{{ .Amount }}</span>
+  </div>
+  {{ end }}
+</div>
+{{ end }}
+
+{{/* Income month incomes list partial */}}
+{{ define "income_month_incomes" }}
+{{ if .Items }}
+<div class="expense-list">
+  <h3>Dettaglio Entrate</h3>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Giorno</th>
+        <th>Descrizione</th>
+        <th>Importo</th>
+        <th>Categoria</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .Items }}
+      <tr id="income-{{ .ID }}">
+        <td>{{ .Day }}</td>
+        <td>{{ .Desc }}</td>
+        <td>{{ .Amt }}</td>
+        <td>{{ .Cat }}</td>
+        <td>
+          <button class="btn btn-danger btn-sm"
+                  hx-delete="/incomes/delete"
+                  hx-vals='{"id": "{{ .ID }}"}'
+                  hx-target="#income-{{ .ID }}"
+                  hx-swap="outerHTML"
+                  hx-confirm="Sei sicuro di voler cancellare questa entrata?">
+            Elimina
+          </button>
+        </td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+{{ else }}
+<div class="empty-state">
+  <p class="empty-message">Nessuna entrata registrata questo mese</p>
+</div>
+{{ end }}
+{{ end }}

@@ -83,3 +83,39 @@ func (a *SQLiteAdapter) ListExpensesWithID(ctx context.Context, year int, month 
 func (a *SQLiteAdapter) GetStorage() *storage.SQLiteRepository {
 	return a.storage
 }
+
+// Income methods
+
+// AppendIncome creates a new income entry
+func (a *SQLiteAdapter) AppendIncome(ctx context.Context, i core.Income) (string, error) {
+	return a.storage.AppendIncome(ctx, i)
+}
+
+// GetIncomeCategories returns all income categories
+func (a *SQLiteAdapter) GetIncomeCategories(ctx context.Context) ([]string, error) {
+	return a.storage.GetIncomeCategories(ctx)
+}
+
+// ReadIncomeMonthOverview returns monthly income overview
+func (a *SQLiteAdapter) ReadIncomeMonthOverview(ctx context.Context, year int, month int) (core.IncomeMonthOverview, error) {
+	return a.storage.ReadIncomeMonthOverview(ctx, year, month)
+}
+
+// ListIncomes returns all incomes for a given month
+func (a *SQLiteAdapter) ListIncomes(ctx context.Context, year int, month int) ([]core.Income, error) {
+	return a.storage.ListIncomes(ctx, year, month)
+}
+
+// ListIncomesWithID returns incomes with their IDs
+func (a *SQLiteAdapter) ListIncomesWithID(ctx context.Context, year int, month int) ([]storage.IncomeWithID, error) {
+	return a.storage.ListIncomesWithID(ctx, year, month)
+}
+
+// DeleteIncome deletes an income entry
+func (a *SQLiteAdapter) DeleteIncome(ctx context.Context, id string) error {
+	incomeID, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid income ID: %w", err)
+	}
+	return a.storage.HardDeleteIncome(ctx, incomeID)
+}

@@ -1,11 +1,11 @@
-{{ define "index_page" }}
+{{ define "income_page" }}
 <!doctype html>
 <html lang="it">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#10b981" />
-    <title>Spese</title>
+    <title>Entrate</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
     <link rel="stylesheet" href="/static/style.css" />
     <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
@@ -23,24 +23,24 @@
       </div>
     </header>
     <main class="container page">
-      {{ template "index_content" . }}
+      {{ template "income_content" . }}
     </main>
   </body>
 </html>
 {{ end }}
 
-{{ define "index_content" }}
+{{ define "income_content" }}
 <div class="container">
-  {{/* Main expense form section */}}
+  {{/* Main income form section */}}
   <section class="page__section">
-    <h1 class="page__title">Registra Spesa</h1>
-    
-    <div id="expense-form-container"
+    <h1 class="page__title">Registra Entrata</h1>
+
+    <div id="income-form-container"
          hx-trigger="form:reset from:body"
-         hx-get="/ui/form-reset"
-         hx-target="#expense-form-container"
+         hx-get="/ui/income-form-reset"
+         hx-target="#income-form-container"
          hx-swap="innerHTML">
-      {{ template "expense_form" . }}
+      {{ template "income_form" . }}
     </div>
   </section>
 
@@ -52,34 +52,34 @@
 
   {{/* Month overview section with granular updates */}}
   <section class="page__section">
-    <div id="month-overview-container" class="month-overview">
-      <h2>Panoramica Mensile</h2>
+    <div id="income-month-overview-container" class="month-overview">
+      <h2>Panoramica Mensile Entrate</h2>
       <div class="overview-body">
         {{/* Total amount - refreshes independently */}}
-        <div id="month-total-container"
-             hx-trigger="load, overview:refresh from:body"
-             hx-get="/ui/month-total"
-             hx-target="#month-total-container"
+        <div id="income-month-total-container"
+             hx-trigger="load, income-overview:refresh from:body"
+             hx-get="/ui/income-month-total"
+             hx-target="#income-month-total-container"
              hx-swap="innerHTML">
-          <div class="placeholder">Caricamento totale…</div>
+          <div class="placeholder">Caricamento totale...</div>
         </div>
-        
+
         {{/* Category breakdown - refreshes independently */}}
-        <div id="month-categories-container"
-             hx-trigger="load, overview:refresh from:body"
-             hx-get="/ui/month-categories"
-             hx-target="#month-categories-container"
+        <div id="income-month-categories-container"
+             hx-trigger="load, income-overview:refresh from:body"
+             hx-get="/ui/income-month-categories"
+             hx-target="#income-month-categories-container"
              hx-swap="innerHTML">
-          <div class="placeholder">Caricamento categorie…</div>
+          <div class="placeholder">Caricamento categorie...</div>
         </div>
-        
-        {{/* Expense details - refreshes independently */}}
-        <div id="month-expenses-container"
-             hx-trigger="load, overview:refresh from:body"
-             hx-get="/ui/month-expenses"
-             hx-target="#month-expenses-container"
+
+        {{/* Income details - refreshes independently */}}
+        <div id="income-month-incomes-container"
+             hx-trigger="load, income-overview:refresh from:body"
+             hx-get="/ui/income-month-incomes"
+             hx-target="#income-month-incomes-container"
              hx-swap="innerHTML">
-          <div class="placeholder">Caricamento spese…</div>
+          <div class="placeholder">Caricamento entrate...</div>
         </div>
       </div>
     </div>
