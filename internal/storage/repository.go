@@ -713,3 +713,129 @@ func (r *SQLiteRepository) GetRecurrentExpenseRaw(ctx context.Context, id int64)
 
 	return &dbExpense, nil
 }
+
+// Income methods
+
+// AppendIncome implements income writer
+func (r *SQLiteRepository) AppendIncome(ctx context.Context, i core.Income) (string, error) {
+	// Format date as string for SQLite
+	dateStr := fmt.Sprintf("%04d-%02d-%02d", i.Date.Year(), i.Date.Month(), i.Date.Day())
+
+	income, err := r.queries.CreateIncome(ctx, CreateIncomeParams{
+		Date:        dateStr,
+		Description: i.Description,
+		AmountCents: i.Amount.Cents,
+		Category:    i.Category,
+	})
+	if err != nil {
+		return "", fmt.Errorf("create income: %w", err)
+	}
+
+	slog.InfoContext(ctx, "Income saved to SQLite",
+		"id", income.ID,
+		"description", income.Description,
+		"amount_cents", income.AmountCents,
+		"date", dateStr)
+
+	return strconv.FormatInt(income.ID, 10), nil
+}
+
+// GetIncomeCategories returns all income categories
+func (r *SQLiteRepository) GetIncomeCategories(ctx context.Context) ([]string, error) {
+	categories, err := r.readQueries.GetIncomeCategories(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get income categories: %w", err)
+	}
+	return categories, nil
+}
+
+// ReadIncomeMonthOverview returns the monthly income overview
+func (r *SQLiteRepository) ReadIncomeMonthOverview(ctx context.Context, year int, month int) (core.IncomeMonthOverview, error) {
+	overview := core.IncomeMonthOverview{
+		Year:  year,
+		Month: month,
+	}
+
+	// Get total for the month using read-only connection
+	total, err := r.readQueries.GetIncomeMonthTotal(ctx, int64(month))
+	if err != nil {
+		return overview, fmt.Errorf("get income month total: %w", err)
+	}
+
+	overview.Total = core.Money{Cents: total}
+
+	// Get category sums using read-only connection
+	categorySums, err := r.readQueries.GetIncomeCategorySums(ctx, int64(month))
+	if err != nil {
+		return overview, fmt.Errorf("get income category sums: %w", err)
+	}
+
+	for _, cs := range categorySums {
+		overview.ByCategory = append(overview.ByCategory, core.CategoryAmount{
+			Name:   cs.Category,
+			Amount: core.Money{Cents: cs.TotalAmount},
+		})
+	}
+
+	return overview, nil
+}
+
+// ListIncomes returns all incomes for a given month
+func (r *SQLiteRepository) ListIncomes(ctx context.Context, year int, month int) ([]core.Income, error) {
+	dbIncomes, err := r.readQueries.GetIncomesByMonth(ctx, int64(month))
+	if err != nil {
+		return nil, fmt.Errorf("get incomes by month: %w", err)
+	}
+
+	incomes := make([]core.Income, len(dbIncomes))
+	for i, inc := range dbIncomes {
+		incomes[i] = core.Income{
+			Date:        core.Date{Time: inc.Date},
+			Description: inc.Description,
+			Amount:      core.Money{Cents: inc.AmountCents},
+			Category:    inc.Category,
+		}
+	}
+
+	return incomes, nil
+}
+
+// IncomeWithID represents an income with its database ID
+type IncomeWithID struct {
+	ID     string
+	Income core.Income
+}
+
+// ListIncomesWithID returns incomes with their IDs for the specified year and month
+func (r *SQLiteRepository) ListIncomesWithID(ctx context.Context, year int, month int) ([]IncomeWithID, error) {
+	dbIncomes, err := r.readQueries.GetIncomesByMonth(ctx, int64(month))
+	if err != nil {
+		return nil, fmt.Errorf("get incomes by month: %w", err)
+	}
+
+	incomesWithID := make([]IncomeWithID, len(dbIncomes))
+	for i, inc := range dbIncomes {
+		incomesWithID[i] = IncomeWithID{
+			ID: strconv.FormatInt(inc.ID, 10),
+			Income: core.Income{
+				Date:        core.Date{Time: inc.Date},
+				Description: inc.Description,
+				Amount:      core.Money{Cents: inc.AmountCents},
+				Category:    inc.Category,
+			},
+		}
+	}
+
+	return incomesWithID, nil
+}
+
+// HardDeleteIncome permanently deletes an income (hard delete)
+func (r *SQLiteRepository) HardDeleteIncome(ctx context.Context, id int64) error {
+	err := r.queries.HardDeleteIncome(ctx, id)
+	if err != nil {
+		return fmt.Errorf("hard delete income: %w", err)
+	}
+
+	slog.InfoContext(ctx, "Income hard deleted", "id", id)
+	return nil
+}

@@ -62,6 +62,24 @@ type RecurrentExpenses struct {
 	Secondary   string         // Secondary category
 }
 
+// Income represents a single income entry in the system.
+// It contains all the necessary information for tracking an individual income,
+// including date, description, amount, and category.
+type Income struct {
+	Date        Date   // Date when the income was received
+	Description string // Human-readable description of the income
+	Amount      Money  // Monetary amount in cents
+	Category    string // Income category (e.g., "Stipendio E", "Freelance")
+}
+
+// IncomeMonthOverview represents aggregated monthly income summary
+type IncomeMonthOverview struct {
+	Year       int
+	Month      int
+	Total      Money
+	ByCategory []CategoryAmount
+}
+
 // Domain validation errors.
 var (
 	ErrInvalidDay       = errors.New("invalid day")           // Day value is outside valid range (1-31)
@@ -70,6 +88,7 @@ var (
 	ErrEmptyDescription = errors.New("empty description")     // Description field is empty or whitespace-only
 	ErrEmptyPrimary     = errors.New("empty primary category") // Primary category is empty
 	ErrEmptySecondary   = errors.New("empty secondary category") // Secondary category is empty
+	ErrEmptyCategory    = errors.New("empty category")        // Category is empty (for income)
 )
 
 // Validate checks if the Date represents a valid date.
@@ -202,5 +221,27 @@ func (re RecurrentExpenses) Validate() error {
 		return ErrEmptySecondary
 	}
 
+	return nil
+}
+
+// Validate performs comprehensive validation of an Income.
+// It checks that the date is valid, description is non-empty and not too long,
+// amount is positive, and category is non-empty.
+func (i Income) Validate() error {
+	if err := i.Date.Validate(); err != nil {
+		return err
+	}
+	if len(strings.TrimSpace(i.Description)) == 0 {
+		return ErrEmptyDescription
+	}
+	if len(i.Description) > 200 {
+		return errors.New("description too long (max 200 characters)")
+	}
+	if err := i.Amount.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(i.Category) == "" {
+		return ErrEmptyCategory
+	}
 	return nil
 }

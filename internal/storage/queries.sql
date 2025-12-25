@@ -140,3 +140,37 @@ WHERE is_active = 1
   AND start_date <= ?
   AND (end_date IS NULL OR end_date >= ?)
 ORDER BY start_date ASC;
+
+-- Income queries
+-- name: CreateIncome :one
+INSERT INTO incomes (date, description, amount_cents, category)
+VALUES (date(?), ?, ?, ?)
+RETURNING *;
+
+-- name: GetIncomesByMonth :many
+SELECT * FROM incomes
+WHERE strftime('%m', date) = printf('%02d', ?)
+ORDER BY date DESC, created_at DESC;
+
+-- name: GetIncomeMonthTotal :one
+SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) as total
+FROM incomes
+WHERE strftime('%m', date) = printf('%02d', ?);
+
+-- name: GetIncomeCategorySums :many
+SELECT category, CAST(SUM(amount_cents) AS INTEGER) as total_amount
+FROM incomes
+WHERE strftime('%m', date) = printf('%02d', ?)
+GROUP BY category
+ORDER BY total_amount DESC;
+
+-- name: GetIncome :one
+SELECT * FROM incomes WHERE id = ?;
+
+-- name: HardDeleteIncome :exec
+DELETE FROM incomes
+WHERE id = ?;
+
+-- name: GetIncomeCategories :many
+SELECT name FROM income_categories
+ORDER BY name ASC;
