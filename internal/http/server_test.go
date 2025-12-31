@@ -71,16 +71,17 @@ func TestHandleMonthOverview(t *testing.T) {
 			{Name: "Transport", Amount: core.Money{Cents: 4345}}, // €43.45
 		},
 	}
-	mockExpenses := []core.Expense{
-		{Date: core.NewDate(2025, 1, 1), Description: "Groceries", Amount: core.Money{Cents: 5000}, Primary: "Food", Secondary: "Supermarket"},
-		{Date: core.NewDate(2025, 1, 2), Description: "Bus ticket", Amount: core.Money{Cents: 345}, Primary: "Transport", Secondary: "Public"},
+	mockExpensesWithID := []ports.ExpenseWithID{
+		{ID: "1", Expense: core.Expense{Date: core.NewDate(2025, 1, 1), Description: "Groceries", Amount: core.Money{Cents: 5000}, Primary: "Food", Secondary: "Supermarket"}},
+		{ID: "2", Expense: core.Expense{Date: core.NewDate(2025, 1, 2), Description: "Bus ticket", Amount: core.Money{Cents: 345}, Primary: "Transport", Secondary: "Public"}},
 	}
 
 	var ew ports.ExpenseWriter = fakeExp{}
 	var tr ports.TaxonomyReader = fakeTax{cats: []string{"Food", "Transport"}, subs: []string{"Supermarket", "Public"}}
 	var dr ports.DashboardReader = fakeDash{ov: mockOverview}
-	var lr ports.ExpenseLister = fakeList{items: mockExpenses}
-	srv := NewServer(":0", ew, tr, dr, lr, nil, nil)
+	var lr ports.ExpenseLister = fakeList{}
+	var lrWithID ports.ExpenseListerWithID = fakeListWithID{items: mockExpensesWithID}
+	srv := NewServer(":0", ew, tr, dr, lr, nil, lrWithID)
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/ui/month-overview", nil)
@@ -206,6 +207,12 @@ func (f fakeList) ListExpenses(ctx context.Context, year int, month int) ([]core
 	return f.items, nil
 }
 
+type fakeListWithID struct{ items []ports.ExpenseWithID }
+
+func (f fakeListWithID) ListExpensesWithID(ctx context.Context, year int, month int) ([]ports.ExpenseWithID, error) {
+	return f.items, nil
+}
+
 type fakeListErr struct{}
 
 func (fakeListErr) ListExpenses(ctx context.Context, year int, month int) ([]core.Expense, error) {
@@ -308,12 +315,13 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
 	if rr.Code != 200 {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
-	if !strings.Contains(rr.Body.String(), "success") {
-		t.Fatalf("expected success in body: %s", rr.Body.String())
+	// Check HTMX trigger header contains success notification
+	hxTrigger := rr.Header().Get("HX-Trigger")
+	if !strings.Contains(hxTrigger, "expense:created") {
+		t.Fatalf("expected HX-Trigger header with expense:created, got %s", hxTrigger)
 	}
-	// Check HTMX trigger header
-	if got := rr.Header().Get("HX-Trigger"); !strings.Contains(got, "expense:created") {
-		t.Fatalf("expected HX-Trigger header with expense:created, got %s", got)
+	if !strings.Contains(hxTrigger, "show-notification") {
+		t.Fatalf("expected HX-Trigger header with show-notification, got %s", hxTrigger)
 	}
 
 	// Success with invalid day/month params (should use current)
