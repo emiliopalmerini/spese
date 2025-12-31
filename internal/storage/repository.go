@@ -291,18 +291,6 @@ func (r *SQLiteRepository) HardDeleteExpense(ctx context.Context, id int64) erro
 	return nil
 }
 
-// CreateCategory is deprecated - categories are managed via migrations
-func (r *SQLiteRepository) CreateCategory(ctx context.Context, name, categoryType string) error {
-	slog.WarnContext(ctx, "CreateCategory called but is deprecated - categories are managed via migrations")
-	return nil
-}
-
-// DeleteCategory is deprecated - categories are managed via migrations
-func (r *SQLiteRepository) DeleteCategory(ctx context.Context, name, categoryType string) error {
-	slog.WarnContext(ctx, "DeleteCategory called but is deprecated - categories are managed via migrations")
-	return nil
-}
-
 // ExpenseWithID represents an expense with its database ID for sync operations
 type ExpenseWithID struct {
 	ID        string
