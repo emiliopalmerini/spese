@@ -224,188 +224,120 @@ func (c *Client) reconnect(ctx context.Context) error {
 	return fmt.Errorf("failed to reconnect after %d attempts", maxRetries)
 }
 
-// PublishExpenseSync publishes an expense sync message with circuit breaker and retry
-func (c *Client) PublishExpenseSync(ctx context.Context, id, version int64) error {
+// publishWithRetry handles the common retry logic for publishing messages
+func (c *Client) publishWithRetry(ctx context.Context, body []byte, msgType string) error {
 	// Check circuit breaker
 	if c.isCircuitOpen() {
 		return fmt.Errorf("circuit breaker is open, skipping publish")
 	}
 
+	var err error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+
+		err = c.channel.PublishWithContext(
+			publishCtx,
+			c.exchangeName,
+			c.queueName,
+			false,
+			false,
+			amqp091.Publishing{
+				ContentType:  "application/json",
+				DeliveryMode: amqp091.Persistent,
+				Timestamp:    time.Now(),
+				Type:         msgType,
+				Body:         body,
+			},
+		)
+		cancel()
+
+		if err == nil {
+			c.recordSuccess()
+			return nil
+		}
+
+		if isConnectionError(err) {
+			slog.WarnContext(ctx, "AMQP connection error, attempting reconnection",
+				"error", err, "attempt", attempt+1, "msg_type", msgType)
+
+			if reconnectErr := c.reconnect(ctx); reconnectErr != nil {
+				slog.ErrorContext(ctx, "Failed to reconnect", "error", reconnectErr)
+				c.recordFailure()
+				if attempt < maxRetries-1 {
+					delay := exponentialBackoff(attempt)
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-time.After(delay):
+						continue
+					}
+				}
+			} else {
+				continue
+			}
+		} else {
+			c.recordFailure()
+			slog.WarnContext(ctx, "Failed to publish message, retrying",
+				"error", err, "attempt", attempt+1, "msg_type", msgType)
+			if attempt < maxRetries-1 {
+				delay := exponentialBackoff(attempt)
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(delay):
+					continue
+				}
+			}
+		}
+	}
+
+	c.recordFailure()
+	return fmt.Errorf("failed to publish %s message after %d attempts: %w", msgType, maxRetries, err)
+}
+
+// PublishExpenseSync publishes an expense sync message with circuit breaker and retry
+func (c *Client) PublishExpenseSync(ctx context.Context, id, version int64) error {
 	msg := NewExpenseSyncMessage(id, version)
 	body, err := msg.ToJSON()
 	if err != nil {
 		return fmt.Errorf("marshal message: %w", err)
 	}
 
-	// Retry logic with exponential backoff
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-
-		err = c.channel.PublishWithContext(
-			publishCtx,
-			c.exchangeName, // exchange
-			c.queueName,    // routing key
-			false,          // mandatory
-			false,          // immediate
-			amqp091.Publishing{
-				ContentType:  "application/json",
-				DeliveryMode: amqp091.Persistent, // make message persistent
-				Timestamp:    time.Now(),
-				Body:         body,
-			},
-		)
-		cancel()
-
-		if err == nil {
-			c.recordSuccess()
-			slog.InfoContext(ctx, "Published expense sync message",
-				"id", id,
-				"version", version,
-				"exchange", c.exchangeName,
-				"queue", c.queueName,
-				"attempt", attempt+1)
-			return nil
-		}
-
-		// Check if it's a connection error that requires reconnection
-		if isConnectionError(err) {
-			slog.WarnContext(ctx, "AMQP connection error, attempting reconnection",
-				"error", err, "attempt", attempt+1)
-
-			if reconnectErr := c.reconnect(ctx); reconnectErr != nil {
-				slog.ErrorContext(ctx, "Failed to reconnect", "error", reconnectErr)
-				c.recordFailure()
-
-				if attempt < maxRetries-1 {
-					delay := exponentialBackoff(attempt)
-					select {
-					case <-ctx.Done():
-						return ctx.Err()
-					case <-time.After(delay):
-						continue
-					}
-				}
-			} else {
-				// Reconnection successful, retry the publish immediately
-				continue
-			}
-		} else {
-			// Non-connection error, record failure and retry with backoff
-			c.recordFailure()
-			slog.WarnContext(ctx, "Failed to publish message, retrying",
-				"error", err, "attempt", attempt+1, "id", id)
-
-			if attempt < maxRetries-1 {
-				delay := exponentialBackoff(attempt)
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(delay):
-					continue
-				}
-			}
-		}
+	if err := c.publishWithRetry(ctx, body, "expense_sync"); err != nil {
+		return err
 	}
 
-	c.recordFailure()
-	return fmt.Errorf("failed to publish message after %d attempts: %w", maxRetries, err)
+	slog.InfoContext(ctx, "Published expense sync message",
+		"id", id,
+		"version", version,
+		"exchange", c.exchangeName,
+		"queue", c.queueName)
+	return nil
 }
 
 // PublishExpenseDelete publishes an expense delete message with circuit breaker and retry
 func (c *Client) PublishExpenseDelete(ctx context.Context, id int64, day, month int, description string, amountCents int64, primary, secondary string) error {
-	// Check circuit breaker
-	if c.isCircuitOpen() {
-		return fmt.Errorf("circuit breaker is open, skipping publish")
-	}
-
 	msg := NewExpenseDeleteMessage(id, day, month, description, amountCents, primary, secondary)
 	body, err := msg.ToJSON()
 	if err != nil {
 		return fmt.Errorf("marshal delete message: %w", err)
 	}
 
-	// Retry logic with exponential backoff (similar to sync messages)
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-
-		err = c.channel.PublishWithContext(
-			publishCtx,
-			c.exchangeName, // exchange
-			c.queueName,    // routing key
-			false,          // mandatory
-			false,          // immediate
-			amqp091.Publishing{
-				ContentType:  "application/json",
-				DeliveryMode: amqp091.Persistent, // make message persistent
-				Timestamp:    time.Now(),
-				Type:         "expense_delete", // message type for routing
-				Body:         body,
-			},
-		)
-		cancel()
-
-		if err == nil {
-			c.recordSuccess()
-			slog.InfoContext(ctx, "Published expense delete message",
-				"id", id,
-				"exchange", c.exchangeName,
-				"queue", c.queueName,
-				"attempt", attempt+1)
-			return nil
-		}
-
-		// Handle connection errors and retries (same logic as sync messages)
-		if isConnectionError(err) {
-			slog.WarnContext(ctx, "AMQP connection error during delete publish, attempting reconnection",
-				"error", err, "attempt", attempt+1)
-
-			if reconnectErr := c.reconnect(ctx); reconnectErr != nil {
-				slog.ErrorContext(ctx, "Failed to reconnect for delete message", "error", reconnectErr)
-				c.recordFailure()
-
-				if attempt < maxRetries-1 {
-					delay := exponentialBackoff(attempt)
-					select {
-					case <-ctx.Done():
-						return ctx.Err()
-					case <-time.After(delay):
-						continue
-					}
-				}
-			} else {
-				continue // Reconnection successful, retry immediately
-			}
-		} else {
-			c.recordFailure()
-			slog.WarnContext(ctx, "Failed to publish delete message, retrying",
-				"error", err, "attempt", attempt+1, "id", id)
-
-			if attempt < maxRetries-1 {
-				delay := exponentialBackoff(attempt)
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(delay):
-					continue
-				}
-			}
-		}
+	if err := c.publishWithRetry(ctx, body, "expense_delete"); err != nil {
+		return err
 	}
 
-	c.recordFailure()
-	return fmt.Errorf("failed to publish delete message after %d attempts: %w", maxRetries, err)
+	slog.InfoContext(ctx, "Published expense delete message",
+		"id", id,
+		"exchange", c.exchangeName,
+		"queue", c.queueName)
+	return nil
 }
 
 // isConnectionError checks if the error indicates a connection problem
