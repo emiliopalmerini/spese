@@ -38,4 +38,6 @@ configs/
 
 # Local development data
 data/*.db
-data/spese.db
+
+# Claude Code
+.claude/
