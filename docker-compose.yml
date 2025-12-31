@@ -17,7 +17,6 @@ services:
       timeout: 10s
       retries: 5
 
-
   spese:
     build: .
     image: spese:dev
@@ -72,6 +71,28 @@ services:
       - ./configs/service-account.json:${GOOGLE_SERVICE_ACCOUNT_FILE:-/service-account.json}:ro
       - spese_data:/data
     entrypoint: ["/app/bin/spese-worker"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Background worker for processing recurring expenses
+  recurring-worker:
+    build: .
+    image: spese:dev
+    container_name: spese-recurring-worker
+    env_file:
+      - .env
+    environment:
+      - DATA_BACKEND=sqlite
+      - SQLITE_DB_PATH=/data/spese.db
+      - AMQP_URL=amqp://admin:admin@rabbitmq:5672/
+      - AMQP_EXCHANGE=spese
+      - AMQP_QUEUE=sync_expenses
+      - RECURRING_PROCESSOR_INTERVAL=${RECURRING_PROCESSOR_INTERVAL:-1h}
+    volumes:
+      - spese_data:/data
+    entrypoint: ["/app/bin/recurring-worker"]
     depends_on:
       rabbitmq:
         condition: service_healthy
