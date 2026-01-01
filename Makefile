@@ -6,7 +6,7 @@ BIN := bin/$(APP_NAME)
 WORKER_BIN := bin/$(WORKER_NAME)
 RECURRING_WORKER_BIN := bin/$(RECURRING_WORKER_NAME)
 
-.PHONY: all help setup tidy fmt vet lint test build build-worker build-recurring-worker build-all run run-worker run-recurring-worker logs clean docker-build docker-up docker-logs docker-down up smoke cover sqlc-generate refresh-categories
+.PHONY: all help setup tidy fmt vet lint test build build-worker build-recurring-worker build-all run run-spese run-worker run-recurring-worker logs clean docker-build docker-up docker-logs docker-down up smoke cover sqlc-generate refresh-categories
 
 all: help
 
@@ -23,7 +23,8 @@ help: ## Show this help message
 	@echo "  clean                  Remove build artifacts"
 	@echo ""
 	@echo "🚀 Development Commands:"
-	@echo "  run                    Run main application locally"
+	@echo "  run                    Run all applications locally"
+	@echo "  run-spese              Run main application locally"
 	@echo "  run-worker             Run background sync worker locally"
 	@echo "  run-recurring-worker   Run recurring expenses worker locally"
 	@echo "  logs                   Watch logs for all services (Docker)"
@@ -51,7 +52,8 @@ help: ## Show this help message
 	@echo ""
 	@echo "💡 Examples:"
 	@echo "  make build-all              # Build everything"
-	@echo "  make run                    # Start main app"
+	@echo "  make run                    # Start all apps"
+	@echo "  make run-spese              # Start main app only"
 	@echo "  make docker-up              # Start with Docker"
 	@echo "  make refresh-categories     # Force category refresh"
 	@echo ""
@@ -72,21 +74,25 @@ lint: vet
 	@echo "golangci-lint optional. Skipping if not installed."
 	@command -v golangci-lint >/dev/null 2>&1 && golangci-lint run || true
 
-test:
+test: fmt
 	go test -race -cover $(PKG)
 
-build:
+build: fmt
 	CGO_ENABLED=0 go build -ldflags='-s -w' -o $(BIN) ./cmd/spese
 
-build-worker:
+build-worker: fmt
 	CGO_ENABLED=0 go build -ldflags='-s -w' -o $(WORKER_BIN) ./cmd/spese-worker
 
-build-recurring-worker:
+build-recurring-worker: fmt
 	CGO_ENABLED=0 go build -ldflags='-s -w' -o $(RECURRING_WORKER_BIN) ./cmd/recurring-worker
 
-build-all: build build-worker build-recurring-worker
+build-all: fmt build build-worker build-recurring-worker
 
-run:
+run: build-all
+	@echo "Starting all applications..."
+	@go run ./cmd/spese & go run ./cmd/spese-worker & go run ./cmd/recurring-worker & wait
+
+run-spese:
 	go run ./cmd/spese
 
 run-worker:

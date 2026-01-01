@@ -12,7 +12,8 @@ make build-recurring-worker  # Build recurring worker (bin/recurring-worker)
 make build-all          # Build all binaries
 
 # Run locally
-make run                # Run main app
+make run                # Run all apps (spese + workers)
+make run-spese          # Run main app only
 make run-worker         # Run sync worker
 make run-recurring-worker    # Run recurring expenses worker
 
