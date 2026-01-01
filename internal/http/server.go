@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -42,13 +41,6 @@ type Server struct {
 	appMetrics *applicationMetrics
 }
 
-// securityMetrics tracks security-related events
-type securityMetrics struct {
-	rateLimitHits      int64
-	invalidIPAttempts  int64
-	suspiciousRequests int64
-}
-
 // applicationMetrics tracks application performance and usage
 type applicationMetrics struct {
 	totalRequests       int64
@@ -57,72 +49,6 @@ type applicationMetrics struct {
 	uptime              time.Time
 }
 
-// Trusted proxy networks (common reverse proxies)
-var trustedProxies = []*net.IPNet{
-	parsecidr("127.0.0.0/8"),    // localhost
-	parsecidr("10.0.0.0/8"),     // private networks
-	parsecidr("172.16.0.0/12"),  // private networks
-	parsecidr("192.168.0.0/16"), // private networks
-}
-
-// parsecidr is a helper to parse CIDR during initialization
-func parsecidr(cidr string) *net.IPNet {
-	_, network, err := net.ParseCIDR(cidr)
-	if err != nil {
-		panic(fmt.Sprintf("failed to parse trusted proxy CIDR %s: %v", cidr, err))
-	}
-	return network
-}
-
-// isTrustedProxy checks if an IP is from a trusted proxy
-func isTrustedProxy(ip net.IP) bool {
-	for _, network := range trustedProxies {
-		if network.Contains(ip) {
-			return true
-		}
-	}
-	return false
-}
-
-// extractClientIP extracts the real client IP, validating forwarded headers
-func extractClientIP(r *http.Request) string {
-	// Start with the direct connection IP
-	directIP, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		// If parsing fails, use RemoteAddr as-is (fallback)
-		directIP = r.RemoteAddr
-	}
-
-	parsedDirectIP := net.ParseIP(directIP)
-	if parsedDirectIP == nil {
-		return directIP // Fallback to original if parsing fails
-	}
-
-	// If direct connection is from trusted proxy, check forwarded headers
-	if isTrustedProxy(parsedDirectIP) {
-		// Check X-Forwarded-For header (most common)
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			// X-Forwarded-For can contain multiple IPs, take the first one
-			ips := strings.Split(xff, ",")
-			if len(ips) > 0 {
-				clientIP := strings.TrimSpace(ips[0])
-				if parsedIP := net.ParseIP(clientIP); parsedIP != nil {
-					return clientIP
-				}
-			}
-		}
-
-		// Check X-Real-IP header (nginx)
-		if xri := r.Header.Get("X-Real-IP"); xri != "" {
-			if parsedIP := net.ParseIP(xri); parsedIP != nil {
-				return xri
-			}
-		}
-	}
-
-	// Return direct IP if no valid forwarded IP found
-	return directIP
-}
 
 // GetSecurityMetrics returns current security metrics (useful for monitoring)
 func (s *Server) GetSecurityMetrics() (rateLimitHits, invalidIPAttempts, suspiciousRequests int64) {
@@ -131,79 +57,6 @@ func (s *Server) GetSecurityMetrics() (rateLimitHits, invalidIPAttempts, suspici
 		atomic.LoadInt64(&s.metrics.suspiciousRequests)
 }
 
-// detectSuspiciousRequest analyzes request patterns for potential threats
-func detectSuspiciousRequest(r *http.Request, metrics *securityMetrics) bool {
-	suspicious := false
-
-	// Check for common attack patterns in URL path
-	path := strings.ToLower(r.URL.Path)
-	suspiciousPatterns := []string{
-		"../", "..\\", ".env", "wp-admin", "phpmyadmin",
-		"admin.php", "config.php", ".git", ".ssh",
-		"eval(", "javascript:", "<script", "union select",
-		"base64", "0x", "etc/passwd", "cmd.exe",
-	}
-
-	for _, pattern := range suspiciousPatterns {
-		if strings.Contains(path, pattern) {
-			suspicious = true
-			break
-		}
-	}
-
-	// Check for suspicious query parameters
-	query := strings.ToLower(r.URL.RawQuery)
-	for _, pattern := range suspiciousPatterns {
-		if strings.Contains(query, pattern) {
-			suspicious = true
-			break
-		}
-	}
-
-	// Check User-Agent for common bot patterns
-	userAgent := strings.ToLower(r.Header.Get("User-Agent"))
-	suspiciousAgents := []string{
-		"sqlmap", "nmap", "nikto", "gobuster", "dirb",
-		"curl", "wget", "python-requests", "scanner",
-		"bot", "crawler", "spider", "scraper",
-	}
-
-	for _, agent := range suspiciousAgents {
-		if strings.Contains(userAgent, agent) {
-			suspicious = true
-			break
-		}
-	}
-
-	// Check for unusual HTTP methods
-	unusualMethods := []string{"TRACE", "TRACK", "DEBUG", "CONNECT"}
-	for _, method := range unusualMethods {
-		if r.Method == method {
-			suspicious = true
-			break
-		}
-	}
-
-	// Check for excessively long URLs (possible overflow attempt)
-	if len(r.URL.String()) > 2048 {
-		suspicious = true
-	}
-
-	// Check for suspicious headers
-	if r.Header.Get("X-Forwarded-For") != "" && r.Header.Get("X-Real-IP") != "" {
-		// Multiple forwarding headers might indicate header manipulation
-		xff := r.Header.Get("X-Forwarded-For")
-		if strings.Count(xff, ",") > 5 { // More than 5 proxy hops is suspicious
-			suspicious = true
-		}
-	}
-
-	if suspicious && metrics != nil {
-		atomic.AddInt64(&metrics.suspiciousRequests, 1)
-	}
-
-	return suspicious
-}
 
 
 // Shutdown gracefully shuts down the server and cleanup routines
