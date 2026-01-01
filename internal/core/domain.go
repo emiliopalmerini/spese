@@ -52,14 +52,14 @@ type Expense struct {
 // It defines expenses that occur regularly at specified intervals,
 // with optional start and end dates for the recurrence period.
 type RecurrentExpenses struct {
-	ID          int64          // Database ID for operations
-	StartDate   Date           // Date when the recurrence starts
-	EndDate     Date           // Optional date when the recurrence ends (zero if indefinite)
+	ID          int64           // Database ID for operations
+	StartDate   Date            // Date when the recurrence starts
+	EndDate     Date            // Optional date when the recurrence ends (zero if indefinite)
 	Every       RepetitionTypes // Frequency of recurrence
-	Description string         // Human-readable description
-	Amount      Money          // Monetary amount in cents per occurrence
-	Primary     string         // Primary category
-	Secondary   string         // Secondary category
+	Description string          // Human-readable description
+	Amount      Money           // Monetary amount in cents per occurrence
+	Primary     string          // Primary category
+	Secondary   string          // Secondary category
 }
 
 // Income represents a single income entry in the system.
@@ -82,13 +82,13 @@ type IncomeMonthOverview struct {
 
 // Domain validation errors.
 var (
-	ErrInvalidDay       = errors.New("invalid day")           // Day value is outside valid range (1-31)
-	ErrInvalidMonth     = errors.New("invalid month")         // Month value is outside valid range (1-12)
-	ErrInvalidAmount    = errors.New("invalid amount")        // Amount is zero or negative
-	ErrEmptyDescription = errors.New("empty description")     // Description field is empty or whitespace-only
-	ErrEmptyPrimary     = errors.New("empty primary category") // Primary category is empty
+	ErrInvalidDay       = errors.New("invalid day")              // Day value is outside valid range (1-31)
+	ErrInvalidMonth     = errors.New("invalid month")            // Month value is outside valid range (1-12)
+	ErrInvalidAmount    = errors.New("invalid amount")           // Amount is zero or negative
+	ErrEmptyDescription = errors.New("empty description")        // Description field is empty or whitespace-only
+	ErrEmptyPrimary     = errors.New("empty primary category")   // Primary category is empty
 	ErrEmptySecondary   = errors.New("empty secondary category") // Secondary category is empty
-	ErrEmptyCategory    = errors.New("empty category")        // Category is empty (for income)
+	ErrEmptyCategory    = errors.New("empty category")           // Category is empty (for income)
 )
 
 // Validate checks if the Date represents a valid date.

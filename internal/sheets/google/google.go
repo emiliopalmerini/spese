@@ -561,9 +561,9 @@ func (c *Client) DeleteExpenseByData(ctx context.Context, expenseData core.Expen
 		if len(row) < 7 { // Need at least A-G columns
 			continue
 		}
-		
+
 		cols := toStrings(row)
-		
+
 		// Skip header rows (first row if it contains non-numeric month)
 		if i == 0 {
 			if _, err := strconv.Atoi(strings.TrimSpace(cols[0])); err != nil {
@@ -636,12 +636,12 @@ func (c *Client) DeleteExpenseByData(ctx context.Context, expenseData core.Expen
 			"matching_rows", matchingRows,
 			"using_row", targetRow,
 			"expense", map[string]interface{}{
-				"month": expenseData.Date.Month,
-				"day": expenseData.Date.Day,
+				"month":       expenseData.Date.Month,
+				"day":         expenseData.Date.Day,
 				"description": expenseData.Description,
-				"amount": float64(expenseData.Amount.Cents)/100.0,
-				"primary": expenseData.Primary,
-				"secondary": expenseData.Secondary,
+				"amount":      float64(expenseData.Amount.Cents) / 100.0,
+				"primary":     expenseData.Primary,
+				"secondary":   expenseData.Secondary,
 			})
 		// With timestamped descriptions, we should ideally have only one match
 		// But we'll proceed with the first match and log the issue
@@ -658,10 +658,10 @@ func (c *Client) DeleteExpenseByData(ctx context.Context, expenseData core.Expen
 			"primary", expenseData.Primary,
 			"secondary", expenseData.Secondary,
 			"total_rows_scanned", len(resp.Values))
-		
+
 		return fmt.Errorf("expense not found in Google Sheets: month=%d day=%d description=%s amount=%.2f primary=%s secondary=%s",
-		expenseData.Date.Month(), expenseData.Date.Day(), expenseData.Description,
-		float64(expenseData.Amount.Cents)/100.0, expenseData.Primary, expenseData.Secondary)
+			expenseData.Date.Month(), expenseData.Date.Day(), expenseData.Description,
+			float64(expenseData.Amount.Cents)/100.0, expenseData.Primary, expenseData.Secondary)
 	}
 
 	// Get the sheet ID for the batchUpdate API

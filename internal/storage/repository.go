@@ -16,10 +16,10 @@ import (
 )
 
 type SQLiteRepository struct {
-	db         *sql.DB         // Main connection for writes
-	readDB     *sql.DB         // Read-only connection for queries
-	queries    *Queries        // Queries using main connection
-	readQueries *Queries       // Queries using read-only connection
+	db          *sql.DB  // Main connection for writes
+	readDB      *sql.DB  // Read-only connection for queries
+	queries     *Queries // Queries using main connection
+	readQueries *Queries // Queries using read-only connection
 }
 
 func NewSQLiteRepository(dbPath string) (*SQLiteRepository, error) {
@@ -82,23 +82,23 @@ func NewSQLiteRepository(dbPath string) (*SQLiteRepository, error) {
 
 func (r *SQLiteRepository) Close() error {
 	var errs []error
-	
+
 	if r.db != nil {
 		if err := r.db.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("close main db: %w", err))
 		}
 	}
-	
+
 	if r.readDB != nil {
 		if err := r.readDB.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("close read db: %w", err))
 		}
 	}
-	
+
 	if len(errs) > 0 {
 		return fmt.Errorf("close repository: %v", errs)
 	}
-	
+
 	return nil
 }
 

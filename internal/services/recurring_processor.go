@@ -19,7 +19,7 @@ import (
 // based on their frequency (daily, weekly, monthly, yearly) and date ranges.
 type RecurringProcessor struct {
 	storage        *storage.SQLiteRepository // Database access for recurrent expenses
-	expenseService *ExpenseService          // Service for creating regular expenses
+	expenseService *ExpenseService           // Service for creating regular expenses
 }
 
 // NewRecurringProcessor creates a new recurring expense processor.

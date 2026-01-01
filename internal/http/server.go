@@ -43,15 +43,12 @@ type applicationMetrics struct {
 	uptime              time.Time
 }
 
-
 // GetSecurityMetrics returns current security metrics (useful for monitoring)
 func (s *Server) GetSecurityMetrics() (rateLimitHits, invalidIPAttempts, suspiciousRequests int64) {
 	return atomic.LoadInt64(&s.metrics.rateLimitHits),
 		atomic.LoadInt64(&s.metrics.invalidIPAttempts),
 		atomic.LoadInt64(&s.metrics.suspiciousRequests)
 }
-
-
 
 // Shutdown gracefully shuts down the server and cleanup routines
 func (s *Server) Shutdown(ctx context.Context) error {
@@ -70,7 +67,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	return shutdownErr
 }
-
 
 // NewServer configures routes and templates, returning a ready-to-run http.Server.
 func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, dr sheets.DashboardReader, lr sheets.ExpenseLister, ed sheets.ExpenseDeleter, lrwid sheets.ExpenseListerWithID) *Server {
@@ -308,7 +304,6 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-
 // handleHealth performs basic liveness check
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -532,5 +527,3 @@ func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
-
-

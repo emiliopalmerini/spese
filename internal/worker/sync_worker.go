@@ -82,7 +82,7 @@ func (w *SyncWorker) HandleDeleteMessage(ctx context.Context, msg *amqp.ExpenseD
 		Primary:     msg.Primary,
 		Secondary:   msg.Secondary,
 	}
-	
+
 	// Check if deleter supports expense data deletion (Google Sheets case)
 	if googleDeleter, ok := w.deleter.(interface {
 		DeleteExpenseByData(ctx context.Context, expenseData core.Expense) error
@@ -105,7 +105,7 @@ func (w *SyncWorker) HandleDeleteMessage(ctx context.Context, msg *amqp.ExpenseD
 
 	// Fallback to regular ID-based deletion for other adapters
 	expenseID := fmt.Sprintf("%d", msg.ID)
-	
+
 	if err := w.deleter.DeleteExpense(ctx, expenseID); err != nil {
 		slog.ErrorContext(ctx, "Failed to delete expense",
 			"id", msg.ID,
@@ -320,7 +320,7 @@ func (w *SyncWorker) syncExpenseToSheets(ctx context.Context, id int64, expense 
 	timestampMs := time.Now().UnixMilli()
 	expenseWithTimestamp := expense
 	expenseWithTimestamp.Description = fmt.Sprintf("%s [ts:%d]", expense.Description, timestampMs)
-	
+
 	// Sync to Google Sheets with timestamped description
 	ref, err := w.sheets.Append(ctx, expenseWithTimestamp)
 	if err != nil {

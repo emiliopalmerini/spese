@@ -18,10 +18,11 @@ import (
 // Returns an error for invalid formats, negative values, or zero amounts.
 //
 // Examples:
-//   ParseDecimalToCents("12.34") -> 1234, nil
-//   ParseDecimalToCents("12,34") -> 1234, nil
-//   ParseDecimalToCents("12.345") -> 1234, nil (rounds down)
-//   ParseDecimalToCents("12.346") -> 1235, nil (rounds up)
+//
+//	ParseDecimalToCents("12.34") -> 1234, nil
+//	ParseDecimalToCents("12,34") -> 1234, nil
+//	ParseDecimalToCents("12.345") -> 1234, nil (rounds down)
+//	ParseDecimalToCents("12.346") -> 1235, nil (rounds up)
 func ParseDecimalToCents(s string) (int64, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
