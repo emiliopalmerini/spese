@@ -205,64 +205,6 @@ func detectSuspiciousRequest(r *http.Request, metrics *securityMetrics) bool {
 	return suspicious
 }
 
-// Simple in-memory rate limiter
-type rateLimiter struct {
-	mu           sync.Mutex
-	clients      map[string]*clientInfo
-	stopCleanup  chan struct{}
-	shutdownOnce sync.Once
-}
-
-type clientInfo struct {
-	lastRequest time.Time
-	requests    int
-}
-
-func newRateLimiter() *rateLimiter {
-	rl := &rateLimiter{
-		clients:     make(map[string]*clientInfo),
-		stopCleanup: make(chan struct{}),
-	}
-	go rl.startCleanup()
-	return rl
-}
-
-// startCleanup runs periodic cleanup to remove stale client entries
-func (rl *rateLimiter) startCleanup() {
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			rl.cleanupStaleEntries()
-		case <-rl.stopCleanup:
-			return
-		}
-	}
-}
-
-// cleanupStaleEntries removes client entries older than 10 minutes
-func (rl *rateLimiter) cleanupStaleEntries() {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
-	cutoff := time.Now().Add(-10 * time.Minute)
-	for ip, client := range rl.clients {
-		if client.lastRequest.Before(cutoff) {
-			delete(rl.clients, ip)
-		}
-	}
-}
-
-// stop gracefully shuts down the rate limiter cleanup goroutine
-func (rl *rateLimiter) stop() {
-	rl.shutdownOnce.Do(func() {
-		if rl.stopCleanup != nil {
-			close(rl.stopCleanup)
-		}
-	})
-}
 
 // Shutdown gracefully shuts down the server and cleanup routines
 func (s *Server) Shutdown(ctx context.Context) error {
@@ -282,43 +224,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return shutdownErr
 }
 
-// allow checks if a request from the given IP should be allowed
-func (rl *rateLimiter) allow(clientIP string, metrics *securityMetrics) bool {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
-	now := time.Now()
-	client, exists := rl.clients[clientIP]
-
-	if !exists {
-		rl.clients[clientIP] = &clientInfo{
-			lastRequest: now,
-			requests:    1,
-		}
-		return true
-	}
-
-	// Reset counter if more than 1 minute has passed
-	if now.Sub(client.lastRequest) > time.Minute {
-		client.requests = 1
-		client.lastRequest = now
-		return true
-	}
-
-	// Allow up to 60 requests per minute
-	client.requests++
-	client.lastRequest = now
-
-	if client.requests > 60 {
-		// Track rate limit hit
-		if metrics != nil {
-			atomic.AddInt64(&metrics.rateLimitHits, 1)
-		}
-		return false
-	}
-
-	return true
-}
 
 // NewServer configures routes and templates, returning a ready-to-run http.Server.
 func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, dr sheets.DashboardReader, lr sheets.ExpenseLister, ed sheets.ExpenseDeleter, lrwid sheets.ExpenseListerWithID) *Server {
