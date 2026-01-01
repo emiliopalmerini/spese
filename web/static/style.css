@@ -61,14 +61,92 @@ html{font-size:16px;}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 
 /* ==============================================================
-   Topbar
+   Topbar - Modern Navigation
 ============================================================== */
-.topbar{position:sticky;top:0;z-index:10;background:var(--bg-light);border-bottom:1px solid var(--border);padding-top:var(--safe-top);}
-.topbar__inner{min-height:52px;display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);padding-block:var(--space-2);}
-.brand{font-weight:600;font-size:.95rem;letter-spacing:0;}
-.topbar__nav{display:flex;gap:var(--space-3);align-items:center;}
-.nav-link{color:var(--text);text-decoration:none;font-weight:500;padding:var(--space-2) var(--space-3);border-radius:var(--radius);transition:all 0.2s ease;}
-.nav-link:hover{background:var(--primary-light);color:var(--primary);}
+.topbar{
+  position:sticky;
+  top:0;
+  z-index:100;
+  background:rgba(249, 250, 251, 0.85);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  padding-top:var(--safe-top);
+}
+.topbar__inner{
+  min-height:56px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:var(--space-3);
+  padding-block:var(--space-2);
+}
+.brand{
+  font-weight:700;
+  font-size:1.125rem;
+  letter-spacing:-0.02em;
+  color:var(--text);
+  display:flex;
+  align-items:center;
+  gap:var(--space-2);
+}
+.brand::before{
+  content:"";
+  display:inline-block;
+  width:8px;
+  height:8px;
+  background:var(--primary);
+  border-radius:2px;
+}
+.topbar__nav{
+  display:flex;
+  gap:var(--space-1);
+  align-items:center;
+  background:var(--surface);
+  padding:4px;
+  border-radius:10px;
+  border:1px solid var(--border);
+  box-shadow:var(--shadow-sm);
+}
+.nav-link{
+  color:var(--muted);
+  text-decoration:none;
+  font-weight:500;
+  font-size:0.875rem;
+  padding:8px 14px;
+  border-radius:6px;
+  transition:all 0.2s ease;
+  white-space:nowrap;
+}
+.nav-link:hover{
+  color:var(--text);
+  background:var(--bg-light);
+}
+.nav-link.active,
+.nav-link[aria-current="page"]{
+  background:var(--text);
+  color:var(--surface);
+  box-shadow:var(--shadow-sm);
+}
+
+/* Mobile nav adjustments */
+@media (max-width: 559px) {
+  .topbar__inner{
+    flex-direction:column;
+    gap:var(--space-2);
+    padding-block:var(--space-3);
+  }
+  .topbar__nav{
+    width:100%;
+    justify-content:center;
+  }
+  .nav-link{
+    flex:1;
+    text-align:center;
+    padding:10px 8px;
+    font-size:0.8125rem;
+  }
+}
 
 /* ==============================================================
    Form (Peso-style modern form components)
