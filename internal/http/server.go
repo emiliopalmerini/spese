@@ -2,8 +2,6 @@ package http
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -558,15 +556,6 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-// generateRequestID creates a unique request ID for tracing
-func generateRequestID() string {
-	bytes := make([]byte, 8)
-	if _, err := rand.Read(bytes); err != nil {
-		// Fallback to timestamp if random fails
-		return fmt.Sprintf("req_%d", time.Now().UnixNano())
-	}
-	return "req_" + hex.EncodeToString(bytes)
-}
 
 // handleHealth performs basic liveness check
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -836,20 +825,20 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		"operation", "create")
 	// Trigger client refresh for form, overview and list + show notification
 	year := time.Now().Year()
-	successMsg := fmt.Sprintf("Spesa registrata (#%s): %s — €%s (%s / %s)", 
-		template.HTMLEscapeString(ref), 
+	successMsg := fmt.Sprintf("Spesa registrata (#%s): %s — €%s (%s / %s)",
+		template.HTMLEscapeString(ref),
 		template.HTMLEscapeString(exp.Description),
 		template.HTMLEscapeString(amountStr),
-		template.HTMLEscapeString(exp.Primary), 
+		template.HTMLEscapeString(exp.Primary),
 		template.HTMLEscapeString(exp.Secondary))
-	
+
 	w.Header().Set("HX-Trigger", fmt.Sprintf(`{
 		"expense:created": {"year": %d, "month": %d},
 		"form:reset": {},
 		"overview:refresh": {"year": %d, "month": %d},
 		"show-notification": {"type": "success", "message": "%s", "duration": 3000}
 	}`, year, month, year, month, template.JSEscapeString(successMsg)))
-	
+
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("")) // Empty response, notifications handled via JavaScript
 }
@@ -863,7 +852,7 @@ func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
 
 	var expenseID string
 	contentType := r.Header.Get("Content-Type")
-	
+
 	// Handle different request formats
 	// HTMX with hx-vals sends JSON but may not set application/json content-type
 	if strings.Contains(contentType, "application/json") || r.Method == http.MethodDelete {
@@ -875,14 +864,14 @@ func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte(`<div class="error">Errore lettura richiesta</div>`))
 			return
 		}
-		
-		slog.InfoContext(r.Context(), "Delete expense request body", 
-			"method", r.Method, 
-			"content_type", contentType, 
+
+		slog.InfoContext(r.Context(), "Delete expense request body",
+			"method", r.Method,
+			"content_type", contentType,
 			"body", string(body),
 			"headers", r.Header,
 			"body_length", len(body))
-		
+
 		// Try to parse as JSON
 		var requestBody map[string]interface{}
 		if len(body) > 0 && (body[0] == '{' || body[0] == '[') {
@@ -892,16 +881,16 @@ func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte(`<div class="error">Formato richiesta JSON non valido</div>`))
 				return
 			}
-			
+
 			if id, ok := requestBody["id"]; ok {
 				expenseID = sanitizeInput(fmt.Sprintf("%v", id))
 			}
-			
+
 			slog.InfoContext(r.Context(), "Delete expense request (JSON)", "method", r.Method, "json_body", requestBody, "expense_id", expenseID)
 		} else {
 			// Fall back to form parsing if body doesn't look like JSON
 			slog.InfoContext(r.Context(), "Body doesn't look like JSON, trying form parsing", "body", string(body))
-			
+
 			// Since we already read the body, we need to recreate the form data
 			// Parse form-encoded data manually from the body
 			formData, err := url.ParseQuery(string(body))
@@ -911,7 +900,7 @@ func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte(`<div class="error">Formato dati form non valido</div>`))
 				return
 			}
-			
+
 			expenseID = sanitizeInput(formData.Get("id"))
 			slog.InfoContext(r.Context(), "Delete expense request (Form fallback)", "method", r.Method, "form_data", formData, "expense_id", expenseID)
 		}
@@ -923,7 +912,7 @@ func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte(`<div class="error">Formato richiesta non valido</div>`))
 			return
 		}
-		
+
 		expenseID = sanitizeInput(r.Form.Get("id"))
 		slog.InfoContext(r.Context(), "Delete expense request (Form)", "method", r.Method, "form_values", r.Form, "expense_id", expenseID)
 	}
@@ -975,18 +964,6 @@ func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("")) // Empty response - item will be removed via targeting
 }
 
-// sanitizeInput removes potentially dangerous characters and trims whitespace
-func sanitizeInput(s string) string {
-	s = strings.TrimSpace(s)
-	// Remove control characters except tab, newline, carriage return
-	result := strings.Map(func(r rune) rune {
-		if r < 32 && r != 9 && r != 10 && r != 13 {
-			return -1 // remove character
-		}
-		return r
-	}, s)
-	return result
-}
 
 func (s *Server) getOverview(ctx context.Context, year, month int) (core.MonthOverview, error) {
 	if s.dashReader == nil {
@@ -1285,7 +1262,7 @@ func (s *Server) handleCreateRecurrentExpense(w http.ResponseWriter, r *http.Req
 		"form:reset": {},
 		"show-notification": {"type": "success", "message": "%s", "duration": 3000}
 	}`, template.JSEscapeString(successMsg)))
-	
+
 	w.WriteHeader(http.StatusCreated)
 	_, _ = w.Write([]byte("")) // Empty response, notifications handled via JavaScript
 }
@@ -1437,14 +1414,6 @@ func (s *Server) handleDeleteRecurrentExpense(w http.ResponseWriter, r *http.Req
 	_, _ = w.Write([]byte(``))
 }
 
-// Helper function to parse date from string (YYYY-MM-DD format)
-func parseDate(dateStr string) (core.Date, error) {
-	parsedTime, err := time.Parse("2006-01-02", dateStr)
-	if err != nil {
-		return core.Date{}, err
-	}
-	return core.Date{Time: parsedTime}, nil
-}
 
 func (s *Server) handleGetSecondaryCategories(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -1520,19 +1489,6 @@ func (s *Server) handleGetSecondaryCategories(w http.ResponseWriter, r *http.Req
 	}
 }
 
-func formatEuros(cents int64) string {
-	neg := cents < 0
-	if neg {
-		cents = -cents
-	}
-	euros := cents / 100
-	rem := cents % 100
-	s := strconv.FormatInt(euros, 10) + "," + fmt.Sprintf("%02d", rem)
-	if neg {
-		return "-€" + s
-	}
-	return "€" + s
-}
 
 // handleRecurrentExpensesList renders the recurrent expenses list partial
 func (s *Server) handleRecurrentExpensesList(w http.ResponseWriter, r *http.Request) {
@@ -1765,12 +1721,12 @@ func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	
+
 	// Get notification details from query params
 	msgType := r.URL.Query().Get("type") // success, error, info
 	message := r.URL.Query().Get("message")
 	duration := r.URL.Query().Get("duration") // in milliseconds
-	
+
 	if message == "" {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -1861,11 +1817,11 @@ func (s *Server) handleMonthTotal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	
+
 	now := time.Now()
 	year := now.Year()
 	month := int(now.Month())
-	
+
 	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
 		if y, err := strconv.Atoi(v); err == nil {
 			year = y
@@ -1905,11 +1861,11 @@ func (s *Server) handleMonthCategories(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	
+
 	now := time.Now()
 	year := now.Year()
 	month := int(now.Month())
-	
+
 	if v := strings.TrimSpace(r.URL.Query().Get("year")); v != "" {
 		if y, err := strconv.Atoi(v); err == nil {
 			year = y
