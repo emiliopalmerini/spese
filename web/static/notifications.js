@@ -28,15 +28,9 @@ class NotificationManager {
             return;
         }
 
-        // Listen for HTMX events for notifications (only once)
-        if (!this.htmxListenerAdded) {
-            document.addEventListener('htmx:afterRequest', (event) => {
-                this.handleResponse(event.detail);
-            });
-            this.htmxListenerAdded = true;
-        }
-
-        // Listen for custom notification events (only once)
+        // Listen for HTMX-dispatched show-notification events (only once)
+        // Note: HTMX automatically dispatches events from HX-Trigger headers,
+        // so we only need this listener - not htmx:afterRequest
         if (!this.customListenerAdded) {
             document.addEventListener('show-notification', (event) => {
                 this.show(event.detail);
@@ -77,9 +71,9 @@ class NotificationManager {
             this.dismiss(notification);
         });
 
-        // Add close button
+        // Add close button with SVG icon (iOS compatible)
         const closeBtn = document.createElement('button');
-        closeBtn.innerHTML = '×';
+        closeBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 1l10 10M11 1L1 11"/></svg>';
         closeBtn.className = 'notification__close';
         closeBtn.setAttribute('aria-label', 'Close notification');
         closeBtn.addEventListener('click', (e) => {
@@ -125,23 +119,6 @@ class NotificationManager {
     clear() {
         if (!this.container) return;
         this.container.innerHTML = '';
-    }
-
-    handleResponse(detail) {
-        // Handle HX-Trigger headers for notifications
-        if (detail.xhr && detail.xhr.getResponseHeader) {
-            const trigger = detail.xhr.getResponseHeader('HX-Trigger');
-            if (trigger) {
-                try {
-                    const events = JSON.parse(trigger);
-                    if (events['show-notification']) {
-                        this.show(events['show-notification']);
-                    }
-                } catch (e) {
-                    console.warn('Failed to parse HX-Trigger header:', e);
-                }
-            }
-        }
     }
 }
 

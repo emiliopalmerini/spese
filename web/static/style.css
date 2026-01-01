@@ -284,19 +284,16 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
 
 .notification__close{
   position:absolute;
-  top:var(--space-2);
-  right:var(--space-2);
+  top:8px;
+  right:8px;
   background:none;
   border:none;
-  font-size:1.25rem;
-  font-weight:bold;
-  line-height:1;
   color:inherit;
-  opacity:0.6;
+  opacity:0.5;
   cursor:pointer;
-  padding:0;
-  width:20px;
-  height:20px;
+  padding:4px;
+  width:24px;
+  height:24px;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -307,6 +304,10 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
 .notification__close:hover{
   opacity:1;
   background:rgba(0,0,0,0.1);
+}
+
+.notification__close svg{
+  display:block;
 }
 
 .notification:hover{
