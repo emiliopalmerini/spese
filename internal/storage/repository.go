@@ -162,7 +162,10 @@ func (r *SQLiteRepository) ReadMonthOverview(ctx context.Context, year int, mont
 	}
 
 	// Get total for the month using read-only connection
-	total, err := r.readQueries.GetMonthTotal(ctx, int64(month))
+	total, err := r.readQueries.GetMonthTotal(ctx, GetMonthTotalParams{
+		PRINTF:   int64(year),
+		PRINTF_2: int64(month),
+	})
 	if err != nil {
 		return overview, fmt.Errorf("get month total: %w", err)
 	}
@@ -170,7 +173,10 @@ func (r *SQLiteRepository) ReadMonthOverview(ctx context.Context, year int, mont
 	overview.Total = core.Money{Cents: total}
 
 	// Get category sums using read-only connection
-	categorySums, err := r.readQueries.GetCategorySums(ctx, int64(month))
+	categorySums, err := r.readQueries.GetCategorySums(ctx, GetCategorySumsParams{
+		PRINTF:   int64(year),
+		PRINTF_2: int64(month),
+	})
 	if err != nil {
 		return overview, fmt.Errorf("get category sums: %w", err)
 	}
@@ -187,7 +193,10 @@ func (r *SQLiteRepository) ReadMonthOverview(ctx context.Context, year int, mont
 
 // ListExpenses implements sheets.ExpenseLister
 func (r *SQLiteRepository) ListExpenses(ctx context.Context, year int, month int) ([]core.Expense, error) {
-	dbExpenses, err := r.readQueries.GetExpensesByMonth(ctx, int64(month))
+	dbExpenses, err := r.readQueries.GetExpensesByMonth(ctx, GetExpensesByMonthParams{
+		PRINTF:   int64(year),
+		PRINTF_2: int64(month),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get expenses by month: %w", err)
 	}
@@ -208,7 +217,10 @@ func (r *SQLiteRepository) ListExpenses(ctx context.Context, year int, month int
 
 // ListExpensesWithID returns expenses with their IDs for the specified year and month
 func (r *SQLiteRepository) ListExpensesWithID(ctx context.Context, year int, month int) ([]ExpenseWithID, error) {
-	dbExpenses, err := r.readQueries.GetExpensesByMonth(ctx, int64(month))
+	dbExpenses, err := r.readQueries.GetExpensesByMonth(ctx, GetExpensesByMonthParams{
+		PRINTF:   int64(year),
+		PRINTF_2: int64(month),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get expenses by month: %w", err)
 	}
@@ -745,7 +757,10 @@ func (r *SQLiteRepository) ReadIncomeMonthOverview(ctx context.Context, year int
 	}
 
 	// Get total for the month using read-only connection
-	total, err := r.readQueries.GetIncomeMonthTotal(ctx, int64(month))
+	total, err := r.readQueries.GetIncomeMonthTotal(ctx, GetIncomeMonthTotalParams{
+		PRINTF:   int64(year),
+		PRINTF_2: int64(month),
+	})
 	if err != nil {
 		return overview, fmt.Errorf("get income month total: %w", err)
 	}
@@ -753,7 +768,10 @@ func (r *SQLiteRepository) ReadIncomeMonthOverview(ctx context.Context, year int
 	overview.Total = core.Money{Cents: total}
 
 	// Get category sums using read-only connection
-	categorySums, err := r.readQueries.GetIncomeCategorySums(ctx, int64(month))
+	categorySums, err := r.readQueries.GetIncomeCategorySums(ctx, GetIncomeCategorySumsParams{
+		PRINTF:   int64(year),
+		PRINTF_2: int64(month),
+	})
 	if err != nil {
 		return overview, fmt.Errorf("get income category sums: %w", err)
 	}
@@ -770,7 +788,10 @@ func (r *SQLiteRepository) ReadIncomeMonthOverview(ctx context.Context, year int
 
 // ListIncomes returns all incomes for a given month
 func (r *SQLiteRepository) ListIncomes(ctx context.Context, year int, month int) ([]core.Income, error) {
-	dbIncomes, err := r.readQueries.GetIncomesByMonth(ctx, int64(month))
+	dbIncomes, err := r.readQueries.GetIncomesByMonth(ctx, GetIncomesByMonthParams{
+		PRINTF:   int64(year),
+		PRINTF_2: int64(month),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get incomes by month: %w", err)
 	}
@@ -796,7 +817,10 @@ type IncomeWithID struct {
 
 // ListIncomesWithID returns incomes with their IDs for the specified year and month
 func (r *SQLiteRepository) ListIncomesWithID(ctx context.Context, year int, month int) ([]IncomeWithID, error) {
-	dbIncomes, err := r.readQueries.GetIncomesByMonth(ctx, int64(month))
+	dbIncomes, err := r.readQueries.GetIncomesByMonth(ctx, GetIncomesByMonthParams{
+		PRINTF:   int64(year),
+		PRINTF_2: int64(month),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get incomes by month: %w", err)
 	}

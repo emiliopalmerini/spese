@@ -22,6 +22,24 @@ type Expense struct {
 	SyncStatus        sql.NullString `db:"sync_status" json:"sync_status"`
 }
 
+type Income struct {
+	ID          int64          `db:"id" json:"id"`
+	Date        time.Time      `db:"date" json:"date"`
+	Description string         `db:"description" json:"description"`
+	AmountCents int64          `db:"amount_cents" json:"amount_cents"`
+	Category    string         `db:"category" json:"category"`
+	Version     int64          `db:"version" json:"version"`
+	CreatedAt   sql.NullTime   `db:"created_at" json:"created_at"`
+	SyncedAt    interface{}    `db:"synced_at" json:"synced_at"`
+	SyncStatus  sql.NullString `db:"sync_status" json:"sync_status"`
+}
+
+type IncomeCategory struct {
+	ID        int64        `db:"id" json:"id"`
+	Name      string       `db:"name" json:"name"`
+	CreatedAt sql.NullTime `db:"created_at" json:"created_at"`
+}
+
 type PrimaryCategory struct {
 	ID        int64        `db:"id" json:"id"`
 	Name      string       `db:"name" json:"name"`
@@ -48,22 +66,4 @@ type SecondaryCategory struct {
 	Name              string       `db:"name" json:"name"`
 	PrimaryCategoryID int64        `db:"primary_category_id" json:"primary_category_id"`
 	CreatedAt         sql.NullTime `db:"created_at" json:"created_at"`
-}
-
-type Income struct {
-	ID          int64          `db:"id" json:"id"`
-	Date        time.Time      `db:"date" json:"date"`
-	Description string         `db:"description" json:"description"`
-	AmountCents int64          `db:"amount_cents" json:"amount_cents"`
-	Category    string         `db:"category" json:"category"`
-	Version     int64          `db:"version" json:"version"`
-	CreatedAt   sql.NullTime   `db:"created_at" json:"created_at"`
-	SyncedAt    interface{}    `db:"synced_at" json:"synced_at"`
-	SyncStatus  sql.NullString `db:"sync_status" json:"sync_status"`
-}
-
-type IncomeCategory struct {
-	ID        int64        `db:"id" json:"id"`
-	Name      string       `db:"name" json:"name"`
-	CreatedAt sql.NullTime `db:"created_at" json:"created_at"`
 }

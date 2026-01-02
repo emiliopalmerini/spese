@@ -10,6 +10,8 @@ import (
 
 type Querier interface {
 	CreateExpense(ctx context.Context, arg CreateExpenseParams) (Expense, error)
+	// Income queries
+	CreateIncome(ctx context.Context, arg CreateIncomeParams) (Income, error)
 	CreatePrimaryCategory(ctx context.Context, name string) (PrimaryCategory, error)
 	// Recurrent Expenses queries
 	CreateRecurrentExpense(ctx context.Context, arg CreateRecurrentExpenseParams) (RecurrentExpense, error)
@@ -20,10 +22,15 @@ type Querier interface {
 	DeleteSecondaryCategory(ctx context.Context, name string) error
 	GetActiveRecurrentExpensesByDate(ctx context.Context, arg GetActiveRecurrentExpensesByDateParams) ([]RecurrentExpense, error)
 	GetActiveRecurrentExpensesForProcessing(ctx context.Context, arg GetActiveRecurrentExpensesForProcessingParams) ([]RecurrentExpense, error)
-	GetCategorySums(ctx context.Context, printf interface{}) ([]GetCategorySumsRow, error)
+	GetCategorySums(ctx context.Context, arg GetCategorySumsParams) ([]GetCategorySumsRow, error)
 	GetExpense(ctx context.Context, id int64) (Expense, error)
-	GetExpensesByMonth(ctx context.Context, printf interface{}) ([]Expense, error)
-	GetMonthTotal(ctx context.Context, printf interface{}) (int64, error)
+	GetExpensesByMonth(ctx context.Context, arg GetExpensesByMonthParams) ([]Expense, error)
+	GetIncome(ctx context.Context, id int64) (Income, error)
+	GetIncomeCategories(ctx context.Context) ([]string, error)
+	GetIncomeCategorySums(ctx context.Context, arg GetIncomeCategorySumsParams) ([]GetIncomeCategorySumsRow, error)
+	GetIncomeMonthTotal(ctx context.Context, arg GetIncomeMonthTotalParams) (int64, error)
+	GetIncomesByMonth(ctx context.Context, arg GetIncomesByMonthParams) ([]Income, error)
+	GetMonthTotal(ctx context.Context, arg GetMonthTotalParams) (int64, error)
 	GetPendingSyncExpenses(ctx context.Context, limit int64) ([]GetPendingSyncExpensesRow, error)
 	// Primary Categories queries
 	GetPrimaryCategories(ctx context.Context) ([]string, error)
@@ -33,6 +40,7 @@ type Querier interface {
 	// Secondary Categories queries
 	GetSecondaryCategories(ctx context.Context) ([]string, error)
 	HardDeleteExpense(ctx context.Context, id int64) error
+	HardDeleteIncome(ctx context.Context, id int64) error
 	MarkExpenseSyncError(ctx context.Context, id int64) error
 	MarkExpenseSynced(ctx context.Context, id int64) error
 	RefreshCategories(ctx context.Context) error

@@ -49,6 +49,42 @@ func (q *Queries) CreateExpense(ctx context.Context, arg CreateExpenseParams) (E
 	return i, err
 }
 
+const createIncome = `-- name: CreateIncome :one
+INSERT INTO incomes (date, description, amount_cents, category)
+VALUES (date(?), ?, ?, ?)
+RETURNING id, date, description, amount_cents, category, version, created_at, synced_at, sync_status
+`
+
+type CreateIncomeParams struct {
+	Date        interface{} `db:"date" json:"date"`
+	Description string      `db:"description" json:"description"`
+	AmountCents int64       `db:"amount_cents" json:"amount_cents"`
+	Category    string      `db:"category" json:"category"`
+}
+
+// Income queries
+func (q *Queries) CreateIncome(ctx context.Context, arg CreateIncomeParams) (Income, error) {
+	row := q.db.QueryRowContext(ctx, createIncome,
+		arg.Date,
+		arg.Description,
+		arg.AmountCents,
+		arg.Category,
+	)
+	var i Income
+	err := row.Scan(
+		&i.ID,
+		&i.Date,
+		&i.Description,
+		&i.AmountCents,
+		&i.Category,
+		&i.Version,
+		&i.CreatedAt,
+		&i.SyncedAt,
+		&i.SyncStatus,
+	)
+	return i, err
+}
+
 const createPrimaryCategory = `-- name: CreatePrimaryCategory :one
 INSERT INTO primary_categories (name)
 VALUES (?)
@@ -273,19 +309,25 @@ func (q *Queries) GetActiveRecurrentExpensesForProcessing(ctx context.Context, a
 
 const getCategorySums = `-- name: GetCategorySums :many
 SELECT primary_category, CAST(SUM(amount_cents) AS INTEGER) as total_amount
-FROM expenses 
-WHERE strftime('%m', date) = printf('%02d', ?)
+FROM expenses
+WHERE strftime('%Y', date) = printf('%04d', ?)
+  AND strftime('%m', date) = printf('%02d', ?)
 GROUP BY primary_category
 ORDER BY total_amount DESC
 `
+
+type GetCategorySumsParams struct {
+	PRINTF   interface{} `db:"PRINTF" json:"PRINTF"`
+	PRINTF_2 interface{} `db:"PRINTF_2" json:"PRINTF_2"`
+}
 
 type GetCategorySumsRow struct {
 	PrimaryCategory string `db:"primary_category" json:"primary_category"`
 	TotalAmount     int64  `db:"total_amount" json:"total_amount"`
 }
 
-func (q *Queries) GetCategorySums(ctx context.Context, printf interface{}) ([]GetCategorySumsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getCategorySums, printf)
+func (q *Queries) GetCategorySums(ctx context.Context, arg GetCategorySumsParams) ([]GetCategorySumsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getCategorySums, arg.PRINTF, arg.PRINTF_2)
 	if err != nil {
 		return nil, err
 	}
@@ -330,13 +372,19 @@ func (q *Queries) GetExpense(ctx context.Context, id int64) (Expense, error) {
 }
 
 const getExpensesByMonth = `-- name: GetExpensesByMonth :many
-SELECT id, date, description, amount_cents, primary_category, secondary_category, version, created_at, synced_at, sync_status FROM expenses 
-WHERE strftime('%m', date) = printf('%02d', ?)
+SELECT id, date, description, amount_cents, primary_category, secondary_category, version, created_at, synced_at, sync_status FROM expenses
+WHERE strftime('%Y', date) = printf('%04d', ?)
+  AND strftime('%m', date) = printf('%02d', ?)
 ORDER BY date DESC, created_at DESC
 `
 
-func (q *Queries) GetExpensesByMonth(ctx context.Context, printf interface{}) ([]Expense, error) {
-	rows, err := q.db.QueryContext(ctx, getExpensesByMonth, printf)
+type GetExpensesByMonthParams struct {
+	PRINTF   interface{} `db:"PRINTF" json:"PRINTF"`
+	PRINTF_2 interface{} `db:"PRINTF_2" json:"PRINTF_2"`
+}
+
+func (q *Queries) GetExpensesByMonth(ctx context.Context, arg GetExpensesByMonthParams) ([]Expense, error) {
+	rows, err := q.db.QueryContext(ctx, getExpensesByMonth, arg.PRINTF, arg.PRINTF_2)
 	if err != nil {
 		return nil, err
 	}
@@ -369,14 +417,175 @@ func (q *Queries) GetExpensesByMonth(ctx context.Context, printf interface{}) ([
 	return items, nil
 }
 
-const getMonthTotal = `-- name: GetMonthTotal :one
-SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) as total
-FROM expenses 
-WHERE strftime('%m', date) = printf('%02d', ?)
+const getIncome = `-- name: GetIncome :one
+SELECT id, date, description, amount_cents, category, version, created_at, synced_at, sync_status FROM incomes WHERE id = ?
 `
 
-func (q *Queries) GetMonthTotal(ctx context.Context, printf interface{}) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getMonthTotal, printf)
+func (q *Queries) GetIncome(ctx context.Context, id int64) (Income, error) {
+	row := q.db.QueryRowContext(ctx, getIncome, id)
+	var i Income
+	err := row.Scan(
+		&i.ID,
+		&i.Date,
+		&i.Description,
+		&i.AmountCents,
+		&i.Category,
+		&i.Version,
+		&i.CreatedAt,
+		&i.SyncedAt,
+		&i.SyncStatus,
+	)
+	return i, err
+}
+
+const getIncomeCategories = `-- name: GetIncomeCategories :many
+SELECT name FROM income_categories
+ORDER BY name ASC
+`
+
+func (q *Queries) GetIncomeCategories(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getIncomeCategories)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getIncomeCategorySums = `-- name: GetIncomeCategorySums :many
+SELECT category, CAST(SUM(amount_cents) AS INTEGER) as total_amount
+FROM incomes
+WHERE strftime('%Y', date) = printf('%04d', ?)
+  AND strftime('%m', date) = printf('%02d', ?)
+GROUP BY category
+ORDER BY total_amount DESC
+`
+
+type GetIncomeCategorySumsParams struct {
+	PRINTF   interface{} `db:"PRINTF" json:"PRINTF"`
+	PRINTF_2 interface{} `db:"PRINTF_2" json:"PRINTF_2"`
+}
+
+type GetIncomeCategorySumsRow struct {
+	Category    string `db:"category" json:"category"`
+	TotalAmount int64  `db:"total_amount" json:"total_amount"`
+}
+
+func (q *Queries) GetIncomeCategorySums(ctx context.Context, arg GetIncomeCategorySumsParams) ([]GetIncomeCategorySumsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getIncomeCategorySums, arg.PRINTF, arg.PRINTF_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetIncomeCategorySumsRow
+	for rows.Next() {
+		var i GetIncomeCategorySumsRow
+		if err := rows.Scan(&i.Category, &i.TotalAmount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getIncomeMonthTotal = `-- name: GetIncomeMonthTotal :one
+SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) as total
+FROM incomes
+WHERE strftime('%Y', date) = printf('%04d', ?)
+  AND strftime('%m', date) = printf('%02d', ?)
+`
+
+type GetIncomeMonthTotalParams struct {
+	PRINTF   interface{} `db:"PRINTF" json:"PRINTF"`
+	PRINTF_2 interface{} `db:"PRINTF_2" json:"PRINTF_2"`
+}
+
+func (q *Queries) GetIncomeMonthTotal(ctx context.Context, arg GetIncomeMonthTotalParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getIncomeMonthTotal, arg.PRINTF, arg.PRINTF_2)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
+const getIncomesByMonth = `-- name: GetIncomesByMonth :many
+SELECT id, date, description, amount_cents, category, version, created_at, synced_at, sync_status FROM incomes
+WHERE strftime('%Y', date) = printf('%04d', ?)
+  AND strftime('%m', date) = printf('%02d', ?)
+ORDER BY date DESC, created_at DESC
+`
+
+type GetIncomesByMonthParams struct {
+	PRINTF   interface{} `db:"PRINTF" json:"PRINTF"`
+	PRINTF_2 interface{} `db:"PRINTF_2" json:"PRINTF_2"`
+}
+
+func (q *Queries) GetIncomesByMonth(ctx context.Context, arg GetIncomesByMonthParams) ([]Income, error) {
+	rows, err := q.db.QueryContext(ctx, getIncomesByMonth, arg.PRINTF, arg.PRINTF_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Income
+	for rows.Next() {
+		var i Income
+		if err := rows.Scan(
+			&i.ID,
+			&i.Date,
+			&i.Description,
+			&i.AmountCents,
+			&i.Category,
+			&i.Version,
+			&i.CreatedAt,
+			&i.SyncedAt,
+			&i.SyncStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMonthTotal = `-- name: GetMonthTotal :one
+SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) as total
+FROM expenses
+WHERE strftime('%Y', date) = printf('%04d', ?)
+  AND strftime('%m', date) = printf('%02d', ?)
+`
+
+type GetMonthTotalParams struct {
+	PRINTF   interface{} `db:"PRINTF" json:"PRINTF"`
+	PRINTF_2 interface{} `db:"PRINTF_2" json:"PRINTF_2"`
+}
+
+func (q *Queries) GetMonthTotal(ctx context.Context, arg GetMonthTotalParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getMonthTotal, arg.PRINTF, arg.PRINTF_2)
 	var total int64
 	err := row.Scan(&total)
 	return total, err
@@ -583,6 +792,16 @@ func (q *Queries) HardDeleteExpense(ctx context.Context, id int64) error {
 	return err
 }
 
+const hardDeleteIncome = `-- name: HardDeleteIncome :exec
+DELETE FROM incomes
+WHERE id = ?
+`
+
+func (q *Queries) HardDeleteIncome(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, hardDeleteIncome, id)
+	return err
+}
+
 const markExpenseSyncError = `-- name: MarkExpenseSyncError :exec
 UPDATE expenses 
 SET sync_status = 'error'
@@ -676,188 +895,4 @@ type UpdateRecurrentLastExecutionParams struct {
 func (q *Queries) UpdateRecurrentLastExecution(ctx context.Context, arg UpdateRecurrentLastExecutionParams) error {
 	_, err := q.db.ExecContext(ctx, updateRecurrentLastExecution, arg.LastExecutionDate, arg.ID)
 	return err
-}
-
-// Income queries
-
-const createIncome = `-- name: CreateIncome :one
-INSERT INTO incomes (date, description, amount_cents, category)
-VALUES (date(?), ?, ?, ?)
-RETURNING id, date, description, amount_cents, category, version, created_at, synced_at, sync_status
-`
-
-type CreateIncomeParams struct {
-	Date        interface{} `db:"date" json:"date"`
-	Description string      `db:"description" json:"description"`
-	AmountCents int64       `db:"amount_cents" json:"amount_cents"`
-	Category    string      `db:"category" json:"category"`
-}
-
-func (q *Queries) CreateIncome(ctx context.Context, arg CreateIncomeParams) (Income, error) {
-	row := q.db.QueryRowContext(ctx, createIncome,
-		arg.Date,
-		arg.Description,
-		arg.AmountCents,
-		arg.Category,
-	)
-	var i Income
-	err := row.Scan(
-		&i.ID,
-		&i.Date,
-		&i.Description,
-		&i.AmountCents,
-		&i.Category,
-		&i.Version,
-		&i.CreatedAt,
-		&i.SyncedAt,
-		&i.SyncStatus,
-	)
-	return i, err
-}
-
-const getIncomesByMonth = `-- name: GetIncomesByMonth :many
-SELECT id, date, description, amount_cents, category, version, created_at, synced_at, sync_status FROM incomes
-WHERE strftime('%m', date) = printf('%02d', ?)
-ORDER BY date DESC, created_at DESC
-`
-
-func (q *Queries) GetIncomesByMonth(ctx context.Context, printf interface{}) ([]Income, error) {
-	rows, err := q.db.QueryContext(ctx, getIncomesByMonth, printf)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Income
-	for rows.Next() {
-		var i Income
-		if err := rows.Scan(
-			&i.ID,
-			&i.Date,
-			&i.Description,
-			&i.AmountCents,
-			&i.Category,
-			&i.Version,
-			&i.CreatedAt,
-			&i.SyncedAt,
-			&i.SyncStatus,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getIncomeMonthTotal = `-- name: GetIncomeMonthTotal :one
-SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) as total
-FROM incomes
-WHERE strftime('%m', date) = printf('%02d', ?)
-`
-
-func (q *Queries) GetIncomeMonthTotal(ctx context.Context, printf interface{}) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getIncomeMonthTotal, printf)
-	var total int64
-	err := row.Scan(&total)
-	return total, err
-}
-
-const getIncomeCategorySums = `-- name: GetIncomeCategorySums :many
-SELECT category, CAST(SUM(amount_cents) AS INTEGER) as total_amount
-FROM incomes
-WHERE strftime('%m', date) = printf('%02d', ?)
-GROUP BY category
-ORDER BY total_amount DESC
-`
-
-type GetIncomeCategorySumsRow struct {
-	Category    string `db:"category" json:"category"`
-	TotalAmount int64  `db:"total_amount" json:"total_amount"`
-}
-
-func (q *Queries) GetIncomeCategorySums(ctx context.Context, printf interface{}) ([]GetIncomeCategorySumsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getIncomeCategorySums, printf)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetIncomeCategorySumsRow
-	for rows.Next() {
-		var i GetIncomeCategorySumsRow
-		if err := rows.Scan(&i.Category, &i.TotalAmount); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getIncome = `-- name: GetIncome :one
-SELECT id, date, description, amount_cents, category, version, created_at, synced_at, sync_status FROM incomes WHERE id = ?
-`
-
-func (q *Queries) GetIncome(ctx context.Context, id int64) (Income, error) {
-	row := q.db.QueryRowContext(ctx, getIncome, id)
-	var i Income
-	err := row.Scan(
-		&i.ID,
-		&i.Date,
-		&i.Description,
-		&i.AmountCents,
-		&i.Category,
-		&i.Version,
-		&i.CreatedAt,
-		&i.SyncedAt,
-		&i.SyncStatus,
-	)
-	return i, err
-}
-
-const hardDeleteIncome = `-- name: HardDeleteIncome :exec
-DELETE FROM incomes
-WHERE id = ?
-`
-
-func (q *Queries) HardDeleteIncome(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, hardDeleteIncome, id)
-	return err
-}
-
-const getIncomeCategories = `-- name: GetIncomeCategories :many
-SELECT name FROM income_categories
-ORDER BY name ASC
-`
-
-func (q *Queries) GetIncomeCategories(ctx context.Context) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, getIncomeCategories)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
-		}
-		items = append(items, name)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
