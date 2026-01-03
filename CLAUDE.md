@@ -22,6 +22,9 @@ make test               # Run tests with race detector and coverage
 make cover              # Run coverage (requires 100% for core/http packages)
 make smoke              # Run smoke tests (scripts/smoke.sh)
 
+# Run a single test
+go test -v -run TestFunctionName ./internal/path/to/package
+
 # Code quality
 make fmt                # Format code (gofmt -s -w .)
 make vet                # Run go vet
@@ -57,6 +60,7 @@ User → HTTP Server → SQLite → AMQP Message → Sync Worker → Google Shee
 ### Key Packages
 
 - `internal/core`: Domain entities (Expense, Income, RecurrentExpenses, Money, Date) with validation
+- `internal/config`: Environment configuration loading
 - `internal/sheets/ports.go`: Port interfaces (ExpenseWriter, TaxonomyReader, DashboardReader, etc.)
 - `internal/sheets/google`: Google Sheets adapter implementation
 - `internal/storage`: SQLite repository, sqlc-generated queries, migrations
@@ -65,6 +69,20 @@ User → HTTP Server → SQLite → AMQP Message → Sync Worker → Google Shee
 - `internal/amqp`: RabbitMQ client for async messaging
 - `internal/services`: ExpenseService (creates + publishes), RecurringProcessor
 - `internal/worker`: SyncWorker (consumes messages, syncs to Sheets)
+
+### Hexagonal Architecture
+
+The codebase follows hexagonal (ports & adapters) architecture:
+- **Ports** (`internal/sheets/ports.go`): Define interfaces for external dependencies
+- **Adapters**: `internal/sheets/google` (Google Sheets), `internal/adapters` (SQLite), `internal/amqp` (RabbitMQ)
+- **Core**: Pure domain logic with no external dependencies
+
+### sqlc Workflow
+
+When modifying database queries:
+1. Edit `internal/storage/schema.sql` (table definitions) or `internal/storage/queries.sql` (named queries)
+2. Run `make sqlc-generate` to regenerate Go code
+3. Generated files: `models.go`, `db.go`, `queries.sql.go` in `internal/storage/`
 
 ### SQLite Schema
 
