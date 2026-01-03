@@ -143,8 +143,6 @@ func (s *Server) handleCreateIncome(w http.ResponseWriter, r *http.Request) {
 		"component", "income_handler",
 		"operation", "create")
 
-	// Trigger client refresh
-	year := time.Now().Year()
 	successMsg := fmt.Sprintf("Entrata registrata (#%s): %s — €%s (%s)",
 		template.HTMLEscapeString(ref),
 		template.HTMLEscapeString(income.Description),
@@ -152,11 +150,10 @@ func (s *Server) handleCreateIncome(w http.ResponseWriter, r *http.Request) {
 		template.HTMLEscapeString(income.Category))
 
 	w.Header().Set("HX-Trigger", fmt.Sprintf(`{
-		"income:created": {"year": %d, "month": %d},
 		"form:reset": {},
-		"income-overview:refresh": {"year": %d, "month": %d},
-		"show-notification": {"type": "success", "message": "%s", "duration": 3000}
-	}`, year, month, year, month, template.JSEscapeString(successMsg)))
+		"show-notification": {"type": "success", "message": "%s", "duration": 3000},
+		"page:refresh": {}
+	}`, template.JSEscapeString(successMsg)))
 
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(""))

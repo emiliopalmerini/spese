@@ -97,7 +97,6 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		"component", "expense_handler",
 		"operation", "create")
 
-	year := time.Now().Year()
 	successMsg := fmt.Sprintf("Spesa registrata (#%s): %s — €%s (%s / %s)",
 		template.HTMLEscapeString(ref),
 		template.HTMLEscapeString(exp.Description),
@@ -106,11 +105,10 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		template.HTMLEscapeString(exp.Secondary))
 
 	w.Header().Set("HX-Trigger", fmt.Sprintf(`{
-		"expense:created": {"year": %d, "month": %d},
 		"form:reset": {},
-		"overview:refresh": {"year": %d, "month": %d},
-		"show-notification": {"type": "success", "message": "%s", "duration": 3000}
-	}`, year, month, year, month, template.JSEscapeString(successMsg)))
+		"show-notification": {"type": "success", "message": "%s", "duration": 3000},
+		"page:refresh": {}
+	}`, template.JSEscapeString(successMsg)))
 
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(""))

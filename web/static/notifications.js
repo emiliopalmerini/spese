@@ -35,6 +35,9 @@ class NotificationManager {
             document.addEventListener('show-notification', (event) => {
                 this.show(event.detail);
             });
+            document.addEventListener('page:refresh', () => {
+                setTimeout(() => location.reload(), 1500);
+            });
             this.customListenerAdded = true;
         }
 
