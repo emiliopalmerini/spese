@@ -372,6 +372,18 @@ type RecurrentExpenseItem struct {
 	Frequency   string
 }
 
+// RecurrentExpenseDetail represents a recurrent expense with full details for editing
+type RecurrentExpenseDetail struct {
+	ID          int64
+	Description string
+	AmountCents int64
+	Category    string
+	Subcategory string
+	Frequency   string
+	StartDate   string
+	EndDate     string
+}
+
 // GetActiveRecurrentExpenses returns all active recurrent expenses
 func (a *SQLiteAdapter) GetActiveRecurrentExpenses(ctx context.Context) ([]RecurrentExpenseItem, error) {
 	expenses, err := a.storage.GetRecurrentExpenses(ctx)
@@ -390,4 +402,32 @@ func (a *SQLiteAdapter) GetActiveRecurrentExpenses(ctx context.Context) ([]Recur
 		})
 	}
 	return items, nil
+}
+
+// GetRecurrentExpenseByID returns a single recurrent expense with full details
+func (a *SQLiteAdapter) GetRecurrentExpenseByID(ctx context.Context, id int64) (*RecurrentExpenseDetail, error) {
+	expense, err := a.storage.GetRecurrentExpenseByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	detail := &RecurrentExpenseDetail{
+		ID:          expense.ID,
+		Description: expense.Description,
+		AmountCents: expense.Amount.Cents,
+		Category:    expense.Primary,
+		Subcategory: expense.Secondary,
+		Frequency:   string(expense.Every),
+		StartDate:   formatDateForInput(expense.StartDate),
+	}
+
+	if !expense.EndDate.IsZero() {
+		detail.EndDate = formatDateForInput(expense.EndDate)
+	}
+
+	return detail, nil
+}
+
+func formatDateForInput(d core.Date) string {
+	return fmt.Sprintf("%d-%02d-%02d", d.Year(), d.Month(), d.Day())
 }

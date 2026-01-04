@@ -70,3 +70,64 @@ function recurrentForm() {
     }
   }
 }
+
+function recurrentEditForm(initialData) {
+  return {
+    categories: [],
+    selectedPrimary: initialData?.primary || '',
+    selectedSecondary: initialData?.secondary || '',
+    selectedFrequency: initialData?.frequency || '',
+    loading: true,
+
+    frequencies: [
+      { value: 'daily', label: 'Giornaliera' },
+      { value: 'weekly', label: 'Settimanale' },
+      { value: 'monthly', label: 'Mensile' },
+      { value: 'yearly', label: 'Annuale' }
+    ],
+
+    get currentSecondaries() {
+      const cat = this.categories.find(c => c.primary === this.selectedPrimary);
+      return cat ? cat.secondaries : [];
+    },
+
+    get isValid() {
+      return this.selectedPrimary && this.selectedSecondary && this.selectedFrequency;
+    },
+
+    async init() {
+      try {
+        const resp = await fetch('/api/categories');
+        this.categories = await resp.json();
+      } catch (e) {
+        console.error('Failed to load categories:', e);
+      }
+      this.loading = false;
+    },
+
+    selectPrimary(primary) {
+      this.selectedPrimary = primary;
+      const cat = this.categories.find(c => c.primary === primary);
+      if (cat && cat.secondaries.length > 0) {
+        this.selectedSecondary = cat.secondaries[0];
+      } else {
+        this.selectedSecondary = '';
+      }
+    },
+
+    selectSecondary(secondary) {
+      this.selectedSecondary = secondary;
+    },
+
+    selectFrequency(freq) {
+      this.selectedFrequency = freq;
+    },
+
+    formatAmount(event) {
+      let value = event.target.value;
+      value = value.replace(/[^\d,\.]/g, '');
+      value = value.replace(',', '.');
+      event.target.value = value;
+    }
+  }
+}

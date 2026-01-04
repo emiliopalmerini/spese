@@ -187,6 +187,7 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	mux.HandleFunc("/ui/form/expense", s.withSecurityHeaders(s.handleFormExpense))
 	mux.HandleFunc("/ui/form/income", s.withSecurityHeaders(s.handleFormIncome))
 	mux.HandleFunc("/ui/form/recurring", s.withSecurityHeaders(s.handleFormRecurring))
+	mux.HandleFunc("/ui/form/recurrent-edit", s.withSecurityHeaders(s.handleFormRecurrentEdit))
 	// Old expense page (for direct access)
 	mux.HandleFunc("/spese", s.withSecurityHeaders(s.handleIndex))
 

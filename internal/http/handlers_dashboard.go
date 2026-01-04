@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"spese/internal/adapters"
@@ -478,4 +479,72 @@ func (s *Server) handleFormRecurring(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "Recurrent form template failed", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// handleFormRecurrentEdit returns the recurring expense edit form partial for bottom sheet
+func (s *Server) handleFormRecurrentEdit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "ID non valido", http.StatusBadRequest)
+		return
+	}
+
+	adapter, ok := s.expLister.(*adapters.SQLiteAdapter)
+	if !ok {
+		http.Error(w, "Backend non supportato", http.StatusInternalServerError)
+		return
+	}
+
+	expense, err := adapter.GetRecurrentExpenseByID(r.Context(), id)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to get recurrent expense", "error", err, "id", id)
+		http.Error(w, "Spesa ricorrente non trovata", http.StatusNotFound)
+		return
+	}
+
+	cats, subs, err := s.taxReader.List(r.Context())
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to get categories", "error", err)
+	}
+
+	data := struct {
+		ID          int64
+		Amount      string
+		Description string
+		StartDate   string
+		EndDate     string
+		Frequency   string
+		Primary     string
+		Secondary   string
+		Categories  []string
+		Subcats     []string
+	}{
+		ID:          expense.ID,
+		Amount:      formatDecimal(expense.AmountCents),
+		Description: expense.Description,
+		StartDate:   expense.StartDate,
+		EndDate:     expense.EndDate,
+		Frequency:   expense.Frequency,
+		Primary:     expense.Category,
+		Secondary:   expense.Subcategory,
+		Categories:  cats,
+		Subcats:     subs,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.templates.ExecuteTemplate(w, "recurrent_edit_form_sheet", data); err != nil {
+		slog.ErrorContext(r.Context(), "Recurrent edit form template failed", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func formatDecimal(cents int64) string {
+	return strconv.FormatFloat(float64(cents)/100, 'f', 2, 64)
 }

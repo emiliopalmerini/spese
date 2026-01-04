@@ -806,7 +806,8 @@ input[type="date"]{
 }
 
 /* Action icons */
-.recurrent-actions{
+.recurrent-actions,
+.recurrent-item .expense__actions{
   grid-area:actions;
   display:flex;
   gap:var(--space-1);
@@ -814,7 +815,8 @@ input[type="date"]{
   transition:opacity 0.2s ease;
   justify-self:end;
 }
-.recurrent-item:hover .recurrent-actions{
+.recurrent-item:hover .recurrent-actions,
+.recurrent-item:hover .expense__actions{
   opacity:1;
 }
 
@@ -1414,7 +1416,8 @@ input[type="date"]{
 }
 
 /* Action icons */
-.recurrent-actions{
+.recurrent-actions,
+.recurrent-item .expense__actions{
   grid-area:actions;
   display:flex;
   gap:var(--space-1);
@@ -1422,7 +1425,8 @@ input[type="date"]{
   transition:opacity 0.2s ease;
   justify-self:end;
 }
-.recurrent-item:hover .recurrent-actions{
+.recurrent-item:hover .recurrent-actions,
+.recurrent-item:hover .expense__actions{
   opacity:1;
 }
 
@@ -2056,6 +2060,24 @@ input[type="date"]{
   color:var(--text);
   font-variant-numeric:tabular-nums;
   flex-shrink:0;
+}
+.recurrent-row__actions{
+  display:flex;
+  gap:var(--space-1);
+  opacity:0;
+  transition:opacity 0.2s ease;
+}
+.recurrent-row:hover .recurrent-row__actions{
+  opacity:1;
+}
+.recurrent-row__actions .action-icon{
+  width:24px;
+  height:24px;
+  padding:4px;
+}
+.recurrent-row__actions .action-icon svg{
+  width:16px;
+  height:16px;
 }
 
 /* ==============================================================

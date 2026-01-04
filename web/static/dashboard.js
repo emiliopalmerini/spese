@@ -143,6 +143,38 @@ function openBottomSheet(type) {
   document.body.style.overflow = 'hidden';
 }
 
+function openRecurrentEdit(id) {
+  const backdrop = document.getElementById('sheetBackdrop');
+  const sheet = document.getElementById('bottomSheet');
+  const title = document.getElementById('sheetTitle');
+  const content = document.getElementById('sheetContent');
+
+  currentSheetType = 'recurrent-edit';
+  title.textContent = 'Modifica Ricorrente';
+
+  content.innerHTML = '<div class="skeleton" style="height: 300px;"></div>';
+
+  htmx.ajax('GET', '/ui/form/recurrent-edit?id=' + id, {
+    target: content,
+    swap: 'innerHTML'
+  });
+
+  backdrop.classList.add('bottom-sheet-backdrop--open');
+  sheet.classList.add('bottom-sheet--open');
+  document.body.style.overflow = 'hidden';
+}
+
+// Event delegation for recurrent edit buttons
+document.addEventListener('click', (e) => {
+  const editBtn = e.target.closest('.recurrent-edit-btn');
+  if (editBtn) {
+    const id = editBtn.dataset.recurrentId;
+    if (id) {
+      openRecurrentEdit(id);
+    }
+  }
+});
+
 function closeBottomSheet() {
   const backdrop = document.getElementById('sheetBackdrop');
   const sheet = document.getElementById('bottomSheet');

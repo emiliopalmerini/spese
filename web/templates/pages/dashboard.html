@@ -132,7 +132,7 @@
       <h3 class="section-title">Spese Ricorrenti</h3>
       <div class="recurrents-list" id="recurrents-list"
            hx-get="/ui/dashboard/recurrents"
-           hx-trigger="load, dashboard:refresh from:body"
+           hx-trigger="load, dashboard:refresh from:body, recurrent:deleted from:body, recurrent:updated from:body"
            hx-swap="innerHTML">
         <div class="skeleton" style="height: 24px; margin-bottom: 8px;"></div>
         <div class="skeleton" style="height: 24px;"></div>
