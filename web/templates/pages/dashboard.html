@@ -1,0 +1,155 @@
+{{ define "dashboard_page" }}
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#111111" />
+    <title>Spese</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="/static/notifications.js" defer></script>
+    <script src="/static/dashboard.js" defer></script>
+  </head>
+  <body class="theme-ink density-comfortable style-minimal">
+    <header class="topbar topbar--dashboard">
+      <div class="container topbar__inner">
+        <div class="brand">Spese</div>
+      </div>
+    </header>
+
+    <main class="container page">
+      {{ template "dashboard_content" . }}
+    </main>
+
+    <!-- FAB Speed Dial -->
+    <div class="fab-backdrop" id="fabBackdrop"></div>
+    <div class="fab-container" id="fabContainer">
+      <div class="fab-actions" id="fabActions">
+        <div class="fab-action" data-type="recurring">
+          <span class="fab-action__label">Ricorrente</span>
+          <button class="fab-action__btn" aria-label="Aggiungi ricorrente">
+            <svg viewBox="0 0 24 24"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          </button>
+        </div>
+        <div class="fab-action" data-type="income">
+          <span class="fab-action__label">Entrata</span>
+          <button class="fab-action__btn" aria-label="Aggiungi entrata">
+            <svg viewBox="0 0 24 24"><path d="M12 2v20M17 7l-5-5-5 5"/></svg>
+          </button>
+        </div>
+        <div class="fab-action" data-type="expense">
+          <span class="fab-action__label">Spesa</span>
+          <button class="fab-action__btn" aria-label="Aggiungi spesa">
+            <svg viewBox="0 0 24 24"><path d="M12 22V2M7 17l5 5 5-5"/></svg>
+          </button>
+        </div>
+      </div>
+      <button class="fab" id="fab" aria-label="Aggiungi">
+        <svg class="fab__icon" viewBox="0 0 24 24">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Bottom Sheet -->
+    <div class="bottom-sheet-backdrop" id="sheetBackdrop"></div>
+    <div class="bottom-sheet" id="bottomSheet">
+      <div class="bottom-sheet__handle"></div>
+      <div class="bottom-sheet__header">
+        <h2 class="bottom-sheet__title" id="sheetTitle">Nuova Spesa</h2>
+        <button class="bottom-sheet__close" id="sheetClose" aria-label="Chiudi">
+          <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="bottom-sheet__content" id="sheetContent">
+        <!-- Form will be loaded here via HTMX -->
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+  </body>
+</html>
+{{ end }}
+
+{{ define "dashboard_content" }}
+<div class="dashboard">
+  <!-- Stat Hero - Monthly Total -->
+  <section class="page__section">
+    <div class="stat-hero" id="stat-hero"
+         hx-get="/ui/dashboard/stat-hero"
+         hx-trigger="load, dashboard:refresh from:body"
+         hx-swap="innerHTML">
+      <div class="skeleton" style="height: 60px; width: 180px; margin: 0 auto;"></div>
+    </div>
+  </section>
+
+  <!-- Stat Pills - Expenses + Balance -->
+  <section class="page__section">
+    <div class="stat-pills" id="stat-pills"
+         hx-get="/ui/dashboard/stat-pills"
+         hx-trigger="load, dashboard:refresh from:body"
+         hx-swap="innerHTML">
+      <div class="stat-pill"><div class="skeleton" style="height: 50px;"></div></div>
+      <div class="stat-pill"><div class="skeleton" style="height: 50px;"></div></div>
+    </div>
+  </section>
+
+  <!-- Charts Section -->
+  <section class="page__section">
+    <div class="chart-section">
+      <div class="chart-section__header">
+        <h3 class="chart-section__title">Andamento</h3>
+        <div class="period-chips" id="periodChips">
+          <button class="period-chip" data-period="week">1S</button>
+          <button class="period-chip period-chip--active" data-period="month">1M</button>
+          <button class="period-chip" data-period="3months">3M</button>
+          <button class="period-chip" data-period="6months">6M</button>
+          <button class="period-chip" data-period="year">1A</button>
+        </div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-wrapper">
+          <div class="chart-container">
+            <canvas id="trendChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-wrapper">
+          <div class="chart-container">
+            <canvas id="categoryChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Recent Transactions (Collapsible) -->
+  <section class="page__section">
+    <div class="accordion accordion--open" id="transactionsAccordion">
+      <button class="accordion__trigger" type="button">
+        <h3 class="accordion__title">Ultime Transazioni</h3>
+        <svg class="accordion__icon" viewBox="0 0 24 24">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </button>
+      <div class="accordion__content">
+        <div class="accordion__body">
+          <div class="transactions-list" id="transactions-list"
+               hx-get="/ui/dashboard/transactions"
+               hx-trigger="load, dashboard:refresh from:body"
+               hx-swap="innerHTML">
+            <div class="skeleton" style="height: 60px; margin-bottom: 8px;"></div>
+            <div class="skeleton" style="height: 60px; margin-bottom: 8px;"></div>
+            <div class="skeleton" style="height: 60px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+{{ end }}
