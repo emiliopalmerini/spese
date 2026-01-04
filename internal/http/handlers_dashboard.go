@@ -267,8 +267,10 @@ func (s *Server) handleDashboardCategoriesList(w http.ResponseWriter, r *http.Re
 	ctx, cancel := context.WithTimeout(r.Context(), 7*time.Second)
 	defer cancel()
 
-	now := time.Now()
-	year, month := now.Year(), int(now.Month())
+	period := r.URL.Query().Get("period")
+	if period == "" {
+		period = "month"
+	}
 
 	adapter, ok := s.expLister.(*adapters.SQLiteAdapter)
 	if !ok {
@@ -276,10 +278,9 @@ func (s *Server) handleDashboardCategoriesList(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Get category sums for current month
-	catData, err := adapter.GetCategoryBreakdown(ctx, "month")
+	catData, err := adapter.GetCategoryBreakdown(ctx, period)
 	if err != nil {
-		slog.ErrorContext(ctx, "Failed to get category data", "error", err, "year", year, "month", month)
+		slog.ErrorContext(ctx, "Failed to get category data", "error", err, "period", period)
 		catData = []adapters.CategoryTotal{}
 	}
 

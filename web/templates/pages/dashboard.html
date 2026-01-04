@@ -103,11 +103,23 @@
   </section>
 
   <!-- Categories Section -->
-  <section class="page__section">
+  <section class="page__section" x-data="{ period: 'month' }">
     <div class="categories-section">
-      <h3 class="section-title">Categorie</h3>
+      <div class="section-header">
+        <h3 class="section-title">Categorie</h3>
+        <div class="period-chips">
+          <button class="period-chip" :class="{ 'period-chip--active': period === 'week' }"
+                  @click="period = 'week'; htmx.ajax('GET', '/ui/dashboard/categories?period=week', '#categories-list')">Sett</button>
+          <button class="period-chip" :class="{ 'period-chip--active': period === 'month' }"
+                  @click="period = 'month'; htmx.ajax('GET', '/ui/dashboard/categories?period=month', '#categories-list')">Mese</button>
+          <button class="period-chip" :class="{ 'period-chip--active': period === 'quarter' }"
+                  @click="period = 'quarter'; htmx.ajax('GET', '/ui/dashboard/categories?period=quarter', '#categories-list')">Trim</button>
+          <button class="period-chip" :class="{ 'period-chip--active': period === 'year' }"
+                  @click="period = 'year'; htmx.ajax('GET', '/ui/dashboard/categories?period=year', '#categories-list')">Anno</button>
+        </div>
+      </div>
       <div class="categories-list" id="categories-list"
-           hx-get="/ui/dashboard/categories"
+           hx-get="/ui/dashboard/categories?period=month"
            hx-trigger="load, dashboard:refresh from:body"
            hx-swap="innerHTML">
         <div class="skeleton" style="height: 24px; margin-bottom: 8px;"></div>

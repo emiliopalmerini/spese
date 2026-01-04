@@ -2033,6 +2033,15 @@ input[type="date"]{
 .categories-section{
   padding:var(--space-1) 0;
 }
+.section-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:var(--space-2);
+}
+.section-header .section-title{
+  margin:0;
+}
 .section-title{
   font-size:0.6875rem;
   font-weight:600;
@@ -2040,6 +2049,30 @@ input[type="date"]{
   text-transform:uppercase;
   letter-spacing:0.03em;
   margin:0 0 var(--space-2);
+}
+.period-chips{
+  display:flex;
+  gap:4px;
+}
+.period-chip{
+  padding:4px 8px;
+  font-size:0.6875rem;
+  font-weight:500;
+  color:var(--muted);
+  background:transparent;
+  border:1px solid var(--line);
+  border-radius:var(--radius-sm);
+  cursor:pointer;
+  transition:all 0.15s ease;
+}
+.period-chip:hover{
+  color:var(--text);
+  border-color:var(--text);
+}
+.period-chip--active{
+  color:var(--bg);
+  background:var(--text);
+  border-color:var(--text);
 }
 .categories-list{
   display:flex;

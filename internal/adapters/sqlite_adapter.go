@@ -306,16 +306,22 @@ func (a *SQLiteAdapter) GetCategoryBreakdown(ctx context.Context, period string)
 
 	switch period {
 	case "week":
-		startDate = now.AddDate(0, 0, -7)
+		// Current week (Monday to now)
+		weekday := int(now.Weekday())
+		if weekday == 0 {
+			weekday = 7 // Sunday = 7
+		}
+		startDate = time.Date(now.Year(), now.Month(), now.Day()-weekday+1, 0, 0, 0, 0, now.Location())
 	case "month":
 		// Current calendar month (1st of month to now)
 		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	case "3months":
-		startDate = now.AddDate(0, -3, 0)
-	case "6months":
-		startDate = now.AddDate(0, -6, 0)
+	case "quarter":
+		// Current quarter (Q1: Jan-Mar, Q2: Apr-Jun, Q3: Jul-Sep, Q4: Oct-Dec)
+		quarterMonth := ((int(now.Month())-1)/3)*3 + 1
+		startDate = time.Date(now.Year(), time.Month(quarterMonth), 1, 0, 0, 0, 0, now.Location())
 	case "year":
-		startDate = now.AddDate(-1, 0, 0)
+		// Current calendar year (Jan 1 to now)
+		startDate = time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
 	default:
 		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	}
