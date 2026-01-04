@@ -424,6 +424,47 @@ func (s *Server) handleGetSecondaryCategories(w http.ResponseWriter, r *http.Req
 	}
 }
 
+func (s *Server) handleGetAllCategories(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	sqliteAdapter, ok := s.taxReader.(*adapters.SQLiteAdapter)
+	if !ok {
+		// Fallback for non-SQLite adapters
+		primaries, secondaries, err := s.taxReader.List(r.Context())
+		if err != nil {
+			slog.ErrorContext(r.Context(), "Failed to get categories", "error", err)
+			http.Error(w, "Failed to get categories", http.StatusInternalServerError)
+			return
+		}
+		// Return simple structure for non-SQLite
+		type simpleCat struct {
+			Primary     string   `json:"primary"`
+			Secondaries []string `json:"secondaries"`
+		}
+		result := make([]simpleCat, len(primaries))
+		for i, p := range primaries {
+			result[i] = simpleCat{Primary: p, Secondaries: secondaries}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(result)
+		return
+	}
+
+	categories, err := sqliteAdapter.GetAllCategoriesWithSubs(r.Context())
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to get all categories", "error", err)
+		http.Error(w, "Failed to get categories", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(categories)
+}
+
 func (s *Server) handleFormReset(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")

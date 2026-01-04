@@ -1,7 +1,6 @@
-{{/* 
-  Expense form partial template
-  Rendered by /ui/form-reset HTMX endpoint after successful submission
-  Expects: .Day, .Month, .Categories
+{{/*
+  Expense form - redesigned for better UX
+  Amount-first, single date, combined category selector
 */}}
 {{ define "expense_form" }}
 <form id="expense-form"
@@ -9,29 +8,111 @@
       hx-post="/expenses"
       hx-target="#flash"
       hx-swap="innerHTML"
-      hx-indicator=".indicator">
+      hx-indicator=".indicator"
+      x-data="expenseForm()"
+      x-init="init()">
 
-  {{/* Date fields group using component */}}
-  <div class="field-group">
-    {{ template "form_field" (dict "ID" "day" "Name" "day" "Type" "number" "Label" "Giorno" "Min" "1" "Max" "31" "Value" .Day "Required" true "Half" true) }}
-    {{ template "form_field" (dict "ID" "month" "Name" "month" "Type" "number" "Label" "Mese" "Min" "1" "Max" "12" "Value" .Month "Required" true "Half" true) }}
+  {{/* Amount - big and prominent */}}
+  <div class="field field--amount">
+    <label for="amount">Importo</label>
+    <div class="amount-input-wrapper">
+      <span class="amount-currency">€</span>
+      <input
+        id="amount"
+        type="text"
+        inputmode="decimal"
+        name="amount"
+        placeholder="0,00"
+        required
+        autocomplete="off"
+        x-ref="amountInput"
+        @input="formatAmount($event)"
+      />
+    </div>
   </div>
 
-  {{/* Description field using component */}}
-  {{ template "form_field" (dict "ID" "description" "Name" "description" "Type" "text" "Label" "Descrizione" "MaxLength" "200" "Placeholder" "es. Supermercato" "Required" true) }}
+  {{/* Description */}}
+  <div class="field">
+    <label for="description">Descrizione</label>
+    <input
+      id="description"
+      type="text"
+      name="description"
+      maxlength="200"
+      placeholder="es. Supermercato"
+      required
+    />
+  </div>
 
-  {{/* Amount field using component */}}
-  {{ template "form_field" (dict "ID" "amount" "Name" "amount" "Type" "number" "Label" "Importo (€)" "Step" "0.01" "Min" "0.01" "Placeholder" "0.00" "Required" true) }}
+  {{/* Date */}}
+  <div class="field">
+    <label for="date">Data</label>
+    <input
+      id="date"
+      type="date"
+      name="date"
+      x-model="selectedDate"
+      required
+    />
+    {{/* Hidden fields for backward compatibility */}}
+    <input type="hidden" name="day" :value="selectedDay" />
+    <input type="hidden" name="month" :value="selectedMonth" />
+  </div>
 
-  {{/* Category fields using component */}}
-  {{ template "category_selector" (dict "PrimaryID" "primary" "PrimaryName" "primary" "SecondaryID" "secondary" "SecondaryName" "secondary" "LoadingID" "category-loading" "Categories" .Categories) }}
+  {{/* Category selector with Alpine.js */}}
+  <div class="field" x-show="categories.length > 0">
+    <label>Categoria</label>
+    <div class="category-picker">
+      {{/* Primary category buttons */}}
+      <div class="category-chips">
+        <template x-for="cat in categories" :key="cat.primary">
+          <button
+            type="button"
+            class="category-chip"
+            :class="{ 'active': selectedPrimary === cat.primary }"
+            @click="selectPrimary(cat.primary)"
+            x-text="cat.primary"
+          ></button>
+        </template>
+      </div>
 
-  {{/* Flash messages using component */}}
-  {{ template "flash_messages" (dict "ID" "flash") }}
+      {{/* Secondary category buttons - shown after primary selection */}}
+      <div class="subcategory-section" x-show="selectedPrimary && currentSecondaries.length > 0" x-cloak>
+        <div class="subcategory-chips">
+          <template x-for="sub in currentSecondaries" :key="sub">
+            <button
+              type="button"
+              class="category-chip category-chip--secondary"
+              :class="{ 'active': selectedSecondary === sub }"
+              @click="selectSecondary(sub)"
+              x-text="sub"
+            ></button>
+          </template>
+        </div>
+      </div>
+    </div>
+    {{/* Hidden inputs for form submission */}}
+    <input type="hidden" name="primary" :value="selectedPrimary" required />
+    <input type="hidden" name="secondary" :value="selectedSecondary" required />
+  </div>
 
-  {{/* Submit button and loading indicator */}}
+  {{/* Loading state for categories */}}
+  <div class="field" x-show="loading">
+    <div class="placeholder">Caricamento categorie...</div>
+  </div>
+
+  {{/* Flash messages */}}
+  <div id="flash"></div>
+
+  {{/* Submit button */}}
   <div class="actions">
-    <button class="btn btn-primary btn--block" type="submit">Aggiungi Spesa</button>
+    <button
+      class="btn btn-primary btn--block"
+      type="submit"
+      :disabled="!isValid"
+    >
+      Aggiungi Spesa
+    </button>
     {{ template "loading_indicator" (dict "Text" "Salvataggio in corso…") }}
   </div>
 </form>

@@ -587,3 +587,25 @@ func (s *Server) handleIncomeFormReset(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
+
+func (s *Server) handleGetIncomeCategories(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var categories []string
+	if adapter, ok := s.expWriter.(*adapters.SQLiteAdapter); ok {
+		cats, err := adapter.GetIncomeCategories(r.Context())
+		if err != nil {
+			slog.ErrorContext(r.Context(), "Failed to get income categories", "error", err)
+			http.Error(w, "Failed to get categories", http.StatusInternalServerError)
+			return
+		}
+		categories = cats
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(categories)
+}
