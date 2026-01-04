@@ -239,10 +239,6 @@ function renderTrendChart(data) {
   const labels = data.map(d => d.date);
   const values = data.map(d => d.amount / 100); // Convert cents to euros
 
-  // Calculate Y-axis bounds
-  const maxValue = Math.max(...values, 0);
-  const yMax = maxValue > 0 ? maxValue * 1.1 : 100;
-
   const config = {
     type: 'line',
     data: {
@@ -278,7 +274,7 @@ function renderTrendChart(data) {
       scales: {
         y: {
           beginAtZero: true,
-          max: yMax,
+          grace: '10%',
           grid: { color: 'rgba(0,0,0,0.05)' },
           ticks: {
             font: { size: 11 },
