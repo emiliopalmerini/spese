@@ -308,7 +308,8 @@ func (a *SQLiteAdapter) GetCategoryBreakdown(ctx context.Context, period string)
 	case "week":
 		startDate = now.AddDate(0, 0, -7)
 	case "month":
-		startDate = now.AddDate(0, -1, 0)
+		// Current calendar month (1st of month to now)
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	case "3months":
 		startDate = now.AddDate(0, -3, 0)
 	case "6months":
@@ -316,7 +317,7 @@ func (a *SQLiteAdapter) GetCategoryBreakdown(ctx context.Context, period string)
 	case "year":
 		startDate = now.AddDate(-1, 0, 0)
 	default:
-		startDate = now.AddDate(0, -1, 0)
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	}
 
 	expenses, err := a.storage.ListExpensesByDateRange(ctx, startDate, now)
