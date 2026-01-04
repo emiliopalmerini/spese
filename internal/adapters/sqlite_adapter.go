@@ -131,6 +131,7 @@ func (a *SQLiteAdapter) DeleteIncome(ctx context.Context, id string) error {
 
 // Transaction represents a unified view of expense or income for dashboard
 type Transaction struct {
+	ID          string // ID for delete/edit
 	Type        string // "expense" or "income"
 	Description string
 	Category    string
@@ -189,6 +190,7 @@ func (a *SQLiteAdapter) GetRecentTransactions(ctx context.Context, limit int) ([
 	var transactions []Transaction
 	for _, e := range expenses {
 		transactions = append(transactions, Transaction{
+			ID:          e.ID,
 			Type:        "expense",
 			Description: e.Expense.Description,
 			Category:    e.Expense.Primary,
@@ -198,6 +200,7 @@ func (a *SQLiteAdapter) GetRecentTransactions(ctx context.Context, limit int) ([
 	}
 	for _, i := range incomes {
 		transactions = append(transactions, Transaction{
+			ID:          i.ID,
 			Type:        "income",
 			Description: i.Income.Description,
 			Category:    i.Income.Category,
@@ -249,29 +252,48 @@ func (a *SQLiteAdapter) GetExpenseTrend(ctx context.Context, period string) ([]T
 		return nil, err
 	}
 
-	// Group by date
-	dateMap := make(map[string]int64)
+	// Group by date using ISO format for proper sorting
+	type dateEntry struct {
+		isoDate string // 2006-01-02 for sorting
+		display string // DD/MM for display
+		amount  int64
+	}
+	dateMap := make(map[string]*dateEntry)
 	for _, e := range expenses {
-		dateStr := e.Date.Time.Format("02/01")
-		dateMap[dateStr] += e.Amount.Cents
+		isoDate := e.Date.Time.Format("2006-01-02")
+		if entry, exists := dateMap[isoDate]; exists {
+			entry.amount += e.Amount.Cents
+		} else {
+			dateMap[isoDate] = &dateEntry{
+				isoDate: isoDate,
+				display: e.Date.Time.Format("02/01"),
+				amount:  e.Amount.Cents,
+			}
+		}
 	}
 
 	// Convert to sorted list
-	var points []TrendPoint
-	for date, amount := range dateMap {
-		points = append(points, TrendPoint{
-			Date:        date,
-			AmountCents: amount,
-		})
+	var entries []*dateEntry
+	for _, entry := range dateMap {
+		entries = append(entries, entry)
 	}
 
-	// Sort by date (simple string sort works for DD/MM format within same year)
-	for i := 0; i < len(points)-1; i++ {
-		for j := i + 1; j < len(points); j++ {
-			if points[i].Date > points[j].Date {
-				points[i], points[j] = points[j], points[i]
+	// Sort by ISO date (proper chronological order)
+	for i := 0; i < len(entries)-1; i++ {
+		for j := i + 1; j < len(entries); j++ {
+			if entries[i].isoDate > entries[j].isoDate {
+				entries[i], entries[j] = entries[j], entries[i]
 			}
 		}
+	}
+
+	// Convert to TrendPoint with display date
+	var points []TrendPoint
+	for _, entry := range entries {
+		points = append(points, TrendPoint{
+			Date:        entry.display,
+			AmountCents: entry.amount,
+		})
 	}
 
 	return points, nil

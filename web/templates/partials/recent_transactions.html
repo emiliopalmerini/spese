@@ -1,7 +1,7 @@
 {{ define "recent_transactions" }}
 {{if .Transactions}}
 {{range .Transactions}}
-<div class="transaction">
+<div class="transaction" data-id="{{.ID}}" data-type="{{.Type}}">
   <div class="transaction__icon transaction__icon--{{.Type}}">
     {{if eq .Type "expense"}}
     <svg viewBox="0 0 24 24"><path d="M12 22V2M7 17l5 5 5-5"/></svg>
@@ -9,11 +9,24 @@
     <svg viewBox="0 0 24 24"><path d="M12 2v20M17 7l-5-5-5 5"/></svg>
     {{end}}
   </div>
-  <div class="transaction__desc">{{.Description}}</div>
-  <div class="transaction__cat">{{.Category}} · {{.Date}}</div>
+  <div class="transaction__info">
+    <div class="transaction__desc">{{.Description}}</div>
+    <div class="transaction__cat">{{.Category}} · {{.Date}}</div>
+  </div>
   <div class="transaction__amount transaction__amount--{{.Type}}">
     {{if eq .Type "income"}}+{{end}}{{.Amount}}
   </div>
+  <form class="transaction__delete-form"
+        hx-post="/{{.Type}}s/delete"
+        hx-confirm="Eliminare questa {{if eq .Type "expense"}}spesa{{else}}entrata{{end}}?"
+        hx-target="closest .transaction"
+        hx-swap="delete swap:0.2s"
+        hx-on::after-request="htmx.trigger(document.body, 'dashboard:refresh')">
+    <input type="hidden" name="id" value="{{.ID}}">
+    <button type="submit" class="transaction__delete" aria-label="Elimina">
+      <svg viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+    </button>
+  </form>
 </div>
 {{end}}
 {{else}}

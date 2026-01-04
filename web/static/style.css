@@ -1949,92 +1949,78 @@ input[type="date"]{
 }
 
 /* ==============================================================
-   Dashboard - Stat Hero (main stat card)
+   Dashboard - Modern Flat Layout
 ============================================================== */
+.dashboard{
+  display:flex;
+  flex-direction:column;
+  gap:var(--space-2);
+}
+.dashboard .page__section{
+  margin-top:0;
+}
+
+/* Stat Hero - Large prominent number */
 .stat-hero{
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:var(--radius-card);
-  padding:var(--space-5);
-  text-align:center;
-  box-shadow:var(--shadow-md);
+  padding:var(--space-1) 0;
 }
 .stat-hero__value{
-  font-size:2.5rem;
-  font-weight:700;
+  font-size:2.25rem;
+  font-weight:800;
   color:var(--text);
   font-variant-numeric:tabular-nums;
-  letter-spacing:-0.02em;
-  line-height:1.1;
+  letter-spacing:-0.03em;
+  line-height:1;
 }
 .stat-hero__label{
-  font-size:0.875rem;
-  font-weight:500;
+  font-size:0.75rem;
   color:var(--muted);
-  margin-top:var(--space-1);
-  text-transform:uppercase;
-  letter-spacing:0.05em;
+  margin-top:2px;
 }
 .stat-hero__trend{
   display:inline-flex;
   align-items:center;
   gap:4px;
-  font-size:0.875rem;
+  font-size:0.6875rem;
   font-weight:600;
-  margin-top:var(--space-2);
-  padding:4px 10px;
-  border-radius:20px;
+  margin-top:4px;
 }
 .stat-hero__trend--down{
-  background:rgba(16, 185, 129, 0.1);
   color:#059669;
 }
 .stat-hero__trend--up{
-  background:rgba(239, 68, 68, 0.1);
   color:#DC2626;
 }
 .stat-hero__trend--neutral{
-  background:var(--bg-light);
   color:var(--muted);
-}
-.stat-hero__meta{
-  font-size:0.875rem;
-  color:var(--muted);
-  margin-top:var(--space-2);
 }
 .stat-hero--empty .stat-hero__value{
   color:var(--muted);
 }
 
-/* ==============================================================
-   Dashboard - Stat Pills (secondary stats grid)
-============================================================== */
+/* Stat Pills - Inline secondary stats */
 .stat-pills{
-  display:grid;
-  grid-template-columns:repeat(2, 1fr);
+  display:flex;
   gap:var(--space-3);
+  padding:var(--space-2) 0;
+  border-top:1px solid var(--line);
 }
 .stat-pill{
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:var(--radius-card);
-  padding:var(--space-4);
-  text-align:center;
-  box-shadow:var(--shadow-sm);
+  flex:1;
 }
 .stat-pill__label{
-  font-size:0.75rem;
+  font-size:0.625rem;
   font-weight:500;
   color:var(--muted);
   text-transform:uppercase;
   letter-spacing:0.05em;
-  margin-bottom:var(--space-1);
 }
 .stat-pill__value{
-  font-size:1.25rem;
+  font-size:1rem;
   font-weight:700;
   color:var(--text);
   font-variant-numeric:tabular-nums;
+  margin-top:1px;
 }
 .stat-pill__value--positive{
   color:#059669;
@@ -2042,93 +2028,56 @@ input[type="date"]{
 .stat-pill__value--negative{
   color:#DC2626;
 }
-.stat-pill--empty .stat-pill__value{
-  color:var(--muted);
-}
 
-/* ==============================================================
-   Dashboard - Chart Container
-============================================================== */
-.chart-section{
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:var(--radius-card);
-  padding:var(--space-4);
-  box-shadow:var(--shadow-md);
+/* Categories Section */
+.categories-section{
+  padding:var(--space-1) 0;
 }
-.chart-section__header{
+.section-title{
+  font-size:0.6875rem;
+  font-weight:600;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:0.03em;
+  margin:0 0 var(--space-2);
+}
+.categories-list{
   display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:var(--space-3);
-  flex-wrap:wrap;
+  flex-direction:column;
   gap:var(--space-2);
 }
-.chart-section__title{
-  font-size:1rem;
-  font-weight:600;
-  color:var(--text);
-  margin:0;
-}
-.chart-container{
-  position:relative;
-  height:280px;
-}
-@media (min-width:560px){
-  .chart-container{
-    height:320px;
-  }
-}
-.chart-grid{
-  display:grid;
-  gap:var(--space-4);
-}
-@media (min-width:640px){
-  .chart-grid{
-    grid-template-columns:2fr 1fr;
-  }
-}
-.chart-wrapper{
-  position:relative;
-  min-height:200px;
-}
-
-/* ==============================================================
-   Dashboard - Period Chips (time range selector)
-============================================================== */
-.period-chips{
+.category-row{
   display:flex;
-  gap:6px;
-  overflow-x:auto;
-  scrollbar-width:none;
-  -ms-overflow-style:none;
-  padding:4px 0;
-  margin:-4px 0;
+  flex-direction:column;
+  gap:4px;
 }
-.period-chips::-webkit-scrollbar{
-  display:none;
+.category-row__info{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
 }
-.period-chip{
-  flex-shrink:0;
-  padding:8px 14px;
-  border:1px solid var(--border);
-  border-radius:20px;
-  background:var(--surface);
-  color:var(--muted);
+.category-row__name{
   font-size:0.8125rem;
   font-weight:500;
-  cursor:pointer;
-  transition:all 0.15s ease;
-  -webkit-tap-highlight-color:transparent;
-}
-.period-chip:hover{
-  border-color:var(--text);
   color:var(--text);
 }
-.period-chip--active{
+.category-row__amount{
+  font-size:0.8125rem;
+  font-weight:600;
+  color:var(--text);
+  font-variant-numeric:tabular-nums;
+}
+.category-row__bar{
+  height:4px;
+  background:var(--line);
+  border-radius:2px;
+  overflow:hidden;
+}
+.category-row__fill{
+  height:100%;
   background:var(--text);
-  border-color:var(--text);
-  color:var(--surface);
+  border-radius:2px;
+  transition:width 0.3s ease;
 }
 
 /* ==============================================================
@@ -2364,35 +2313,29 @@ input[type="date"]{
    Dashboard - Accordion (Collapsible sections)
 ============================================================== */
 .accordion{
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:var(--radius-card);
-  overflow:hidden;
-  box-shadow:var(--shadow-sm);
+  border-top:1px solid var(--line);
 }
 .accordion__trigger{
   width:100%;
-  padding:var(--space-4);
+  padding:var(--space-3) 0;
   background:none;
   border:none;
   display:flex;
   justify-content:space-between;
   align-items:center;
   cursor:pointer;
-  transition:background 0.15s ease;
-}
-.accordion__trigger:hover{
-  background:var(--bg-light);
 }
 .accordion__title{
-  font-size:1rem;
+  font-size:0.8125rem;
   font-weight:600;
-  color:var(--text);
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:0.03em;
   margin:0;
 }
 .accordion__icon{
-  width:20px;
-  height:20px;
+  width:16px;
+  height:16px;
   stroke:var(--muted);
   stroke-width:2;
   fill:none;
@@ -2410,58 +2353,52 @@ input[type="date"]{
   max-height:2000px;
 }
 .accordion__body{
-  padding:0 var(--space-4) var(--space-4);
-  border-top:1px solid var(--line);
+  padding-bottom:var(--space-2);
 }
 
 /* ==============================================================
    Dashboard - Transaction List
 ============================================================== */
 .transactions-list{
-  display:grid;
-  gap:0;
+  display:flex;
+  flex-direction:column;
 }
 .transaction{
   display:grid;
-  gap:var(--space-1);
-  padding:var(--space-3) 0;
-  border-bottom:1px solid var(--line);
-  grid-template-columns:auto 1fr auto;
-  grid-template-areas:
-    "icon desc amount"
-    "icon cat  amount";
+  gap:var(--space-2);
+  padding:var(--space-2) 0;
+  grid-template-columns:auto 1fr auto auto;
   align-items:center;
 }
-.transaction:last-child{
-  border-bottom:none;
-}
 .transaction__icon{
-  grid-area:icon;
-  width:36px;
-  height:36px;
-  border-radius:50%;
+  width:28px;
+  height:28px;
+  border-radius:6px;
   display:flex;
   align-items:center;
   justify-content:center;
-  margin-right:var(--space-3);
+  margin-right:var(--space-2);
 }
 .transaction__icon--expense{
-  background:rgba(239, 68, 68, 0.1);
-  color:#DC2626;
+  background:rgba(0,0,0,0.05);
+  color:var(--text);
 }
 .transaction__icon--income{
   background:rgba(16, 185, 129, 0.1);
   color:#059669;
 }
 .transaction__icon svg{
-  width:18px;
-  height:18px;
+  width:14px;
+  height:14px;
   stroke:currentColor;
   stroke-width:2;
   fill:none;
 }
+.transaction__info{
+  min-width:0;
+}
 .transaction__desc{
-  grid-area:desc;
+  font-size:0.875rem;
   font-weight:500;
   color:var(--text);
   overflow:hidden;
@@ -2469,15 +2406,43 @@ input[type="date"]{
   white-space:nowrap;
 }
 .transaction__cat{
-  grid-area:cat;
-  font-size:0.8125rem;
+  font-size:0.75rem;
   color:var(--muted);
 }
 .transaction__amount{
-  grid-area:amount;
+  font-size:0.875rem;
   font-weight:600;
   font-variant-numeric:tabular-nums;
   text-align:right;
+}
+.transaction__delete-form{
+  display:contents;
+}
+.transaction__delete{
+  width:28px;
+  height:28px;
+  border:none;
+  background:transparent;
+  color:var(--muted);
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:4px;
+  transition:all 0.15s ease;
+  opacity:0.4;
+}
+.transaction__delete:hover{
+  background:rgba(239, 68, 68, 0.1);
+  color:#DC2626;
+  opacity:1;
+}
+.transaction__delete svg{
+  width:14px;
+  height:14px;
+  stroke:currentColor;
+  stroke-width:2;
+  fill:none;
 }
 .transaction__amount--expense{
   color:var(--text);
