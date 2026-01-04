@@ -160,14 +160,14 @@ type CategoryWithSubs struct {
 	Secondaries []string `json:"secondaries"`
 }
 
-// GetAllCategoriesWithSubs returns all primary categories with their subcategories
+// GetAllCategoriesWithSubs returns all primary categories with their subcategories ordered by usage
 func (r *SQLiteRepository) GetAllCategoriesWithSubs(ctx context.Context) ([]CategoryWithSubs, error) {
-	rows, err := r.readQueries.GetAllCategoriesWithSubs(ctx)
+	rows, err := r.readQueries.GetCategoriesOrderedByUsage(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get all categories with subs: %w", err)
+		return nil, fmt.Errorf("get categories ordered by usage: %w", err)
 	}
 
-	// Group by primary category
+	// Group by primary category, preserving order from query
 	catMap := make(map[string][]string)
 	var order []string
 	for _, row := range rows {

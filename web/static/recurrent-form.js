@@ -1,35 +1,28 @@
-function expenseForm() {
+function recurrentForm() {
   return {
     categories: [],
     selectedPrimary: '',
     selectedSecondary: '',
-    selectedDate: '',
+    selectedFrequency: '',
     loading: true,
+
+    frequencies: [
+      { value: 'daily', label: 'Giornaliera' },
+      { value: 'weekly', label: 'Settimanale' },
+      { value: 'monthly', label: 'Mensile' },
+      { value: 'yearly', label: 'Annuale' }
+    ],
 
     get currentSecondaries() {
       const cat = this.categories.find(c => c.primary === this.selectedPrimary);
       return cat ? cat.secondaries : [];
     },
 
-    get selectedDay() {
-      if (!this.selectedDate) return '';
-      return new Date(this.selectedDate).getDate();
-    },
-
-    get selectedMonth() {
-      if (!this.selectedDate) return '';
-      return new Date(this.selectedDate).getMonth() + 1;
-    },
-
     get isValid() {
-      return this.selectedPrimary && this.selectedSecondary;
+      return this.selectedPrimary && this.selectedSecondary && this.selectedFrequency;
     },
 
     async init() {
-      // Set today's date
-      const today = new Date();
-      this.selectedDate = today.toISOString().split('T')[0];
-
       // Load categories
       try {
         const resp = await fetch('/api/categories');
@@ -56,7 +49,6 @@ function expenseForm() {
     selectPrimary(primary) {
       this.selectedPrimary = primary;
       this.selectedSecondary = '';
-      // Auto-select if only one secondary
       if (this.currentSecondaries.length === 1) {
         this.selectedSecondary = this.currentSecondaries[0];
       }
@@ -66,11 +58,13 @@ function expenseForm() {
       this.selectedSecondary = secondary;
     },
 
+    selectFrequency(freq) {
+      this.selectedFrequency = freq;
+    },
+
     formatAmount(event) {
       let value = event.target.value;
-      // Allow only numbers and comma/dot
       value = value.replace(/[^\d,\.]/g, '');
-      // Replace comma with dot for backend
       value = value.replace(',', '.');
       event.target.value = value;
     }

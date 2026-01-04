@@ -153,6 +153,7 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	mux.HandleFunc("/ui/recurrent-monthly-overview", s.withSecurityHeaders(s.handleRecurrentMonthlyOverview))
 	mux.HandleFunc("/api/categories/secondary", s.withSecurityHeaders(s.handleGetSecondaryCategories))
 	mux.HandleFunc("/api/categories", s.withSecurityHeaders(s.handleGetAllCategories))
+	mux.HandleFunc("/api/income-categories", s.withSecurityHeaders(s.handleGetIncomeCategories))
 
 	// Recurrent expenses routes
 	mux.HandleFunc("/recurrent", s.withSecurityHeaders(s.handleRecurrentExpenses))

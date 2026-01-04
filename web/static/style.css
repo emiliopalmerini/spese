@@ -161,24 +161,30 @@ html{font-size:16px;}
   overflow:hidden;
 }
 .field{
-  padding:var(--space-4) var(--space-4);
+  padding:var(--space-3) var(--space-3);
   border-bottom:1px solid var(--line);
 }
-.density-compact .field{padding:var(--space-3) var(--space-4);}
+@media (min-width:560px){
+  .field{padding:var(--space-4) var(--space-4);}
+}
+.density-compact .field{padding:var(--space-2) var(--space-3);}
 .field:last-child{border-bottom:0;}
 .field label{
   display:block;
-  font-size:0.875rem;
+  font-size:0.8125rem;
   font-weight:500;
   color:var(--text);
-  margin-bottom:var(--space-2);
+  margin-bottom:var(--space-1);
+}
+@media (min-width:560px){
+  .field label{font-size:0.875rem;margin-bottom:var(--space-2);}
 }
 
 input,select,button{font-size:1rem;}
 input,select{
   width:100%;
-  padding:var(--control-pad-y) var(--control-pad-x);
-  min-height:44px;
+  padding:var(--space-2) var(--space-3);
+  min-height:40px;
   background:var(--surface);
   border:2px solid var(--border);
   border-radius:var(--radius);
@@ -203,10 +209,28 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
 @media (min-width:640px){.field-group{grid-template-columns:1fr 1fr;}}
 .field--half{flex:1;}
 
+/* Field row - inline fields */
+.field-row{
+  display:flex;
+  gap:0;
+  border-bottom:1px solid var(--line);
+}
+.field-row .field{
+  border-bottom:none;
+}
+.field--grow{flex:1;}
+
+/* Date input - compact */
+input[type="date"]{
+  width:100%;
+  min-height:36px;
+  font-size:0.875rem;
+}
+
 /* Amount input - prominent */
 .field--amount{
   background:var(--bg-light);
-  padding:var(--space-5) var(--space-4);
+  padding:var(--space-3) var(--space-4);
 }
 .amount-input-wrapper{
   display:flex;
@@ -214,16 +238,16 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
   gap:var(--space-2);
 }
 .amount-currency{
-  font-size:2rem;
+  font-size:1.5rem;
   font-weight:600;
   color:var(--primary);
 }
 .amount-input-wrapper input{
-  font-size:2rem;
+  font-size:1.5rem;
   font-weight:600;
   border:none;
   background:transparent;
-  padding:var(--space-2) 0;
+  padding:var(--space-1) 0;
   min-height:auto;
 }
 .amount-input-wrapper input:focus{
@@ -233,6 +257,10 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
 }
 .amount-input-wrapper input::placeholder{
   color:var(--border);
+}
+@media (min-width:560px){
+  .field--amount{padding:var(--space-4) var(--space-4);}
+  .amount-currency,.amount-input-wrapper input{font-size:2rem;}
 }
 
 /* Category chips */
@@ -248,18 +276,25 @@ input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0
   gap:var(--space-2);
 }
 .category-chip{
-  padding:var(--space-2) var(--space-3);
+  padding:var(--space-1) var(--space-2);
   border:2px solid var(--border);
   border-radius:var(--radius-pill);
   background:var(--surface);
   color:var(--text);
-  font-size:0.875rem;
+  font-size:0.75rem;
   font-weight:500;
   cursor:pointer;
   transition:all 0.15s ease;
-  min-height:44px;
+  min-height:36px;
   display:flex;
   align-items:center;
+}
+@media (min-width:560px){
+  .category-chip{
+    padding:var(--space-2) var(--space-3);
+    font-size:0.875rem;
+    min-height:44px;
+  }
 }
 .category-chip:hover{
   border-color:var(--text);

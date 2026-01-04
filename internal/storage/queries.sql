@@ -76,6 +76,24 @@ FROM primary_categories pc
 LEFT JOIN secondary_categories sc ON sc.primary_category_id = pc.id
 ORDER BY pc.name ASC, sc.name ASC;
 
+-- name: GetCategoriesOrderedByUsage :many
+SELECT
+  pc.name as primary_name,
+  sc.name as secondary_name,
+  COALESCE(exp_count.cnt, 0) as usage_count
+FROM primary_categories pc
+LEFT JOIN secondary_categories sc ON sc.primary_category_id = pc.id
+LEFT JOIN (
+  SELECT primary_category, secondary_category, COUNT(*) as cnt
+  FROM expenses
+  GROUP BY primary_category, secondary_category
+) exp_count ON exp_count.primary_category = pc.name AND exp_count.secondary_category = sc.name
+ORDER BY
+  COALESCE((SELECT SUM(cnt) FROM (SELECT COUNT(*) as cnt FROM expenses WHERE primary_category = pc.name GROUP BY primary_category)), 0) DESC,
+  pc.name ASC,
+  COALESCE(exp_count.cnt, 0) DESC,
+  sc.name ASC;
+
 -- name: CreateSecondaryCategory :one
 INSERT INTO secondary_categories (name, primary_category_id)
 VALUES (?, ?)

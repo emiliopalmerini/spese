@@ -1,7 +1,6 @@
 {{/*
-  Income form partial template
-  Rendered by /ui/income-form-reset HTMX endpoint after successful submission
-  Expects: .Day, .Month, .Categories
+  Income form - redesigned for better UX
+  Amount-first, single date, category chips
 */}}
 {{ define "income_form" }}
 <form id="income-form"
@@ -9,37 +8,90 @@
       hx-post="/incomes"
       hx-target="#flash"
       hx-swap="innerHTML"
-      hx-indicator=".indicator">
+      hx-indicator=".indicator"
+      x-data="incomeForm()"
+      x-init="init()">
 
-  {{/* Date fields group using component */}}
-  <div class="field-group">
-    {{ template "form_field" (dict "ID" "day" "Name" "day" "Type" "number" "Label" "Giorno" "Min" "1" "Max" "31" "Value" .Day "Required" true "Half" true) }}
-    {{ template "form_field" (dict "ID" "month" "Name" "month" "Type" "number" "Label" "Mese" "Min" "1" "Max" "12" "Value" .Month "Required" true "Half" true) }}
+  {{/* Amount - big and prominent */}}
+  <div class="field field--amount">
+    <label for="amount">Importo</label>
+    <div class="amount-input-wrapper">
+      <span class="amount-currency">€</span>
+      <input
+        id="amount"
+        type="text"
+        inputmode="decimal"
+        name="amount"
+        placeholder="0,00"
+        required
+        autocomplete="off"
+        x-ref="amountInput"
+        @input="formatAmount($event)"
+      />
+    </div>
   </div>
 
-  {{/* Description field using component */}}
-  {{ template "form_field" (dict "ID" "description" "Name" "description" "Type" "text" "Label" "Descrizione" "MaxLength" "200" "Placeholder" "es. Stipendio dicembre" "Required" true) }}
-
-  {{/* Amount field using component */}}
-  {{ template "form_field" (dict "ID" "amount" "Name" "amount" "Type" "number" "Label" "Importo (EUR)" "Step" "0.01" "Min" "0.01" "Placeholder" "0.00" "Required" true) }}
-
-  {{/* Category field - simple dropdown */}}
+  {{/* Description */}}
   <div class="field">
-    <label for="category">Categoria</label>
-    <select id="category" name="category" required>
-      <option value="">Seleziona categoria</option>
-      {{ range .Categories }}
-      <option value="{{ . }}">{{ . }}</option>
-      {{ end }}
-    </select>
+    <label for="description">Descrizione</label>
+    <input
+      id="description"
+      type="text"
+      name="description"
+      maxlength="200"
+      placeholder="es. Stipendio dicembre"
+      required
+    />
   </div>
 
-  {{/* Flash messages using component */}}
-  {{ template "flash_messages" (dict "ID" "flash") }}
+  {{/* Date */}}
+  <div class="field">
+    <label for="date">Data</label>
+    <input
+      id="date"
+      type="date"
+      name="date"
+      x-model="selectedDate"
+      required
+    />
+    <input type="hidden" name="day" :value="selectedDay" />
+    <input type="hidden" name="month" :value="selectedMonth" />
+  </div>
 
-  {{/* Submit button and loading indicator */}}
+  {{/* Category chips */}}
+  <div class="field" x-show="categories.length > 0">
+    <label>Categoria</label>
+    <div class="category-chips">
+      <template x-for="cat in categories" :key="cat">
+        <button
+          type="button"
+          class="category-chip"
+          :class="{ 'active': selectedCategory === cat }"
+          @click="selectCategory(cat)"
+          x-text="cat"
+        ></button>
+      </template>
+    </div>
+    <input type="hidden" name="category" :value="selectedCategory" required />
+  </div>
+
+  {{/* Loading state */}}
+  <div class="field" x-show="loading">
+    <div class="placeholder">Caricamento categorie...</div>
+  </div>
+
+  {{/* Flash messages */}}
+  <div id="flash"></div>
+
+  {{/* Submit button */}}
   <div class="actions">
-    <button class="btn btn-primary btn--block" type="submit">Aggiungi Entrata</button>
+    <button
+      class="btn btn-primary btn--block"
+      type="submit"
+      :disabled="!isValid"
+    >
+      Aggiungi Entrata
+    </button>
     {{ template "loading_indicator" (dict "Text" "Salvataggio in corso...") }}
   </div>
 </form>
