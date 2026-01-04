@@ -1,0 +1,10 @@
+{{ define "stat_pills" }}
+<div class="stat-pill">
+  <div class="stat-pill__label">Totale Spese</div>
+  <div class="stat-pill__value">{{.TotalExpenses}}</div>
+</div>
+<div class="stat-pill">
+  <div class="stat-pill__label">Bilancio</div>
+  <div class="stat-pill__value {{.BalanceClass}}">{{.Balance}}</div>
+</div>
+{{ end }}

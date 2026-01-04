@@ -1,0 +1,17 @@
+{{ define "stat_hero" }}
+{{if .HasData}}
+<div class="stat-hero__value">{{.Total}}</div>
+<div class="stat-hero__label">Spese {{.PeriodLabel}}</div>
+{{if .TrendValue}}
+<div class="stat-hero__trend {{.TrendClass}}">
+  {{if eq .TrendClass "stat-hero__trend--down"}}↓{{else if eq .TrendClass "stat-hero__trend--up"}}↑{{else}}→{{end}}
+  {{.TrendValue}}
+</div>
+{{end}}
+{{else}}
+<div class="stat-hero stat-hero--empty">
+  <div class="stat-hero__value">€0,00</div>
+  <div class="stat-hero__label">Spese questo mese</div>
+</div>
+{{end}}
+{{ end }}
