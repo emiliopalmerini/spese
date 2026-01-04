@@ -163,7 +163,7 @@ func (s *Server) handleCreateRecurrentExpense(w http.ResponseWriter, r *http.Req
 
 	w.Header().Set("HX-Trigger", `{
 		"form:reset": {},
-		"page:refresh": {}
+		"dashboard:refresh": {}
 	}`)
 
 	w.WriteHeader(http.StatusCreated)
@@ -266,9 +266,9 @@ func (s *Server) handleUpdateRecurrentExpense(w http.ResponseWriter, r *http.Req
 	slog.InfoContext(r.Context(), "Recurrent expense updated", "id", id)
 
 	// Trigger client refresh for HTMX
-	w.Header().Set("HX-Trigger", `{"recurrent:updated": {}}`)
+	w.Header().Set("HX-Trigger", `{"recurrent:updated": {}, "dashboard:refresh": {}}`)
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`<div class="success">Spesa ricorrente aggiornata con successo</div>`))
+	_, _ = w.Write([]byte(``))
 }
 
 func (s *Server) handleDeleteRecurrentExpense(w http.ResponseWriter, r *http.Request) {

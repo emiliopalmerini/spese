@@ -145,7 +145,7 @@ func (s *Server) handleCreateIncome(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("HX-Trigger", `{
 		"form:reset": {},
-		"page:refresh": {}
+		"dashboard:refresh": {}
 	}`)
 
 	w.WriteHeader(http.StatusOK)
