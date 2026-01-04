@@ -279,6 +279,30 @@ func (r *SQLiteRepository) ListExpensesWithID(ctx context.Context, year int, mon
 	return expensesWithID, nil
 }
 
+// ListExpensesByDateRange returns all expenses within a date range
+func (r *SQLiteRepository) ListExpensesByDateRange(ctx context.Context, startDate, endDate time.Time) ([]core.Expense, error) {
+	dbExpenses, err := r.queries.ListExpensesByDateRange(ctx, ListExpensesByDateRangeParams{
+		Date:   startDate,
+		Date_2: endDate,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list expenses by date range: %w", err)
+	}
+
+	expenses := make([]core.Expense, len(dbExpenses))
+	for i, e := range dbExpenses {
+		expenses[i] = core.Expense{
+			Date:        core.Date{Time: e.Date},
+			Description: e.Description,
+			Amount:      core.Money{Cents: e.AmountCents},
+			Primary:     e.PrimaryCategory,
+			Secondary:   e.SecondaryCategory,
+		}
+	}
+
+	return expenses, nil
+}
+
 // GetPendingSyncExpenses returns expenses that need to be synced to Google Sheets
 func (r *SQLiteRepository) GetPendingSyncExpenses(ctx context.Context, limit int) ([]PendingSyncExpense, error) {
 	dbExpenses, err := r.queries.GetPendingSyncExpenses(ctx, int64(limit))

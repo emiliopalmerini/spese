@@ -3,6 +3,8 @@ package adapters
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"spese/internal/core"
 	"spese/internal/services"
 	"spese/internal/sheets"
@@ -123,4 +125,211 @@ func (a *SQLiteAdapter) DeleteIncome(ctx context.Context, id string) error {
 		return fmt.Errorf("invalid income ID: %w", err)
 	}
 	return a.storage.HardDeleteIncome(ctx, incomeID)
+}
+
+// Dashboard methods
+
+// Transaction represents a unified view of expense or income for dashboard
+type Transaction struct {
+	Type        string // "expense" or "income"
+	Description string
+	Category    string
+	AmountCents int64
+	Date        time.Time
+}
+
+// TrendPoint represents a data point for the trend chart
+type TrendPoint struct {
+	Date        string
+	AmountCents int64
+}
+
+// CategoryTotal represents a category with its total amount
+type CategoryTotal struct {
+	Name        string
+	AmountCents int64
+}
+
+// GetMonthlyExpenseTotal returns total expenses for a given month in cents
+func (a *SQLiteAdapter) GetMonthlyExpenseTotal(ctx context.Context, year, month int) (int64, error) {
+	overview, err := a.storage.ReadMonthOverview(ctx, year, month)
+	if err != nil {
+		return 0, err
+	}
+	return overview.Total.Cents, nil
+}
+
+// GetMonthlyIncomeTotal returns total income for a given month in cents
+func (a *SQLiteAdapter) GetMonthlyIncomeTotal(ctx context.Context, year, month int) (int64, error) {
+	overview, err := a.storage.ReadIncomeMonthOverview(ctx, year, month)
+	if err != nil {
+		return 0, err
+	}
+	return overview.Total.Cents, nil
+}
+
+// GetRecentTransactions returns the most recent transactions (expenses and incomes combined)
+func (a *SQLiteAdapter) GetRecentTransactions(ctx context.Context, limit int) ([]Transaction, error) {
+	now := time.Now()
+	year, month := now.Year(), int(now.Month())
+
+	// Get recent expenses
+	expenses, err := a.storage.ListExpensesWithID(ctx, year, month)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get recent incomes
+	incomes, err := a.storage.ListIncomesWithID(ctx, year, month)
+	if err != nil {
+		return nil, err
+	}
+
+	// Combine and sort by date
+	var transactions []Transaction
+	for _, e := range expenses {
+		transactions = append(transactions, Transaction{
+			Type:        "expense",
+			Description: e.Expense.Description,
+			Category:    e.Expense.Primary,
+			AmountCents: e.Expense.Amount.Cents,
+			Date:        e.Expense.Date.Time,
+		})
+	}
+	for _, i := range incomes {
+		transactions = append(transactions, Transaction{
+			Type:        "income",
+			Description: i.Income.Description,
+			Category:    i.Income.Category,
+			AmountCents: i.Income.Amount.Cents,
+			Date:        i.Income.Date.Time,
+		})
+	}
+
+	// Sort by date descending
+	for i := 0; i < len(transactions)-1; i++ {
+		for j := i + 1; j < len(transactions); j++ {
+			if transactions[j].Date.After(transactions[i].Date) {
+				transactions[i], transactions[j] = transactions[j], transactions[i]
+			}
+		}
+	}
+
+	// Limit results
+	if len(transactions) > limit {
+		transactions = transactions[:limit]
+	}
+
+	return transactions, nil
+}
+
+// GetExpenseTrend returns expense totals grouped by date for a given period
+func (a *SQLiteAdapter) GetExpenseTrend(ctx context.Context, period string) ([]TrendPoint, error) {
+	now := time.Now()
+	var startDate time.Time
+
+	switch period {
+	case "week":
+		startDate = now.AddDate(0, 0, -7)
+	case "month":
+		startDate = now.AddDate(0, -1, 0)
+	case "3months":
+		startDate = now.AddDate(0, -3, 0)
+	case "6months":
+		startDate = now.AddDate(0, -6, 0)
+	case "year":
+		startDate = now.AddDate(-1, 0, 0)
+	default:
+		startDate = now.AddDate(0, -1, 0)
+	}
+
+	// Get all expenses in range and group by date
+	expenses, err := a.storage.ListExpensesByDateRange(ctx, startDate, now)
+	if err != nil {
+		return nil, err
+	}
+
+	// Group by date
+	dateMap := make(map[string]int64)
+	for _, e := range expenses {
+		dateStr := e.Date.Time.Format("02/01")
+		dateMap[dateStr] += e.Amount.Cents
+	}
+
+	// Convert to sorted list
+	var points []TrendPoint
+	for date, amount := range dateMap {
+		points = append(points, TrendPoint{
+			Date:        date,
+			AmountCents: amount,
+		})
+	}
+
+	// Sort by date (simple string sort works for DD/MM format within same year)
+	for i := 0; i < len(points)-1; i++ {
+		for j := i + 1; j < len(points); j++ {
+			if points[i].Date > points[j].Date {
+				points[i], points[j] = points[j], points[i]
+			}
+		}
+	}
+
+	return points, nil
+}
+
+// GetCategoryBreakdown returns expense totals by primary category for a given period
+func (a *SQLiteAdapter) GetCategoryBreakdown(ctx context.Context, period string) ([]CategoryTotal, error) {
+	now := time.Now()
+	var startDate time.Time
+
+	switch period {
+	case "week":
+		startDate = now.AddDate(0, 0, -7)
+	case "month":
+		startDate = now.AddDate(0, -1, 0)
+	case "3months":
+		startDate = now.AddDate(0, -3, 0)
+	case "6months":
+		startDate = now.AddDate(0, -6, 0)
+	case "year":
+		startDate = now.AddDate(-1, 0, 0)
+	default:
+		startDate = now.AddDate(0, -1, 0)
+	}
+
+	expenses, err := a.storage.ListExpensesByDateRange(ctx, startDate, now)
+	if err != nil {
+		return nil, err
+	}
+
+	// Group by category
+	catMap := make(map[string]int64)
+	for _, e := range expenses {
+		catMap[e.Primary] += e.Amount.Cents
+	}
+
+	// Convert to sorted list (by amount descending)
+	var cats []CategoryTotal
+	for name, amount := range catMap {
+		cats = append(cats, CategoryTotal{
+			Name:        name,
+			AmountCents: amount,
+		})
+	}
+
+	// Sort by amount descending
+	for i := 0; i < len(cats)-1; i++ {
+		for j := i + 1; j < len(cats); j++ {
+			if cats[j].AmountCents > cats[i].AmountCents {
+				cats[i], cats[j] = cats[j], cats[i]
+			}
+		}
+	}
+
+	return cats, nil
+}
+
+// ListIncomeCategories returns all income category names
+func (a *SQLiteAdapter) ListIncomeCategories(ctx context.Context) ([]string, error) {
+	return a.storage.GetIncomeCategories(ctx)
 }
