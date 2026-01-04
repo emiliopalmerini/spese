@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.0"
+
+      - name: Check formatting
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "Code is not formatted. Run 'gofmt -s -w .'"
+            gofmt -l .
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Build all binaries
+        run: |
+          go build -o bin/spese ./cmd/spese
+          go build -o bin/spese-worker ./cmd/spese-worker
+          go build -o bin/recurring-worker ./cmd/recurring-worker
+
+      - name: Run tests
+        run: go test -race ./...
