@@ -164,26 +164,3 @@ function initAccordion() {
     });
   });
 }
-
-// ============================================================
-// Toast Notifications
-// ============================================================
-function showToast(message, type = 'info', duration = 3000) {
-  const container = document.getElementById('toastContainer');
-  if (!container) return;
-
-  const toast = document.createElement('div');
-  toast.className = `toast toast--${type}`;
-  toast.innerHTML = `<span class="toast__message">${message}</span>`;
-  container.appendChild(toast);
-
-  setTimeout(() => {
-    toast.classList.add('toast--out');
-    setTimeout(() => toast.remove(), 200);
-  }, duration);
-}
-
-document.body.addEventListener('show-notification', (event) => {
-  const { type, message, duration } = event.detail;
-  showToast(message, type, duration || 3000);
-});
