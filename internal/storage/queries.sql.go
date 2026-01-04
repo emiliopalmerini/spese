@@ -307,6 +307,41 @@ func (q *Queries) GetActiveRecurrentExpensesForProcessing(ctx context.Context, a
 	return items, nil
 }
 
+const getAllCategoriesWithSubs = `-- name: GetAllCategoriesWithSubs :many
+SELECT pc.name as primary_name, sc.name as secondary_name
+FROM primary_categories pc
+LEFT JOIN secondary_categories sc ON sc.primary_category_id = pc.id
+ORDER BY pc.name ASC, sc.name ASC
+`
+
+type GetAllCategoriesWithSubsRow struct {
+	PrimaryName   string         `db:"primary_name" json:"primary_name"`
+	SecondaryName sql.NullString `db:"secondary_name" json:"secondary_name"`
+}
+
+func (q *Queries) GetAllCategoriesWithSubs(ctx context.Context) ([]GetAllCategoriesWithSubsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAllCategoriesWithSubs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAllCategoriesWithSubsRow
+	for rows.Next() {
+		var i GetAllCategoriesWithSubsRow
+		if err := rows.Scan(&i.PrimaryName, &i.SecondaryName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getCategorySums = `-- name: GetCategorySums :many
 SELECT primary_category, CAST(SUM(amount_cents) AS INTEGER) as total_amount
 FROM expenses

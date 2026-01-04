@@ -49,6 +49,11 @@ func (a *SQLiteAdapter) GetSecondariesByPrimary(ctx context.Context, primaryCate
 	return a.storage.GetSecondariesByPrimary(ctx, primaryCategory)
 }
 
+// GetAllCategoriesWithSubs returns all categories with their subcategories
+func (a *SQLiteAdapter) GetAllCategoriesWithSubs(ctx context.Context) ([]storage.CategoryWithSubs, error) {
+	return a.storage.GetAllCategoriesWithSubs(ctx)
+}
+
 // DeleteExpense implements sheets.ExpenseDeleter
 func (a *SQLiteAdapter) DeleteExpense(ctx context.Context, id string) error {
 	expenseID, err := strconv.ParseInt(id, 10, 64)

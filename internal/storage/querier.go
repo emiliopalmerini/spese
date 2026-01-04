@@ -22,6 +22,7 @@ type Querier interface {
 	DeleteSecondaryCategory(ctx context.Context, name string) error
 	GetActiveRecurrentExpensesByDate(ctx context.Context, arg GetActiveRecurrentExpensesByDateParams) ([]RecurrentExpense, error)
 	GetActiveRecurrentExpensesForProcessing(ctx context.Context, arg GetActiveRecurrentExpensesForProcessingParams) ([]RecurrentExpense, error)
+	GetAllCategoriesWithSubs(ctx context.Context) ([]GetAllCategoriesWithSubsRow, error)
 	GetCategorySums(ctx context.Context, arg GetCategorySumsParams) ([]GetCategorySumsRow, error)
 	GetExpense(ctx context.Context, id int64) (Expense, error)
 	GetExpensesByMonth(ctx context.Context, arg GetExpensesByMonthParams) ([]Expense, error)

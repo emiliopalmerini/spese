@@ -154,6 +154,43 @@ func (r *SQLiteRepository) GetSecondariesByPrimary(ctx context.Context, primaryC
 	return secondaryCategories, nil
 }
 
+// CategoryWithSubs represents a primary category with its subcategories
+type CategoryWithSubs struct {
+	Primary     string   `json:"primary"`
+	Secondaries []string `json:"secondaries"`
+}
+
+// GetAllCategoriesWithSubs returns all primary categories with their subcategories
+func (r *SQLiteRepository) GetAllCategoriesWithSubs(ctx context.Context) ([]CategoryWithSubs, error) {
+	rows, err := r.readQueries.GetAllCategoriesWithSubs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get all categories with subs: %w", err)
+	}
+
+	// Group by primary category
+	catMap := make(map[string][]string)
+	var order []string
+	for _, row := range rows {
+		if _, exists := catMap[row.PrimaryName]; !exists {
+			order = append(order, row.PrimaryName)
+			catMap[row.PrimaryName] = []string{}
+		}
+		if row.SecondaryName.Valid {
+			catMap[row.PrimaryName] = append(catMap[row.PrimaryName], row.SecondaryName.String)
+		}
+	}
+
+	result := make([]CategoryWithSubs, 0, len(order))
+	for _, primary := range order {
+		result = append(result, CategoryWithSubs{
+			Primary:     primary,
+			Secondaries: catMap[primary],
+		})
+	}
+
+	return result, nil
+}
+
 // ReadMonthOverview implements sheets.DashboardReader
 func (r *SQLiteRepository) ReadMonthOverview(ctx context.Context, year int, month int) (core.MonthOverview, error) {
 	overview := core.MonthOverview{

@@ -70,6 +70,12 @@ JOIN primary_categories pc ON sc.primary_category_id = pc.id
 WHERE pc.name = ?
 ORDER BY sc.name ASC;
 
+-- name: GetAllCategoriesWithSubs :many
+SELECT pc.name as primary_name, sc.name as secondary_name
+FROM primary_categories pc
+LEFT JOIN secondary_categories sc ON sc.primary_category_id = pc.id
+ORDER BY pc.name ASC, sc.name ASC;
+
 -- name: CreateSecondaryCategory :one
 INSERT INTO secondary_categories (name, primary_category_id)
 VALUES (?, ?)
