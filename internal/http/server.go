@@ -135,7 +135,8 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	}
 
 	// Add security middleware
-	mux.HandleFunc("/", s.withSecurityHeaders(s.handleIndex))
+	// Dashboard (new home)
+	mux.HandleFunc("/", s.withSecurityHeaders(s.handleDashboard))
 	mux.HandleFunc("/healthz", s.handleHealth)  // Updated to server method
 	mux.HandleFunc("/readyz", s.handleReady)    // Updated to server method
 	mux.HandleFunc("/metrics", s.handleMetrics) // Metrics endpoint (no auth for now)
@@ -173,6 +174,20 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	mux.HandleFunc("/ui/income-month-categories", s.withSecurityHeaders(s.handleIncomeMonthCategories))
 	mux.HandleFunc("/ui/income-month-incomes", s.withSecurityHeaders(s.handleIncomeMonthIncomes))
 	mux.HandleFunc("/ui/income-form-reset", s.withSecurityHeaders(s.handleIncomeFormReset))
+
+	// Dashboard UI partials
+	mux.HandleFunc("/ui/dashboard/stat-hero", s.withSecurityHeaders(s.handleDashboardStatHero))
+	mux.HandleFunc("/ui/dashboard/stat-pills", s.withSecurityHeaders(s.handleDashboardStatPills))
+	mux.HandleFunc("/ui/dashboard/transactions", s.withSecurityHeaders(s.handleDashboardTransactions))
+	// Dashboard API endpoints (JSON)
+	mux.HandleFunc("/api/dashboard/trend", s.withSecurityHeaders(s.handleDashboardTrend))
+	mux.HandleFunc("/api/dashboard/categories", s.withSecurityHeaders(s.handleDashboardCategories))
+	// Form partials for bottom sheet
+	mux.HandleFunc("/ui/form/expense", s.withSecurityHeaders(s.handleFormExpense))
+	mux.HandleFunc("/ui/form/income", s.withSecurityHeaders(s.handleFormIncome))
+	mux.HandleFunc("/ui/form/recurring", s.withSecurityHeaders(s.handleFormRecurring))
+	// Old expense page (for direct access)
+	mux.HandleFunc("/spese", s.withSecurityHeaders(s.handleIndex))
 
 	return s
 }
@@ -236,7 +251,7 @@ func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 
 		// Enhanced Content Security Policy with stricter rules
 		csp := "default-src 'self'; " +
-			"script-src 'self' https://unpkg.com 'unsafe-eval'; " +
+			"script-src 'self' https://unpkg.com https://cdn.jsdelivr.net 'unsafe-eval'; " +
 			"style-src 'self' 'unsafe-inline'; " +
 			"img-src 'self' data:; " +
 			"connect-src 'self'; " +

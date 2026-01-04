@@ -885,6 +885,51 @@ func (q *Queries) HardDeleteIncome(ctx context.Context, id int64) error {
 	return err
 }
 
+const listExpensesByDateRange = `-- name: ListExpensesByDateRange :many
+SELECT id, date, description, amount_cents, primary_category, secondary_category, version, created_at, synced_at, sync_status FROM expenses
+WHERE date >= ? AND date <= ?
+ORDER BY date DESC, created_at DESC
+`
+
+type ListExpensesByDateRangeParams struct {
+	Date   time.Time `db:"date" json:"date"`
+	Date_2 time.Time `db:"date_2" json:"date_2"`
+}
+
+func (q *Queries) ListExpensesByDateRange(ctx context.Context, arg ListExpensesByDateRangeParams) ([]Expense, error) {
+	rows, err := q.db.QueryContext(ctx, listExpensesByDateRange, arg.Date, arg.Date_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Expense
+	for rows.Next() {
+		var i Expense
+		if err := rows.Scan(
+			&i.ID,
+			&i.Date,
+			&i.Description,
+			&i.AmountCents,
+			&i.PrimaryCategory,
+			&i.SecondaryCategory,
+			&i.Version,
+			&i.CreatedAt,
+			&i.SyncedAt,
+			&i.SyncStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markExpenseSyncError = `-- name: MarkExpenseSyncError :exec
 UPDATE expenses 
 SET sync_status = 'error'

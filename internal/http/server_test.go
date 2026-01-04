@@ -248,8 +248,8 @@ func TestIndexAndHealth(t *testing.T) {
 	if rr.Code != 200 {
 		t.Fatalf("index status=%d", rr.Code)
 	}
-	if !strings.Contains(rr.Body.String(), "Registra Spesa") {
-		t.Fatalf("index body missing heading")
+	if !strings.Contains(rr.Body.String(), "stat-hero") {
+		t.Fatalf("dashboard body missing stat-hero section")
 	}
 
 	for _, path := range []string{"/healthz", "/readyz"} {

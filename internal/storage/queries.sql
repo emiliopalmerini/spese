@@ -204,3 +204,8 @@ WHERE id = ?;
 -- name: GetIncomeCategories :many
 SELECT name FROM income_categories
 ORDER BY name ASC;
+
+-- name: ListExpensesByDateRange :many
+SELECT * FROM expenses
+WHERE date >= ? AND date <= ?
+ORDER BY date DESC, created_at DESC;

@@ -1948,3 +1948,622 @@ input[type="date"]{
   transition:all 0.3s ease;
 }
 
+/* ==============================================================
+   Dashboard - Stat Hero (main stat card)
+============================================================== */
+.stat-hero{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-card);
+  padding:var(--space-5);
+  text-align:center;
+  box-shadow:var(--shadow-md);
+}
+.stat-hero__value{
+  font-size:2.5rem;
+  font-weight:700;
+  color:var(--text);
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-0.02em;
+  line-height:1.1;
+}
+.stat-hero__label{
+  font-size:0.875rem;
+  font-weight:500;
+  color:var(--muted);
+  margin-top:var(--space-1);
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+}
+.stat-hero__trend{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  font-size:0.875rem;
+  font-weight:600;
+  margin-top:var(--space-2);
+  padding:4px 10px;
+  border-radius:20px;
+}
+.stat-hero__trend--down{
+  background:rgba(16, 185, 129, 0.1);
+  color:#059669;
+}
+.stat-hero__trend--up{
+  background:rgba(239, 68, 68, 0.1);
+  color:#DC2626;
+}
+.stat-hero__trend--neutral{
+  background:var(--bg-light);
+  color:var(--muted);
+}
+.stat-hero__meta{
+  font-size:0.875rem;
+  color:var(--muted);
+  margin-top:var(--space-2);
+}
+.stat-hero--empty .stat-hero__value{
+  color:var(--muted);
+}
+
+/* ==============================================================
+   Dashboard - Stat Pills (secondary stats grid)
+============================================================== */
+.stat-pills{
+  display:grid;
+  grid-template-columns:repeat(2, 1fr);
+  gap:var(--space-3);
+}
+.stat-pill{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-card);
+  padding:var(--space-4);
+  text-align:center;
+  box-shadow:var(--shadow-sm);
+}
+.stat-pill__label{
+  font-size:0.75rem;
+  font-weight:500;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  margin-bottom:var(--space-1);
+}
+.stat-pill__value{
+  font-size:1.25rem;
+  font-weight:700;
+  color:var(--text);
+  font-variant-numeric:tabular-nums;
+}
+.stat-pill__value--positive{
+  color:#059669;
+}
+.stat-pill__value--negative{
+  color:#DC2626;
+}
+.stat-pill--empty .stat-pill__value{
+  color:var(--muted);
+}
+
+/* ==============================================================
+   Dashboard - Chart Container
+============================================================== */
+.chart-section{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-card);
+  padding:var(--space-4);
+  box-shadow:var(--shadow-md);
+}
+.chart-section__header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:var(--space-3);
+  flex-wrap:wrap;
+  gap:var(--space-2);
+}
+.chart-section__title{
+  font-size:1rem;
+  font-weight:600;
+  color:var(--text);
+  margin:0;
+}
+.chart-container{
+  position:relative;
+  height:280px;
+}
+@media (min-width:560px){
+  .chart-container{
+    height:320px;
+  }
+}
+.chart-grid{
+  display:grid;
+  gap:var(--space-4);
+}
+@media (min-width:640px){
+  .chart-grid{
+    grid-template-columns:2fr 1fr;
+  }
+}
+.chart-wrapper{
+  position:relative;
+  min-height:200px;
+}
+
+/* ==============================================================
+   Dashboard - Period Chips (time range selector)
+============================================================== */
+.period-chips{
+  display:flex;
+  gap:6px;
+  overflow-x:auto;
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+  padding:4px 0;
+  margin:-4px 0;
+}
+.period-chips::-webkit-scrollbar{
+  display:none;
+}
+.period-chip{
+  flex-shrink:0;
+  padding:8px 14px;
+  border:1px solid var(--border);
+  border-radius:20px;
+  background:var(--surface);
+  color:var(--muted);
+  font-size:0.8125rem;
+  font-weight:500;
+  cursor:pointer;
+  transition:all 0.15s ease;
+  -webkit-tap-highlight-color:transparent;
+}
+.period-chip:hover{
+  border-color:var(--text);
+  color:var(--text);
+}
+.period-chip--active{
+  background:var(--text);
+  border-color:var(--text);
+  color:var(--surface);
+}
+
+/* ==============================================================
+   Dashboard - FAB Speed Dial
+============================================================== */
+.fab-container{
+  position:fixed;
+  bottom:calc(24px + var(--safe-bottom));
+  right:24px;
+  z-index:90;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+}
+.fab{
+  width:56px;
+  height:56px;
+  border-radius:16px;
+  background:var(--text);
+  color:var(--surface);
+  border:none;
+  box-shadow:0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.fab:hover{
+  transform:scale(1.05);
+  box-shadow:0 6px 16px rgba(0, 0, 0, 0.2), 0 3px 6px rgba(0, 0, 0, 0.1);
+}
+.fab:active{
+  transform:scale(0.95);
+}
+.fab--hidden{
+  transform:translateY(100px);
+  opacity:0;
+  pointer-events:none;
+}
+.fab__icon{
+  width:24px;
+  height:24px;
+  stroke:currentColor;
+  stroke-width:2.5;
+  fill:none;
+  transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.fab--open .fab__icon{
+  transform:rotate(45deg);
+}
+
+/* FAB Speed Dial Actions */
+.fab-actions{
+  position:absolute;
+  bottom:72px;
+  right:0;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:var(--space-3);
+  opacity:0;
+  visibility:hidden;
+  transform:translateY(10px);
+  transition:all 0.2s ease;
+  pointer-events:none;
+}
+.fab-actions--open{
+  opacity:1;
+  visibility:visible;
+  transform:translateY(0);
+  pointer-events:auto;
+}
+.fab-action{
+  display:flex;
+  align-items:center;
+  gap:var(--space-2);
+}
+.fab-action__btn{
+  width:48px;
+  height:48px;
+  border-radius:12px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  box-shadow:var(--shadow-md);
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:all 0.15s ease;
+  color:var(--text);
+}
+.fab-action__btn:hover{
+  transform:scale(1.05);
+  box-shadow:0 6px 16px rgba(0, 0, 0, 0.15);
+  background:var(--bg-light);
+}
+.fab-action__btn svg{
+  width:20px;
+  height:20px;
+  stroke:currentColor;
+  stroke-width:2;
+  fill:none;
+}
+.fab-action__label{
+  padding:6px 12px;
+  background:var(--text);
+  color:var(--surface);
+  border-radius:6px;
+  font-size:0.8125rem;
+  font-weight:500;
+  white-space:nowrap;
+  box-shadow:var(--shadow-sm);
+}
+
+/* FAB Backdrop */
+.fab-backdrop{
+  position:fixed;
+  inset:0;
+  background:rgba(0, 0, 0, 0.3);
+  z-index:89;
+  opacity:0;
+  visibility:hidden;
+  transition:all 0.2s ease;
+}
+.fab-backdrop--open{
+  opacity:1;
+  visibility:visible;
+}
+
+/* FAB pulse animation on success */
+@keyframes fab-pulse {
+  0% { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 0 rgba(17, 17, 17, 0.4); }
+  70% { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 12px rgba(17, 17, 17, 0); }
+  100% { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 0 rgba(17, 17, 17, 0); }
+}
+.fab--success{
+  animation:fab-pulse 0.6s ease-out;
+}
+
+/* ==============================================================
+   Dashboard - Bottom Sheet Modal
+============================================================== */
+.bottom-sheet-backdrop{
+  position:fixed;
+  inset:0;
+  background:rgba(0, 0, 0, 0.4);
+  z-index:200;
+  opacity:0;
+  visibility:hidden;
+  transition:opacity 0.3s ease, visibility 0.3s ease;
+  -webkit-tap-highlight-color:transparent;
+}
+.bottom-sheet-backdrop--open{
+  opacity:1;
+  visibility:visible;
+}
+.bottom-sheet{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  background:var(--surface);
+  border-radius:16px 16px 0 0;
+  z-index:201;
+  transform:translateY(100%);
+  transition:transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  max-height:90vh;
+  max-height:90dvh;
+  overflow-y:auto;
+  box-shadow:0 -4px 24px rgba(0, 0, 0, 0.15);
+  padding-bottom:var(--safe-bottom);
+}
+.bottom-sheet--open{
+  transform:translateY(0);
+}
+.bottom-sheet__handle{
+  width:36px;
+  height:4px;
+  background:var(--border);
+  border-radius:2px;
+  margin:12px auto;
+}
+.bottom-sheet__header{
+  padding:0 var(--space-4) var(--space-3);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.bottom-sheet__title{
+  font-size:1.125rem;
+  font-weight:600;
+  color:var(--text);
+  margin:0;
+}
+.bottom-sheet__close{
+  width:32px;
+  height:32px;
+  border:none;
+  background:var(--bg-light);
+  border-radius:50%;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--muted);
+  transition:all 0.15s ease;
+}
+.bottom-sheet__close:hover{
+  background:var(--border);
+  color:var(--text);
+}
+.bottom-sheet__close svg{
+  width:16px;
+  height:16px;
+  stroke:currentColor;
+  stroke-width:2;
+}
+.bottom-sheet__content{
+  padding:0 var(--space-4) var(--space-4);
+}
+
+/* Bottom sheet form overrides */
+.bottom-sheet .form{
+  box-shadow:none;
+  border:none;
+  border-radius:0;
+}
+
+/* ==============================================================
+   Dashboard - Accordion (Collapsible sections)
+============================================================== */
+.accordion{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-card);
+  overflow:hidden;
+  box-shadow:var(--shadow-sm);
+}
+.accordion__trigger{
+  width:100%;
+  padding:var(--space-4);
+  background:none;
+  border:none;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  cursor:pointer;
+  transition:background 0.15s ease;
+}
+.accordion__trigger:hover{
+  background:var(--bg-light);
+}
+.accordion__title{
+  font-size:1rem;
+  font-weight:600;
+  color:var(--text);
+  margin:0;
+}
+.accordion__icon{
+  width:20px;
+  height:20px;
+  stroke:var(--muted);
+  stroke-width:2;
+  fill:none;
+  transition:transform 0.2s ease;
+}
+.accordion--open .accordion__icon{
+  transform:rotate(180deg);
+}
+.accordion__content{
+  max-height:0;
+  overflow:hidden;
+  transition:max-height 0.3s ease;
+}
+.accordion--open .accordion__content{
+  max-height:2000px;
+}
+.accordion__body{
+  padding:0 var(--space-4) var(--space-4);
+  border-top:1px solid var(--line);
+}
+
+/* ==============================================================
+   Dashboard - Transaction List
+============================================================== */
+.transactions-list{
+  display:grid;
+  gap:0;
+}
+.transaction{
+  display:grid;
+  gap:var(--space-1);
+  padding:var(--space-3) 0;
+  border-bottom:1px solid var(--line);
+  grid-template-columns:auto 1fr auto;
+  grid-template-areas:
+    "icon desc amount"
+    "icon cat  amount";
+  align-items:center;
+}
+.transaction:last-child{
+  border-bottom:none;
+}
+.transaction__icon{
+  grid-area:icon;
+  width:36px;
+  height:36px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin-right:var(--space-3);
+}
+.transaction__icon--expense{
+  background:rgba(239, 68, 68, 0.1);
+  color:#DC2626;
+}
+.transaction__icon--income{
+  background:rgba(16, 185, 129, 0.1);
+  color:#059669;
+}
+.transaction__icon svg{
+  width:18px;
+  height:18px;
+  stroke:currentColor;
+  stroke-width:2;
+  fill:none;
+}
+.transaction__desc{
+  grid-area:desc;
+  font-weight:500;
+  color:var(--text);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.transaction__cat{
+  grid-area:cat;
+  font-size:0.8125rem;
+  color:var(--muted);
+}
+.transaction__amount{
+  grid-area:amount;
+  font-weight:600;
+  font-variant-numeric:tabular-nums;
+  text-align:right;
+}
+.transaction__amount--expense{
+  color:var(--text);
+}
+.transaction__amount--income{
+  color:#059669;
+}
+.transaction__date{
+  font-size:0.75rem;
+  color:var(--muted);
+}
+
+/* ==============================================================
+   Dashboard - Toast Notifications (positioned above FAB)
+============================================================== */
+.toast-container{
+  position:fixed;
+  bottom:calc(96px + var(--safe-bottom));
+  left:50%;
+  transform:translateX(-50%);
+  z-index:300;
+  display:flex;
+  flex-direction:column;
+  gap:var(--space-2);
+  pointer-events:none;
+  width:calc(100% - 32px);
+  max-width:400px;
+}
+.toast{
+  background:var(--text);
+  color:var(--surface);
+  padding:var(--space-3) var(--space-4);
+  border-radius:12px;
+  font-size:0.9375rem;
+  font-weight:500;
+  box-shadow:0 4px 12px rgba(0, 0, 0, 0.15);
+  display:flex;
+  align-items:center;
+  gap:var(--space-3);
+  pointer-events:auto;
+  animation:toast-in 0.3s ease-out;
+}
+.toast--out{
+  animation:toast-out 0.2s ease-in forwards;
+}
+@keyframes toast-in {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes toast-out {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(16px); opacity: 0; }
+}
+.toast--success{
+  background:#059669;
+}
+.toast--error{
+  background:#DC2626;
+}
+.toast__message{
+  flex:1;
+}
+
+/* ==============================================================
+   Dashboard - Simplified Topbar (no tabs)
+============================================================== */
+.topbar--dashboard .topbar__nav{
+  display:none;
+}
+@media (min-width:560px){
+  .topbar--dashboard .topbar__inner{
+    justify-content:center;
+  }
+}
+
+/* ==============================================================
+   Dashboard - Skeleton Loading
+============================================================== */
+.skeleton{
+  background:linear-gradient(90deg, var(--bg-light) 25%, var(--border) 50%, var(--bg-light) 75%);
+  background-size:200% 100%;
+  animation:skeleton-loading 1.5s infinite;
+  border-radius:var(--radius);
+}
+@keyframes skeleton-loading{
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+

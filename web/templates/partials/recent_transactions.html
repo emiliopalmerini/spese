@@ -1,0 +1,24 @@
+{{ define "recent_transactions" }}
+{{if .Transactions}}
+{{range .Transactions}}
+<div class="transaction">
+  <div class="transaction__icon transaction__icon--{{.Type}}">
+    {{if eq .Type "expense"}}
+    <svg viewBox="0 0 24 24"><path d="M12 22V2M7 17l5 5 5-5"/></svg>
+    {{else}}
+    <svg viewBox="0 0 24 24"><path d="M12 2v20M17 7l-5-5-5 5"/></svg>
+    {{end}}
+  </div>
+  <div class="transaction__desc">{{.Description}}</div>
+  <div class="transaction__cat">{{.Category}} · {{.Date}}</div>
+  <div class="transaction__amount transaction__amount--{{.Type}}">
+    {{if eq .Type "income"}}+{{end}}{{.Amount}}
+  </div>
+</div>
+{{end}}
+{{else}}
+<div class="empty-state">
+  <p class="text-muted">Nessuna transazione recente</p>
+</div>
+{{end}}
+{{ end }}

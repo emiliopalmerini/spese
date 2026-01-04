@@ -43,6 +43,7 @@ type Querier interface {
 	GetSecondaryCategories(ctx context.Context) ([]string, error)
 	HardDeleteExpense(ctx context.Context, id int64) error
 	HardDeleteIncome(ctx context.Context, id int64) error
+	ListExpensesByDateRange(ctx context.Context, arg ListExpensesByDateRangeParams) ([]Expense, error)
 	MarkExpenseSyncError(ctx context.Context, id int64) error
 	MarkExpenseSynced(ctx context.Context, id int64) error
 	RefreshCategories(ctx context.Context) error
