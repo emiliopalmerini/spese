@@ -9,7 +9,6 @@
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
     <link rel="stylesheet" href="/static/style.css" />
     <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="/static/notifications.js" defer></script>
     <script src="/static/expense-form.js" defer></script>
@@ -106,30 +105,17 @@
     </div>
   </section>
 
-  <!-- Charts Section -->
+  <!-- Categories Section -->
   <section class="page__section">
-    <div class="chart-section">
-      <div class="chart-section__header">
-        <h3 class="chart-section__title">Andamento</h3>
-        <div class="period-chips" id="periodChips">
-          <button class="period-chip" data-period="week">1S</button>
-          <button class="period-chip period-chip--active" data-period="month">1M</button>
-          <button class="period-chip" data-period="3months">3M</button>
-          <button class="period-chip" data-period="6months">6M</button>
-          <button class="period-chip" data-period="year">1A</button>
-        </div>
-      </div>
-      <div class="chart-grid">
-        <div class="chart-wrapper">
-          <div class="chart-container">
-            <canvas id="trendChart"></canvas>
-          </div>
-        </div>
-        <div class="chart-wrapper">
-          <div class="chart-container">
-            <canvas id="categoryChart"></canvas>
-          </div>
-        </div>
+    <div class="categories-section">
+      <h3 class="section-title">Categorie</h3>
+      <div class="categories-list" id="categories-list"
+           hx-get="/ui/dashboard/categories"
+           hx-trigger="load, dashboard:refresh from:body"
+           hx-swap="innerHTML">
+        <div class="skeleton" style="height: 24px; margin-bottom: 8px;"></div>
+        <div class="skeleton" style="height: 24px; margin-bottom: 8px;"></div>
+        <div class="skeleton" style="height: 24px;"></div>
       </div>
     </div>
   </section>

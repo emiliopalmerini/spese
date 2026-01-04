@@ -256,8 +256,8 @@ func (s *Server) handleDashboardTrend(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(points)
 }
 
-// handleDashboardCategories returns category breakdown for Chart.js
-func (s *Server) handleDashboardCategories(w http.ResponseWriter, r *http.Request) {
+// handleDashboardCategoriesList returns category breakdown as HTML partial
+func (s *Server) handleDashboardCategoriesList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -267,10 +267,8 @@ func (s *Server) handleDashboardCategories(w http.ResponseWriter, r *http.Reques
 	ctx, cancel := context.WithTimeout(r.Context(), 7*time.Second)
 	defer cancel()
 
-	period := r.URL.Query().Get("period")
-	if period == "" {
-		period = "month"
-	}
+	now := time.Now()
+	year, month := now.Year(), int(now.Month())
 
 	adapter, ok := s.expLister.(*adapters.SQLiteAdapter)
 	if !ok {
@@ -278,27 +276,51 @@ func (s *Server) handleDashboardCategories(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	catData, err := adapter.GetCategoryBreakdown(ctx, period)
+	// Get category sums for current month
+	catData, err := adapter.GetCategoryBreakdown(ctx, "month")
 	if err != nil {
-		slog.ErrorContext(ctx, "Failed to get category data", "error", err)
+		slog.ErrorContext(ctx, "Failed to get category data", "error", err, "year", year, "month", month)
 		catData = []adapters.CategoryTotal{}
 	}
 
-	// Convert to JSON-friendly format
-	type category struct {
-		Name   string `json:"name"`
-		Amount int64  `json:"amount"`
-	}
-	var cats []category
+	// Find max for percentage calculation
+	var maxAmount int64
 	for _, c := range catData {
-		cats = append(cats, category{
-			Name:   c.Name,
-			Amount: c.AmountCents,
+		if c.AmountCents > maxAmount {
+			maxAmount = c.AmountCents
+		}
+	}
+
+	// Convert to template-friendly format
+	type catView struct {
+		Name    string
+		Amount  string
+		Percent int
+	}
+	var cats []catView
+	for _, c := range catData {
+		percent := 0
+		if maxAmount > 0 {
+			percent = int((c.AmountCents * 100) / maxAmount)
+		}
+		cats = append(cats, catView{
+			Name:    c.Name,
+			Amount:  formatEuros(c.AmountCents),
+			Percent: percent,
 		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(cats)
+	data := struct {
+		Categories []catView
+	}{
+		Categories: cats,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.templates.ExecuteTemplate(w, "category_breakdown", data); err != nil {
+		slog.ErrorContext(ctx, "Category breakdown template failed", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // handleFormExpense returns the expense form partial for bottom sheet

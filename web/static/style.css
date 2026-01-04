@@ -2029,80 +2029,55 @@ input[type="date"]{
   color:#DC2626;
 }
 
-/* Chart Section - Clean borderless */
-.chart-section{
+/* Categories Section */
+.categories-section{
   padding:var(--space-1) 0;
 }
-.chart-section__header{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:var(--space-1);
-}
-.chart-section__title{
+.section-title{
   font-size:0.6875rem;
   font-weight:600;
   color:var(--muted);
   text-transform:uppercase;
   letter-spacing:0.03em;
-  margin:0;
+  margin:0 0 var(--space-2);
 }
-.chart-container{
-  position:relative;
-  height:140px;
-}
-@media (min-width:560px){
-  .chart-container{
-    height:180px;
-  }
-}
-.chart-grid{
-  display:grid;
-  gap:var(--space-2);
-  grid-template-columns:1fr 120px;
-}
-@media (max-width:400px){
-  .chart-grid{
-    grid-template-columns:1fr;
-  }
-  .chart-grid .chart-wrapper:last-child{
-    display:none;
-  }
-}
-.chart-wrapper{
-  position:relative;
-  min-height:120px;
-  width:100%;
-}
-.chart-wrapper canvas{
-  max-width:100%;
-}
-
-/* ==============================================================
-   Dashboard - Period Chips (time range selector)
-============================================================== */
-.period-chips{
+.categories-list{
   display:flex;
+  flex-direction:column;
+  gap:var(--space-2);
+}
+.category-row{
+  display:flex;
+  flex-direction:column;
   gap:4px;
 }
-.period-chip{
-  padding:4px 10px;
-  border:none;
-  border-radius:4px;
-  background:transparent;
-  color:var(--muted);
-  font-size:0.75rem;
-  font-weight:600;
-  cursor:pointer;
-  transition:all 0.15s ease;
-  -webkit-tap-highlight-color:transparent;
+.category-row__info{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
 }
-.period-chip:hover{
+.category-row__name{
+  font-size:0.8125rem;
+  font-weight:500;
   color:var(--text);
 }
-.period-chip--active{
+.category-row__amount{
+  font-size:0.8125rem;
+  font-weight:600;
+  color:var(--text);
+  font-variant-numeric:tabular-nums;
+}
+.category-row__bar{
+  height:4px;
+  background:var(--line);
+  border-radius:2px;
+  overflow:hidden;
+}
+.category-row__fill{
+  height:100%;
   background:var(--text);
-  color:var(--surface);
+  border-radius:2px;
+  transition:width 0.3s ease;
 }
 
 /* ==============================================================
