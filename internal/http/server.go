@@ -180,6 +180,7 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	mux.HandleFunc("/ui/dashboard/stat-pills", s.withSecurityHeaders(s.handleDashboardStatPills))
 	mux.HandleFunc("/ui/dashboard/transactions", s.withSecurityHeaders(s.handleDashboardTransactions))
 	mux.HandleFunc("/ui/dashboard/categories", s.withSecurityHeaders(s.handleDashboardCategoriesList))
+	mux.HandleFunc("/ui/dashboard/recurrents", s.withSecurityHeaders(s.handleDashboardRecurrents))
 	// Dashboard API endpoints (JSON)
 	mux.HandleFunc("/api/dashboard/trend", s.withSecurityHeaders(s.handleDashboardTrend))
 	// Form partials for bottom sheet

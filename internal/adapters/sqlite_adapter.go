@@ -362,3 +362,32 @@ func (a *SQLiteAdapter) GetCategoryBreakdown(ctx context.Context, period string)
 func (a *SQLiteAdapter) ListIncomeCategories(ctx context.Context) ([]string, error) {
 	return a.storage.GetIncomeCategories(ctx)
 }
+
+// RecurrentExpenseItem represents a recurrent expense for display
+type RecurrentExpenseItem struct {
+	ID          int64
+	Description string
+	AmountCents int64
+	Category    string
+	Frequency   string
+}
+
+// GetActiveRecurrentExpenses returns all active recurrent expenses
+func (a *SQLiteAdapter) GetActiveRecurrentExpenses(ctx context.Context) ([]RecurrentExpenseItem, error) {
+	expenses, err := a.storage.GetRecurrentExpenses(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var items []RecurrentExpenseItem
+	for _, e := range expenses {
+		items = append(items, RecurrentExpenseItem{
+			ID:          e.ID,
+			Description: e.Description,
+			AmountCents: e.Amount.Cents,
+			Category:    e.Primary,
+			Frequency:   string(e.Every),
+		})
+	}
+	return items, nil
+}

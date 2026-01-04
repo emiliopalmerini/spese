@@ -1,0 +1,17 @@
+{{ define "recurrent_list" }}
+{{if .Recurrents}}
+{{range .Recurrents}}
+<div class="recurrent-row">
+  <div class="recurrent-row__info">
+    <span class="recurrent-row__name">{{.Description}}</span>
+    <span class="recurrent-row__freq">{{.Frequency}}</span>
+  </div>
+  <span class="recurrent-row__amount">{{.Amount}}</span>
+</div>
+{{end}}
+{{else}}
+<div class="empty-state">
+  <p class="text-muted">Nessuna spesa ricorrente</p>
+</div>
+{{end}}
+{{ end }}

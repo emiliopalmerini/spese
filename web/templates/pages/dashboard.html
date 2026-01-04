@@ -129,6 +129,20 @@
     </div>
   </section>
 
+  <!-- Recurrent Expenses Section -->
+  <section class="page__section">
+    <div class="categories-section">
+      <h3 class="section-title">Spese Ricorrenti</h3>
+      <div class="recurrents-list" id="recurrents-list"
+           hx-get="/ui/dashboard/recurrents"
+           hx-trigger="load, dashboard:refresh from:body"
+           hx-swap="innerHTML">
+        <div class="skeleton" style="height: 24px; margin-bottom: 8px;"></div>
+        <div class="skeleton" style="height: 24px;"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- Recent Transactions (Collapsible) -->
   <section class="page__section">
     <div class="accordion accordion--open" id="transactionsAccordion">

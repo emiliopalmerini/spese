@@ -324,6 +324,64 @@ func (s *Server) handleDashboardCategoriesList(w http.ResponseWriter, r *http.Re
 	}
 }
 
+// handleDashboardRecurrents returns the recurrent expenses list partial
+func (s *Server) handleDashboardRecurrents(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 7*time.Second)
+	defer cancel()
+
+	adapter, ok := s.expLister.(*adapters.SQLiteAdapter)
+	if !ok {
+		http.Error(w, "adapter not available", http.StatusInternalServerError)
+		return
+	}
+
+	recurrents, err := adapter.GetActiveRecurrentExpenses(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to get recurrent expenses", "error", err)
+		recurrents = []adapters.RecurrentExpenseItem{}
+	}
+
+	type recView struct {
+		ID          int64
+		Description string
+		Amount      string
+		Category    string
+		Frequency   string
+	}
+	var recs []recView
+	for _, r := range recurrents {
+		freq := "mensile"
+		if r.Frequency == "yearly" {
+			freq = "annuale"
+		}
+		recs = append(recs, recView{
+			ID:          r.ID,
+			Description: r.Description,
+			Amount:      formatEuros(r.AmountCents),
+			Category:    r.Category,
+			Frequency:   freq,
+		})
+	}
+
+	data := struct {
+		Recurrents []recView
+	}{
+		Recurrents: recs,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.templates.ExecuteTemplate(w, "recurrent_list", data); err != nil {
+		slog.ErrorContext(ctx, "Recurrent list template failed", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 // handleFormExpense returns the expense form partial for bottom sheet
 func (s *Server) handleFormExpense(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
