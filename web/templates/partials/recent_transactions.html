@@ -16,15 +16,17 @@
   <div class="transaction__amount transaction__amount--{{.Type}}">
     {{if eq .Type "income"}}+{{end}}{{.Amount}}
   </div>
-  <button class="transaction__delete"
-          hx-delete="/{{.Type}}s/{{.ID}}"
-          hx-confirm="Eliminare questa {{if eq .Type "expense"}}spesa{{else}}entrata{{end}}?"
-          hx-target="closest .transaction"
-          hx-swap="outerHTML swap:0.2s"
-          hx-on::after-request="htmx.trigger(document.body, 'dashboard:refresh')"
-          aria-label="Elimina">
-    <svg viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-  </button>
+  <form class="transaction__delete-form"
+        hx-post="/{{.Type}}s/delete"
+        hx-confirm="Eliminare questa {{if eq .Type "expense"}}spesa{{else}}entrata{{end}}?"
+        hx-target="closest .transaction"
+        hx-swap="delete swap:0.2s"
+        hx-on::after-request="htmx.trigger(document.body, 'dashboard:refresh')">
+    <input type="hidden" name="id" value="{{.ID}}">
+    <button type="submit" class="transaction__delete" aria-label="Elimina">
+      <svg viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+    </button>
+  </form>
 </div>
 {{end}}
 {{else}}
