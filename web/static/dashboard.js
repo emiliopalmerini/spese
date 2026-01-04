@@ -231,6 +231,11 @@ function renderTrendChart(data) {
   const ctx = document.getElementById('trendChart');
   if (!ctx) return;
 
+  // Handle null or empty data
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    data = [];
+  }
+
   const labels = data.map(d => d.date);
   const values = data.map(d => d.amount / 100); // Convert cents to euros
 
@@ -300,6 +305,11 @@ function renderTrendChart(data) {
 function renderCategoryChart(data) {
   const ctx = document.getElementById('categoryChart');
   if (!ctx) return;
+
+  // Handle null or empty data
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    data = [];
+  }
 
   // Colors for categories
   const colors = [
