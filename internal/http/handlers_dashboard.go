@@ -179,6 +179,7 @@ func (s *Server) handleDashboardTransactions(w http.ResponseWriter, r *http.Requ
 
 	// Convert to template-friendly format
 	type txView struct {
+		ID          string
 		Type        string
 		Description string
 		Category    string
@@ -188,6 +189,7 @@ func (s *Server) handleDashboardTransactions(w http.ResponseWriter, r *http.Requ
 	var txs []txView
 	for _, tx := range transactions {
 		txs = append(txs, txView{
+			ID:          tx.ID,
 			Type:        tx.Type,
 			Description: tx.Description,
 			Category:    tx.Category,

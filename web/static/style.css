@@ -2091,6 +2091,13 @@ input[type="date"]{
 .chart-wrapper{
   position:relative;
   min-height:200px;
+  width:100%;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+.chart-wrapper canvas{
+  max-width:100%;
 }
 
 /* ==============================================================
@@ -2423,14 +2430,12 @@ input[type="date"]{
 }
 .transaction{
   display:grid;
-  gap:var(--space-1);
+  gap:var(--space-2);
   padding:var(--space-3) 0;
   border-bottom:1px solid var(--line);
-  grid-template-columns:auto 1fr auto;
-  grid-template-areas:
-    "icon desc amount"
-    "icon cat  amount";
+  grid-template-columns:auto 1fr auto auto;
   align-items:center;
+  position:relative;
 }
 .transaction:last-child{
   border-bottom:none;
@@ -2460,8 +2465,10 @@ input[type="date"]{
   stroke-width:2;
   fill:none;
 }
+.transaction__info{
+  min-width:0;
+}
 .transaction__desc{
-  grid-area:desc;
   font-weight:500;
   color:var(--text);
   overflow:hidden;
@@ -2469,15 +2476,39 @@ input[type="date"]{
   white-space:nowrap;
 }
 .transaction__cat{
-  grid-area:cat;
   font-size:0.8125rem;
   color:var(--muted);
 }
 .transaction__amount{
-  grid-area:amount;
   font-weight:600;
   font-variant-numeric:tabular-nums;
   text-align:right;
+}
+.transaction__delete{
+  width:32px;
+  height:32px;
+  border:none;
+  background:transparent;
+  color:var(--muted);
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:var(--radius);
+  transition:all 0.15s ease;
+  opacity:0.5;
+}
+.transaction__delete:hover{
+  background:rgba(239, 68, 68, 0.1);
+  color:#DC2626;
+  opacity:1;
+}
+.transaction__delete svg{
+  width:18px;
+  height:18px;
+  stroke:currentColor;
+  stroke-width:2;
+  fill:none;
 }
 .transaction__amount--expense{
   color:var(--text);
