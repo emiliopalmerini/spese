@@ -97,7 +97,7 @@ function initBottomSheet() {
       const xhr = event.detail.xhr;
       if (xhr && xhr.status >= 200 && xhr.status < 300) {
         const trigger = xhr.getResponseHeader('HX-Trigger');
-        if (trigger && (trigger.includes('dashboard:refresh') || trigger.includes('show-notification'))) {
+        if (trigger && trigger.includes('dashboard:refresh')) {
           closeBottomSheet();
           const fab = document.getElementById('fab');
           if (fab) {

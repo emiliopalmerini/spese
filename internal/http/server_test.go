@@ -315,13 +315,10 @@ func TestCreateExpenseValidationAndSuccess(t *testing.T) {
 	if rr.Code != 200 {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
-	// Check HTMX trigger header contains success notification and page refresh
+	// Check HTMX trigger header contains page refresh
 	hxTrigger := rr.Header().Get("HX-Trigger")
 	if !strings.Contains(hxTrigger, "page:refresh") {
 		t.Fatalf("expected HX-Trigger header with page:refresh, got %s", hxTrigger)
-	}
-	if !strings.Contains(hxTrigger, "show-notification") {
-		t.Fatalf("expected HX-Trigger header with show-notification, got %s", hxTrigger)
 	}
 
 	// Success with invalid day/month params (should use current)

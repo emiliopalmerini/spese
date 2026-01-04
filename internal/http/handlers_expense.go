@@ -97,18 +97,10 @@ func (s *Server) handleCreateExpense(w http.ResponseWriter, r *http.Request) {
 		"component", "expense_handler",
 		"operation", "create")
 
-	successMsg := fmt.Sprintf("Spesa registrata (#%s): %s — €%s (%s / %s)",
-		template.HTMLEscapeString(ref),
-		template.HTMLEscapeString(exp.Description),
-		template.HTMLEscapeString(amountStr),
-		template.HTMLEscapeString(exp.Primary),
-		template.HTMLEscapeString(exp.Secondary))
-
-	w.Header().Set("HX-Trigger", fmt.Sprintf(`{
+	w.Header().Set("HX-Trigger", `{
 		"form:reset": {},
-		"show-notification": {"type": "success", "message": "%s", "duration": 3000},
 		"page:refresh": {}
-	}`, template.JSEscapeString(successMsg)))
+	}`)
 
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(""))
@@ -217,8 +209,7 @@ func (s *Server) handleDeleteExpense(w http.ResponseWriter, r *http.Request) {
 	month := int(now.Month())
 	w.Header().Set("HX-Trigger", fmt.Sprintf(`{
 		"expense:deleted": {"year": %d, "month": %d},
-		"overview:refresh": {"year": %d, "month": %d},
-		"show-notification": {"type": "success", "message": "Spesa cancellata con successo", "duration": 2000}
+		"overview:refresh": {"year": %d, "month": %d}
 	}`, year, month, year, month))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(""))

@@ -143,17 +143,10 @@ func (s *Server) handleCreateIncome(w http.ResponseWriter, r *http.Request) {
 		"component", "income_handler",
 		"operation", "create")
 
-	successMsg := fmt.Sprintf("Entrata registrata (#%s): %s — €%s (%s)",
-		template.HTMLEscapeString(ref),
-		template.HTMLEscapeString(income.Description),
-		template.HTMLEscapeString(amountStr),
-		template.HTMLEscapeString(income.Category))
-
-	w.Header().Set("HX-Trigger", fmt.Sprintf(`{
+	w.Header().Set("HX-Trigger", `{
 		"form:reset": {},
-		"show-notification": {"type": "success", "message": "%s", "duration": 3000},
 		"page:refresh": {}
-	}`, template.JSEscapeString(successMsg)))
+	}`)
 
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(""))
@@ -240,8 +233,7 @@ func (s *Server) handleDeleteIncome(w http.ResponseWriter, r *http.Request) {
 	month := int(now.Month())
 	w.Header().Set("HX-Trigger", fmt.Sprintf(`{
 		"income:deleted": {"year": %d, "month": %d},
-		"income-overview:refresh": {"year": %d, "month": %d},
-		"show-notification": {"type": "success", "message": "Entrata cancellata con successo", "duration": 2000}
+		"income-overview:refresh": {"year": %d, "month": %d}
 	}`, year, month, year, month))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(""))

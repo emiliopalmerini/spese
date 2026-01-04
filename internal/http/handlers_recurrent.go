@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -162,12 +161,10 @@ func (s *Server) handleCreateRecurrentExpense(w http.ResponseWriter, r *http.Req
 
 	slog.InfoContext(r.Context(), "Recurrent expense created", "id", id, "description", re.Description)
 
-	successMsg := fmt.Sprintf("Spesa ricorrente '%s' creata con successo", re.Description)
-	w.Header().Set("HX-Trigger", fmt.Sprintf(`{
+	w.Header().Set("HX-Trigger", `{
 		"form:reset": {},
-		"show-notification": {"type": "success", "message": "%s", "duration": 3000},
 		"page:refresh": {}
-	}`, template.JSEscapeString(successMsg)))
+	}`)
 
 	w.WriteHeader(http.StatusCreated)
 	_, _ = w.Write([]byte("")) // Empty response, notifications handled via JavaScript

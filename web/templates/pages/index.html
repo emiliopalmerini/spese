@@ -11,7 +11,6 @@
     <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
     <script src="/static/expense-form.js"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script src="/static/notifications.js" defer></script>
   </head>
   <body class="theme-ink density-comfortable style-minimal">
     <header class="topbar">
@@ -43,12 +42,6 @@
          hx-target="#expense-form-container"
          hx-swap="innerHTML">
       {{ template "expense_form" . }}
-    </div>
-  </section>
-
-  {{/* Notification area */}}
-  <section class="page__section">
-    <div id="notifications" class="notifications-container">
     </div>
   </section>
 
