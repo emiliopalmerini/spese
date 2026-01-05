@@ -106,7 +106,7 @@ func (s *Server) handleDashboardStatHero(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// handleDashboardStatPills returns the stat pills partial (expenses + balance)
+// handleDashboardStatPills returns the stat pills partial (expenses + balance + savings rate)
 func (s *Server) handleDashboardStatPills(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
@@ -138,14 +138,22 @@ func (s *Server) handleDashboardStatPills(w http.ResponseWriter, r *http.Request
 		balanceClass = "stat-pill__value--negative"
 	}
 
+	// Calculate savings rate
+	savingsRate := 0
+	if income > 0 {
+		savingsRate = int((balance * 100) / income)
+	}
+
 	data := struct {
 		TotalExpenses string
 		Balance       string
 		BalanceClass  string
+		SavingsRate   int
 	}{
 		TotalExpenses: formatEuros(expenses),
 		Balance:       formatEuros(balance),
 		BalanceClass:  balanceClass,
+		SavingsRate:   savingsRate,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -547,4 +555,280 @@ func (s *Server) handleFormRecurrentEdit(w http.ResponseWriter, r *http.Request)
 
 func formatDecimal(cents int64) string {
 	return strconv.FormatFloat(float64(cents)/100, 'f', 2, 64)
+}
+
+// handleDashboardStatGrid returns the stat grid partial (daily avg, week change, velocity, ratio)
+func (s *Server) handleDashboardStatGrid(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 7*time.Second)
+	defer cancel()
+
+	adapter, ok := s.expLister.(*adapters.SQLiteAdapter)
+	if !ok {
+		http.Error(w, "adapter not available", http.StatusInternalServerError)
+		return
+	}
+
+	// Get daily average
+	dailyAvg, _ := adapter.GetDailyAverage(ctx)
+	dailyAvgStr := "€0"
+	if dailyAvg != nil {
+		dailyAvgStr = formatEuros(dailyAvg.AverageCents)
+	}
+
+	// Get week-over-week change
+	weekChange, _ := adapter.GetWeekOverWeekChange(ctx)
+	weekChangeStr := "—"
+	weekChangeArrow := ""
+	if weekChange != nil && weekChange.LastWeekCents > 0 {
+		weekChangeStr = strconv.Itoa(int(weekChange.ChangePercent)) + "%"
+		if weekChange.IsDown {
+			weekChangeArrow = "↓"
+		} else {
+			weekChangeArrow = "↑"
+		}
+	}
+
+	// Get velocity stats
+	velocity, _ := adapter.GetVelocityStats(ctx)
+	velocityLabel := "In linea"
+	velocityClass := "velocity-label--on-track"
+	monthProgress := 0
+	budgetProgress := 0
+	if velocity != nil {
+		monthProgress = velocity.MonthProgressPercent
+		budgetProgress = velocity.BudgetProgressPercent
+		switch velocity.Status {
+		case "ahead":
+			velocityLabel = "Avanti"
+			velocityClass = "velocity-label--ahead"
+		case "behind":
+			velocityLabel = "Indietro"
+			velocityClass = "velocity-label--behind"
+		}
+	}
+
+	// Get fixed/variable ratio
+	ratio, _ := adapter.GetFixedVariableRatio(ctx)
+	fixedPercent := 0
+	if ratio != nil {
+		fixedPercent = ratio.FixedPercent
+	}
+
+	data := struct {
+		DailyAverage    string
+		WeekChangeStr   string
+		WeekChangeArrow string
+		WeekIsDown      bool
+		MonthProgress   int
+		BudgetProgress  int
+		VelocityLabel   string
+		VelocityClass   string
+		FixedPercent    int
+	}{
+		DailyAverage:    dailyAvgStr,
+		WeekChangeStr:   weekChangeStr,
+		WeekChangeArrow: weekChangeArrow,
+		WeekIsDown:      weekChange != nil && weekChange.IsDown,
+		MonthProgress:   monthProgress,
+		BudgetProgress:  budgetProgress,
+		VelocityLabel:   velocityLabel,
+		VelocityClass:   velocityClass,
+		FixedPercent:    fixedPercent,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.templates.ExecuteTemplate(w, "stat_grid", data); err != nil {
+		slog.ErrorContext(ctx, "Stat grid template failed", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// handleDashboardProjections returns the projections partial (YTD + forecast)
+func (s *Server) handleDashboardProjections(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 7*time.Second)
+	defer cancel()
+
+	adapter, ok := s.expLister.(*adapters.SQLiteAdapter)
+	if !ok {
+		http.Error(w, "adapter not available", http.StatusInternalServerError)
+		return
+	}
+
+	// Get YTD totals
+	ytd, _ := adapter.GetYTDTotals(ctx)
+	ytdExpenses := "€0"
+	ytdIncome := "€0"
+	if ytd != nil {
+		ytdExpenses = formatEuros(ytd.ExpensesCents)
+		ytdIncome = formatEuros(ytd.IncomeCents)
+	}
+
+	// Get forecast
+	forecast, _ := adapter.GetMonthEndForecast(ctx)
+	forecastStr := "€0"
+	forecastNote := ""
+	if forecast != nil {
+		forecastStr = formatEuros(forecast.ForecastCents)
+		forecastNote = forecast.BasedOn
+	}
+
+	data := struct {
+		YTDExpenses  string
+		YTDIncome    string
+		Forecast     string
+		ForecastNote string
+	}{
+		YTDExpenses:  ytdExpenses,
+		YTDIncome:    ytdIncome,
+		Forecast:     forecastStr,
+		ForecastNote: forecastNote,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.templates.ExecuteTemplate(w, "projections", data); err != nil {
+		slog.ErrorContext(ctx, "Projections template failed", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// handleDashboardIncomeBreakdown returns the income breakdown partial
+func (s *Server) handleDashboardIncomeBreakdown(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 7*time.Second)
+	defer cancel()
+
+	adapter, ok := s.expLister.(*adapters.SQLiteAdapter)
+	if !ok {
+		http.Error(w, "adapter not available", http.StatusInternalServerError)
+		return
+	}
+
+	catData, err := adapter.GetIncomeCategoryBreakdown(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to get income category data", "error", err)
+		catData = []adapters.CategoryTotal{}
+	}
+
+	// Find max for percentage calculation
+	var maxAmount int64
+	for _, c := range catData {
+		if c.AmountCents > maxAmount {
+			maxAmount = c.AmountCents
+		}
+	}
+
+	// Convert to template-friendly format
+	type catView struct {
+		Name    string
+		Amount  string
+		Percent int
+	}
+	var cats []catView
+	for _, c := range catData {
+		percent := 0
+		if maxAmount > 0 {
+			percent = int((c.AmountCents * 100) / maxAmount)
+		}
+		cats = append(cats, catView{
+			Name:    c.Name,
+			Amount:  formatEuros(c.AmountCents),
+			Percent: percent,
+		})
+	}
+
+	data := struct {
+		Categories []catView
+	}{
+		Categories: cats,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.templates.ExecuteTemplate(w, "income_breakdown", data); err != nil {
+		slog.ErrorContext(ctx, "Income breakdown template failed", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// handleDashboardRecurrentsWithSummary returns the recurrent expenses list with summary
+func (s *Server) handleDashboardRecurrentsWithSummary(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 7*time.Second)
+	defer cancel()
+
+	adapter, ok := s.expLister.(*adapters.SQLiteAdapter)
+	if !ok {
+		http.Error(w, "adapter not available", http.StatusInternalServerError)
+		return
+	}
+
+	recurrents, err := adapter.GetActiveRecurrentExpenses(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to get recurrent expenses", "error", err)
+		recurrents = []adapters.RecurrentExpenseItem{}
+	}
+
+	// Get monthly total
+	monthlyTotal := adapter.GetRecurrentMonthlyTotal(ctx)
+
+	type recView struct {
+		ID          int64
+		Description string
+		Amount      string
+		Category    string
+		Frequency   string
+	}
+	var recs []recView
+	for _, r := range recurrents {
+		freq := "mensile"
+		if r.Frequency == "yearly" {
+			freq = "annuale"
+		} else if r.Frequency == "weekly" {
+			freq = "settimanale"
+		} else if r.Frequency == "daily" {
+			freq = "giornaliero"
+		}
+		recs = append(recs, recView{
+			ID:          r.ID,
+			Description: r.Description,
+			Amount:      formatEuros(r.AmountCents),
+			Category:    r.Category,
+			Frequency:   freq,
+		})
+	}
+
+	data := struct {
+		Recurrents   []recView
+		MonthlyTotal string
+	}{
+		Recurrents:   recs,
+		MonthlyTotal: formatEuros(monthlyTotal),
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.templates.ExecuteTemplate(w, "recurrent_list", data); err != nil {
+		slog.ErrorContext(ctx, "Recurrent list template failed", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }

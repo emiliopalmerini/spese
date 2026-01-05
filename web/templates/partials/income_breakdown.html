@@ -1,0 +1,21 @@
+{{ define "income_breakdown" }}
+{{if .Categories}}
+<div class="categories-list">
+  {{range .Categories}}
+  <div class="category-row">
+    <div class="category-row__info">
+      <span class="category-row__name">{{.Name}}</span>
+      <span class="category-row__amount">{{.Amount}}</span>
+    </div>
+    <div class="category-row__bar">
+      <div class="category-row__fill" style="width: {{.Percent}}%;"></div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<div class="empty-state">
+  <p class="text-muted">Nessuna entrata questo mese</p>
+</div>
+{{end}}
+{{ end }}

@@ -431,3 +431,306 @@ func (a *SQLiteAdapter) GetRecurrentExpenseByID(ctx context.Context, id int64) (
 func formatDateForInput(d core.Date) string {
 	return fmt.Sprintf("%d-%02d-%02d", d.Year(), d.Month(), d.Day())
 }
+
+// Enhanced stats methods
+
+// YTDStats contains year-to-date totals
+type YTDStats struct {
+	ExpensesCents int64
+	IncomeCents   int64
+}
+
+// GetYTDTotals returns year-to-date expense and income totals
+func (a *SQLiteAdapter) GetYTDTotals(ctx context.Context) (*YTDStats, error) {
+	now := time.Now()
+	startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+
+	// Get YTD expenses
+	expenses, err := a.storage.ListExpensesByDateRange(ctx, startOfYear, now)
+	if err != nil {
+		return nil, err
+	}
+	var totalExpenses int64
+	for _, e := range expenses {
+		totalExpenses += e.Amount.Cents
+	}
+
+	// Get YTD income - iterate through each month
+	var totalIncome int64
+	for month := 1; month <= int(now.Month()); month++ {
+		overview, err := a.storage.ReadIncomeMonthOverview(ctx, now.Year(), month)
+		if err == nil {
+			totalIncome += overview.Total.Cents
+		}
+	}
+
+	return &YTDStats{
+		ExpensesCents: totalExpenses,
+		IncomeCents:   totalIncome,
+	}, nil
+}
+
+// WeekChange contains week-over-week comparison data
+type WeekChange struct {
+	ThisWeekCents int64
+	LastWeekCents int64
+	ChangePercent float64
+	IsDown        bool
+}
+
+// GetWeekOverWeekChange returns expenses comparison between this week and last week
+func (a *SQLiteAdapter) GetWeekOverWeekChange(ctx context.Context) (*WeekChange, error) {
+	now := time.Now()
+
+	// Calculate start of this week (Monday)
+	weekday := int(now.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	thisWeekStart := time.Date(now.Year(), now.Month(), now.Day()-weekday+1, 0, 0, 0, 0, now.Location())
+	lastWeekStart := thisWeekStart.AddDate(0, 0, -7)
+	lastWeekEnd := thisWeekStart.AddDate(0, 0, -1)
+
+	// Get this week's expenses
+	thisWeekExpenses, err := a.storage.ListExpensesByDateRange(ctx, thisWeekStart, now)
+	if err != nil {
+		return nil, err
+	}
+	var thisWeekTotal int64
+	for _, e := range thisWeekExpenses {
+		thisWeekTotal += e.Amount.Cents
+	}
+
+	// Get last week's expenses
+	lastWeekExpenses, err := a.storage.ListExpensesByDateRange(ctx, lastWeekStart, lastWeekEnd)
+	if err != nil {
+		return nil, err
+	}
+	var lastWeekTotal int64
+	for _, e := range lastWeekExpenses {
+		lastWeekTotal += e.Amount.Cents
+	}
+
+	// Calculate change percentage
+	var changePercent float64
+	isDown := false
+	if lastWeekTotal > 0 {
+		changePercent = float64(thisWeekTotal-lastWeekTotal) / float64(lastWeekTotal) * 100
+		isDown = changePercent < 0
+		if changePercent < 0 {
+			changePercent = -changePercent
+		}
+	}
+
+	return &WeekChange{
+		ThisWeekCents: thisWeekTotal,
+		LastWeekCents: lastWeekTotal,
+		ChangePercent: changePercent,
+		IsDown:        isDown,
+	}, nil
+}
+
+// DailyAverage contains daily spending average data
+type DailyAverage struct {
+	AverageCents int64
+	DaysElapsed  int
+	TotalCents   int64
+}
+
+// GetDailyAverage returns average daily spending for current month
+func (a *SQLiteAdapter) GetDailyAverage(ctx context.Context) (*DailyAverage, error) {
+	now := time.Now()
+	year, month := now.Year(), int(now.Month())
+
+	totalCents, err := a.GetMonthlyExpenseTotal(ctx, year, month)
+	if err != nil {
+		return nil, err
+	}
+
+	daysElapsed := now.Day()
+	var averageCents int64
+	if daysElapsed > 0 {
+		averageCents = totalCents / int64(daysElapsed)
+	}
+
+	return &DailyAverage{
+		AverageCents: averageCents,
+		DaysElapsed:  daysElapsed,
+		TotalCents:   totalCents,
+	}, nil
+}
+
+// VelocityStats contains spending velocity data
+type VelocityStats struct {
+	MonthProgressPercent  int    // % of month elapsed
+	BudgetProgressPercent int    // % of last month's total spent
+	Status                string // "on-track", "ahead", "behind"
+}
+
+// GetVelocityStats returns spending velocity compared to previous month
+func (a *SQLiteAdapter) GetVelocityStats(ctx context.Context) (*VelocityStats, error) {
+	now := time.Now()
+	year, month := now.Year(), int(now.Month())
+
+	// Get current month total
+	currentTotal, _ := a.GetMonthlyExpenseTotal(ctx, year, month)
+
+	// Get previous month total (as baseline)
+	prevMonth := month - 1
+	prevYear := year
+	if prevMonth < 1 {
+		prevMonth = 12
+		prevYear--
+	}
+	prevTotal, _ := a.GetMonthlyExpenseTotal(ctx, prevYear, prevMonth)
+
+	// Calculate month progress
+	daysInMonth := time.Date(year, time.Month(month)+1, 0, 0, 0, 0, 0, now.Location()).Day()
+	monthProgressPercent := (now.Day() * 100) / daysInMonth
+
+	// Calculate budget progress (% of prev month spent)
+	budgetProgressPercent := 0
+	if prevTotal > 0 {
+		budgetProgressPercent = int((currentTotal * 100) / prevTotal)
+	}
+
+	// Determine status
+	status := "on-track"
+	diff := budgetProgressPercent - monthProgressPercent
+	if diff > 10 {
+		status = "ahead"
+	} else if diff < -10 {
+		status = "behind"
+	}
+
+	return &VelocityStats{
+		MonthProgressPercent:  monthProgressPercent,
+		BudgetProgressPercent: budgetProgressPercent,
+		Status:                status,
+	}, nil
+}
+
+// FixedVariableRatio contains the ratio of fixed (recurring) vs variable expenses
+type FixedVariableRatio struct {
+	FixedCents      int64
+	VariableCents   int64
+	TotalCents      int64
+	FixedPercent    int
+	VariablePercent int
+}
+
+// GetFixedVariableRatio returns the ratio of recurring expenses vs one-off expenses
+func (a *SQLiteAdapter) GetFixedVariableRatio(ctx context.Context) (*FixedVariableRatio, error) {
+	now := time.Now()
+	year, month := now.Year(), int(now.Month())
+
+	// Get total monthly expenses
+	totalCents, _ := a.GetMonthlyExpenseTotal(ctx, year, month)
+
+	// Get recurring expenses total (monthly cost)
+	recurrentTotal := a.GetRecurrentMonthlyTotal(ctx)
+
+	variableCents := totalCents - recurrentTotal
+	if variableCents < 0 {
+		variableCents = 0
+	}
+
+	fixedPercent := 0
+	variablePercent := 100
+	if totalCents > 0 {
+		fixedPercent = int((recurrentTotal * 100) / totalCents)
+		variablePercent = 100 - fixedPercent
+	}
+
+	return &FixedVariableRatio{
+		FixedCents:      recurrentTotal,
+		VariableCents:   variableCents,
+		TotalCents:      totalCents,
+		FixedPercent:    fixedPercent,
+		VariablePercent: variablePercent,
+	}, nil
+}
+
+// GetRecurrentMonthlyTotal returns the total monthly cost of all active recurrent expenses
+func (a *SQLiteAdapter) GetRecurrentMonthlyTotal(ctx context.Context) int64 {
+	expenses, err := a.storage.GetRecurrentExpenses(ctx)
+	if err != nil {
+		return 0
+	}
+
+	var totalMonthly int64
+	for _, e := range expenses {
+		switch e.Every {
+		case core.Monthly:
+			totalMonthly += e.Amount.Cents
+		case core.Yearly:
+			totalMonthly += e.Amount.Cents / 12
+		case core.Weekly:
+			totalMonthly += e.Amount.Cents * 4
+		case core.Daily:
+			totalMonthly += e.Amount.Cents * 30
+		}
+	}
+	return totalMonthly
+}
+
+// ForecastStats contains month-end forecast data
+type ForecastStats struct {
+	ForecastCents int64
+	BasedOn       string // "average" or "trend"
+}
+
+// GetMonthEndForecast returns projected expenses at month end
+func (a *SQLiteAdapter) GetMonthEndForecast(ctx context.Context) (*ForecastStats, error) {
+	now := time.Now()
+	year, month := now.Year(), int(now.Month())
+
+	// Get current total
+	currentTotal, _ := a.GetMonthlyExpenseTotal(ctx, year, month)
+
+	// Get days in month and days elapsed
+	daysInMonth := time.Date(year, time.Month(month)+1, 0, 0, 0, 0, 0, now.Location()).Day()
+	daysElapsed := now.Day()
+
+	// Simple forecast: (current total / days elapsed) * days in month
+	var forecastCents int64
+	if daysElapsed > 0 {
+		dailyAverage := currentTotal / int64(daysElapsed)
+		forecastCents = dailyAverage * int64(daysInMonth)
+	}
+
+	return &ForecastStats{
+		ForecastCents: forecastCents,
+		BasedOn:       "media giornaliera",
+	}, nil
+}
+
+// GetIncomeCategoryBreakdown returns income totals by category for current month
+func (a *SQLiteAdapter) GetIncomeCategoryBreakdown(ctx context.Context) ([]CategoryTotal, error) {
+	now := time.Now()
+	year, month := now.Year(), int(now.Month())
+
+	overview, err := a.storage.ReadIncomeMonthOverview(ctx, year, month)
+	if err != nil {
+		return nil, err
+	}
+
+	var cats []CategoryTotal
+	for _, c := range overview.ByCategory {
+		cats = append(cats, CategoryTotal{
+			Name:        c.Name,
+			AmountCents: c.Amount.Cents,
+		})
+	}
+
+	// Sort by amount descending
+	for i := 0; i < len(cats)-1; i++ {
+		for j := i + 1; j < len(cats); j++ {
+			if cats[j].AmountCents > cats[i].AmountCents {
+				cats[i], cats[j] = cats[j], cats[i]
+			}
+		}
+	}
+
+	return cats, nil
+}

@@ -1,0 +1,32 @@
+{{ define "stat_grid" }}
+<div class="stat-box">
+  <div class="stat-box__label">Media Giornaliera</div>
+  <div class="stat-box__value stat-box__value--mono">{{.DailyAverage}}</div>
+</div>
+<div class="stat-box">
+  <div class="stat-box__label">Vs Settimana Scorsa</div>
+  <div class="stat-box__value stat-box__value--mono">
+    {{if .WeekChangeArrow}}<span class="stat-box__arrow">{{.WeekChangeArrow}}</span>{{end}}{{.WeekChangeStr}}
+  </div>
+</div>
+<div class="stat-box">
+  <div class="stat-box__label">Velocità</div>
+  <div class="velocity">
+    <div class="velocity-track">
+      <div class="velocity-fill" style="width: {{.BudgetProgress}}%;"></div>
+      <div class="velocity-marker" style="left: {{.MonthProgress}}%;"></div>
+    </div>
+    <div class="velocity-label {{.VelocityClass}}">{{.VelocityLabel}}</div>
+  </div>
+</div>
+<div class="stat-box">
+  <div class="stat-box__label">Fisso / Variabile</div>
+  <div class="ratio-bar">
+    <div class="ratio-track">
+      <div class="ratio-fixed" style="width: {{.FixedPercent}}%;"></div>
+      <div class="ratio-variable"></div>
+    </div>
+    <span class="ratio-label">{{.FixedPercent}}%</span>
+  </div>
+</div>
+{{ end }}

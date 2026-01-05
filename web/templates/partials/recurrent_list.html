@@ -1,4 +1,10 @@
 {{ define "recurrent_list" }}
+{{if .MonthlyTotal}}
+<div class="recurrents-summary">
+  <span class="recurrents-summary__label">Totale mensile</span>
+  <span class="recurrents-summary__value">{{.MonthlyTotal}}</span>
+</div>
+{{end}}
 {{if .Recurrents}}
 {{range .Recurrents}}
 <div class="recurrent-row" id="recurrent-row-{{.ID}}">

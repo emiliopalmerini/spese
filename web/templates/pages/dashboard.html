@@ -4,9 +4,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#111111" />
+    <meta name="theme-color" content="#000000" />
     <title>Spese</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css" />
     <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -84,18 +87,32 @@
          hx-get="/ui/dashboard/stat-hero"
          hx-trigger="load, dashboard:refresh from:body"
          hx-swap="innerHTML">
-      <div class="skeleton" style="height: 60px; width: 180px; margin: 0 auto;"></div>
+      <div class="skeleton" style="height: 80px; width: 200px; margin: 0 auto;"></div>
     </div>
   </section>
 
-  <!-- Stat Pills - Expenses + Balance -->
+  <!-- Stat Pills - Expenses + Balance + Savings Rate -->
   <section class="page__section">
-    <div class="stat-pills" id="stat-pills"
+    <div class="stat-pills stat-pills--three" id="stat-pills"
          hx-get="/ui/dashboard/stat-pills"
          hx-trigger="load, dashboard:refresh from:body"
          hx-swap="innerHTML">
       <div class="stat-pill"><div class="skeleton" style="height: 50px;"></div></div>
       <div class="stat-pill"><div class="skeleton" style="height: 50px;"></div></div>
+      <div class="stat-pill"><div class="skeleton" style="height: 50px;"></div></div>
+    </div>
+  </section>
+
+  <!-- Stat Grid - Behavioral Metrics -->
+  <section class="page__section">
+    <div class="stat-grid" id="stat-grid"
+         hx-get="/ui/dashboard/stat-grid"
+         hx-trigger="load, dashboard:refresh from:body"
+         hx-swap="innerHTML">
+      <div class="stat-box"><div class="skeleton" style="height: 48px;"></div></div>
+      <div class="stat-box"><div class="skeleton" style="height: 48px;"></div></div>
+      <div class="stat-box"><div class="skeleton" style="height: 48px;"></div></div>
+      <div class="stat-box"><div class="skeleton" style="height: 48px;"></div></div>
     </div>
   </section>
 
@@ -136,6 +153,46 @@
            hx-swap="innerHTML">
         <div class="skeleton" style="height: 24px; margin-bottom: 8px;"></div>
         <div class="skeleton" style="height: 24px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Projections Accordion (YTD + Forecast) -->
+  <section class="page__section">
+    <div class="accordion" id="projectionsAccordion">
+      <button class="accordion__trigger" type="button">
+        <h3 class="accordion__title">Proiezioni</h3>
+        <svg class="accordion__icon" viewBox="0 0 24 24">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </button>
+      <div class="accordion__content">
+        <div class="accordion__body" id="projections-content"
+             hx-get="/ui/dashboard/projections"
+             hx-trigger="load, dashboard:refresh from:body"
+             hx-swap="innerHTML">
+          <div class="skeleton" style="height: 80px;"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Income Breakdown Accordion -->
+  <section class="page__section">
+    <div class="accordion" id="incomeAccordion">
+      <button class="accordion__trigger" type="button">
+        <h3 class="accordion__title">Entrate per Categoria</h3>
+        <svg class="accordion__icon" viewBox="0 0 24 24">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </button>
+      <div class="accordion__content">
+        <div class="accordion__body" id="income-breakdown-content"
+             hx-get="/ui/dashboard/income-breakdown"
+             hx-trigger="load, dashboard:refresh from:body"
+             hx-swap="innerHTML">
+          <div class="skeleton" style="height: 60px;"></div>
+        </div>
       </div>
     </div>
   </section>

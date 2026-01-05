@@ -1,0 +1,19 @@
+{{ define "projections" }}
+<div class="projections-grid">
+  <div class="projection-stat">
+    <span class="projection-stat__label">YTD Spese</span>
+    <span class="projection-stat__value">{{.YTDExpenses}}</span>
+  </div>
+  <div class="projection-stat">
+    <span class="projection-stat__label">YTD Entrate</span>
+    <span class="projection-stat__value">{{.YTDIncome}}</span>
+  </div>
+</div>
+<div class="forecast-section">
+  <div class="projection-stat">
+    <span class="projection-stat__label">Previsione Fine Mese</span>
+    <span class="projection-stat__value">{{.Forecast}}</span>
+    {{if .ForecastNote}}<span class="forecast-note">Basato su {{.ForecastNote}}</span>{{end}}
+  </div>
+</div>
+{{ end }}
