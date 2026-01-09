@@ -44,5 +44,6 @@ data/*.db
 
 # Nix
 .direnv/
+.envrc
 result
 result-*
