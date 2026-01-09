@@ -2,7 +2,7 @@ APP_NAME := spese
 PKG := ./...
 BIN := bin/$(APP_NAME)
 
-.PHONY: all help setup tidy fmt vet lint test build run logs clean docker-build docker-up docker-logs docker-down up smoke cover sqlc-generate refresh-categories
+.PHONY: all help setup tidy fmt vet lint test build run clean dev nix-build nix-docker smoke cover sqlc-generate refresh-categories
 
 all: help
 
@@ -11,13 +11,17 @@ help: ## Show this help message
 	@echo ""
 	@echo "Available commands:"
 	@echo ""
+	@echo "Nix Commands:"
+	@echo "  dev            Enter nix development shell"
+	@echo "  nix-build      Build binary with nix (result/bin/spese)"
+	@echo "  nix-docker     Build OCI image with nix"
+	@echo ""
 	@echo "Build Commands:"
-	@echo "  build          Build main application"
+	@echo "  build          Build main application (bin/spese)"
 	@echo "  clean          Remove build artifacts"
 	@echo ""
 	@echo "Development Commands:"
 	@echo "  run            Run application locally"
-	@echo "  logs           Watch logs (Docker)"
 	@echo "  setup          Setup development environment"
 	@echo "  tidy           Run go mod tidy"
 	@echo ""
@@ -29,25 +33,27 @@ help: ## Show this help message
 	@echo "  cover          Run coverage tests"
 	@echo "  smoke          Run smoke tests"
 	@echo ""
-	@echo "Docker Commands:"
-	@echo "  docker-build   Build Docker image"
-	@echo "  docker-up      Start services with Docker Compose"
-	@echo "  docker-logs    View Docker logs"
-	@echo "  docker-down    Stop Docker services"
-	@echo "  up             Format, build, test, and start containers"
-	@echo ""
 	@echo "Database Commands:"
 	@echo "  sqlc-generate  Generate sqlc code from queries"
 	@echo "  refresh-categories  Clear and reload category cache"
 	@echo ""
 	@echo "Examples:"
+	@echo "  make dev            # Enter nix shell"
 	@echo "  make build          # Build the application"
 	@echo "  make run            # Start the app"
-	@echo "  make docker-up      # Start with Docker"
 	@echo ""
 
 setup:
-	@echo "Nothing to setup locally yet. Optionally: pre-commit install"
+	@echo "Run 'nix develop' or 'make dev' to enter development shell"
+
+dev:
+	nix develop
+
+nix-build:
+	nix build
+
+nix-docker:
+	nix build .#docker
 
 tidy:
 	go mod tidy
@@ -71,30 +77,12 @@ build: fmt
 run:
 	go run ./cmd/spese
 
-logs:
-	docker compose logs -f $(APP_NAME)
-
 sqlc-generate:
 	@echo "Generating sqlc code..."
 	sqlc generate
 
 clean:
-	rm -rf bin
-
-docker-build:
-	docker build -t $(APP_NAME):dev .
-
-docker-up:
-	docker compose up -d --build
-
-docker-logs:
-	docker compose logs -f $(APP_NAME)
-
-docker-down:
-	docker compose down
-
-up: fmt build vet test docker-up
-	@echo "Formatted, built, vetted, tested, and started containers."
+	rm -rf bin result result-*
 
 smoke:
 	bash scripts/smoke.sh
