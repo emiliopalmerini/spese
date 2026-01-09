@@ -1032,3 +1032,93 @@ func (r *SQLiteRepository) GetSyncQueueStats(ctx context.Context) (*GetSyncQueue
 	}
 	return &stats, nil
 }
+
+// AppendAndEnqueueSync creates an expense and enqueues it for sync in a single atomic transaction
+func (r *SQLiteRepository) AppendAndEnqueueSync(ctx context.Context, e core.Expense) (string, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	txQueries := r.queries.WithTx(tx)
+
+	// Format date as string for SQLite
+	dateStr := fmt.Sprintf("%04d-%02d-%02d", e.Date.Year(), e.Date.Month(), e.Date.Day())
+
+	// Create expense
+	expense, err := txQueries.CreateExpense(ctx, CreateExpenseParams{
+		Date:              dateStr,
+		Description:       e.Description,
+		AmountCents:       e.Amount.Cents,
+		PrimaryCategory:   e.Primary,
+		SecondaryCategory: e.Secondary,
+	})
+	if err != nil {
+		return "", fmt.Errorf("create expense: %w", err)
+	}
+
+	// Enqueue for sync
+	_, err = txQueries.EnqueueSync(ctx, expense.ID)
+	if err != nil {
+		return "", fmt.Errorf("enqueue sync: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return "", fmt.Errorf("commit transaction: %w", err)
+	}
+
+	slog.InfoContext(ctx, "Expense saved and enqueued for sync",
+		"id", expense.ID,
+		"description", expense.Description,
+		"amount_cents", expense.AmountCents,
+		"date", dateStr)
+
+	return strconv.FormatInt(expense.ID, 10), nil
+}
+
+// HardDeleteAndEnqueueSync deletes an expense and enqueues delete operation atomically
+func (r *SQLiteRepository) HardDeleteAndEnqueueSync(ctx context.Context, id int64) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	txQueries := r.queries.WithTx(tx)
+
+	// Get expense data inside transaction to avoid TOCTOU race
+	expense, err := txQueries.GetExpense(ctx, id)
+	if err != nil {
+		return fmt.Errorf("get expense: %w", err)
+	}
+
+	// Delete expense
+	if err := txQueries.HardDeleteExpense(ctx, id); err != nil {
+		return fmt.Errorf("delete expense: %w", err)
+	}
+
+	// Enqueue delete operation with expense data for Google Sheets sync
+	_, err = txQueries.EnqueueDelete(ctx, EnqueueDeleteParams{
+		ExpenseID:          id,
+		ExpenseDay:         int64(expense.Date.Day()),
+		ExpenseMonth:       int64(expense.Date.Month()),
+		ExpenseDescription: expense.Description,
+		ExpenseAmountCents: expense.AmountCents,
+		ExpensePrimary:     expense.PrimaryCategory,
+		ExpenseSecondary:   expense.SecondaryCategory,
+	})
+	if err != nil {
+		return fmt.Errorf("enqueue delete: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+
+	slog.InfoContext(ctx, "Expense deleted and enqueued for sync",
+		"id", id,
+		"description", expense.Description)
+
+	return nil
+}

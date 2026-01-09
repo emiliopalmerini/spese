@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"spese/internal/amqp"
 	"spese/internal/config"
 	"spese/internal/services"
 	"spese/internal/storage"
@@ -25,7 +24,7 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
-	logger.Info("Starting recurring-worker")
+	logger.Info("Starting recurring-worker (deprecated - use main spese binary instead)")
 
 	// Load configuration
 	cfg := config.Load()
@@ -44,24 +43,8 @@ func main() {
 	}
 	defer sqliteRepo.Close()
 
-	// Initialize AMQP client for publishing expense messages
-	// The spese-worker will consume these and sync to Google Sheets
-	var amqpClient *amqp.Client
-	if cfg.AMQPURL != "" {
-		amqpClient, err = amqp.NewClient(cfg.AMQPURL, cfg.AMQPExchange, cfg.AMQPQueue)
-		if err != nil {
-			logger.Warn("Failed to initialize AMQP client, continuing in SQLite-only mode", "error", err)
-			amqpClient = nil
-		} else {
-			defer amqpClient.Close()
-			logger.Info("AMQP client initialized - expenses will sync via spese-worker")
-		}
-	} else {
-		logger.Info("AMQP disabled - expenses will not sync to Google Sheets")
-	}
-
-	// Initialize ExpenseService (creates expenses and publishes AMQP messages)
-	expenseService := services.NewExpenseService(sqliteRepo, amqpClient)
+	// Initialize ExpenseService (uses SQLite sync queue)
+	expenseService := services.NewExpenseService(sqliteRepo)
 	defer expenseService.Close()
 
 	// Initialize RecurringProcessor
