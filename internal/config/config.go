@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -17,11 +16,6 @@ type Config struct {
 
 	// Database
 	SQLiteDBPath string
-
-	// AMQP
-	AMQPURL      string
-	AMQPExchange string
-	AMQPQueue    string
 
 	// Google Sheets (service account)
 	GoogleSpreadsheetID      string
@@ -44,10 +38,6 @@ func Load() *Config {
 	cfg := &Config{
 		Port:         getEnv("PORT", "8081"),
 		SQLiteDBPath: getEnv("SQLITE_DB_PATH", "./data/spese.db"),
-
-		AMQPURL:      getEnv("AMQP_URL", "amqp://guest:guest@localhost:5672/"),
-		AMQPExchange: getEnv("AMQP_EXCHANGE", "spese"),
-		AMQPQueue:    getEnv("AMQP_QUEUE", "sync_expenses"),
 
 		GoogleSpreadsheetID:      getEnv("GOOGLE_SPREADSHEET_ID", ""),
 		GoogleSheetName:          getEnv("GOOGLE_SHEET_NAME", ""),
@@ -97,25 +87,6 @@ func (c *Config) Validate() error {
 					}
 				}
 			}
-		}
-	}
-
-	// Validate AMQP URL if provided
-	if c.AMQPURL != "" {
-		if parsedURL, err := url.Parse(c.AMQPURL); err != nil {
-			errors = append(errors, fmt.Sprintf("invalid AMQP URL '%s': %v", c.AMQPURL, err))
-		} else if parsedURL.Scheme != "amqp" && parsedURL.Scheme != "amqps" {
-			errors = append(errors, fmt.Sprintf("invalid AMQP URL scheme '%s': must be 'amqp' or 'amqps'", parsedURL.Scheme))
-		}
-	}
-
-	// Validate AMQP exchange and queue names if AMQP is configured
-	if c.AMQPURL != "" {
-		if c.AMQPExchange == "" {
-			errors = append(errors, "AMQP exchange name cannot be empty when AMQP URL is provided")
-		}
-		if c.AMQPQueue == "" {
-			errors = append(errors, "AMQP queue name cannot be empty when AMQP URL is provided")
 		}
 	}
 

@@ -67,3 +67,23 @@ type SecondaryCategory struct {
 	PrimaryCategoryID int64        `db:"primary_category_id" json:"primary_category_id"`
 	CreatedAt         sql.NullTime `db:"created_at" json:"created_at"`
 }
+
+type SyncQueue struct {
+	ID                 int64       `db:"id" json:"id"`
+	Operation          string      `db:"operation" json:"operation"`
+	ExpenseID          int64       `db:"expense_id" json:"expense_id"`
+	ExpenseDay         interface{} `db:"expense_day" json:"expense_day"`
+	ExpenseMonth       interface{} `db:"expense_month" json:"expense_month"`
+	ExpenseDescription interface{} `db:"expense_description" json:"expense_description"`
+	ExpenseAmountCents interface{} `db:"expense_amount_cents" json:"expense_amount_cents"`
+	ExpensePrimary     interface{} `db:"expense_primary" json:"expense_primary"`
+	ExpenseSecondary   interface{} `db:"expense_secondary" json:"expense_secondary"`
+	Status             string      `db:"status" json:"status"`
+	Attempts           int64       `db:"attempts" json:"attempts"`
+	MaxAttempts        int64       `db:"max_attempts" json:"max_attempts"`
+	LastError          interface{} `db:"last_error" json:"last_error"`
+	CreatedAt          time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time   `db:"updated_at" json:"updated_at"`
+	ProcessedAt        interface{} `db:"processed_at" json:"processed_at"`
+	NextRetryAt        interface{} `db:"next_retry_at" json:"next_retry_at"`
+}

@@ -20,9 +20,6 @@ func TestConfig_Validate(t *testing.T) {
 				Port:                       "8081",
 				DataBackend:                "sqlite",
 				SQLiteDBPath:               "./test.db",
-				AMQPURL:                    "amqp://guest:guest@localhost:5672/",
-				AMQPExchange:               "test_exchange",
-				AMQPQueue:                  "test_queue",
 				SyncBatchSize:              5,
 				SyncInterval:               15 * time.Second,
 				RecurringProcessorInterval: 1 * time.Hour,
@@ -92,66 +89,6 @@ func TestConfig_Validate(t *testing.T) {
 			},
 			wantErr:     true,
 			errorString: "SQLite database path cannot be empty when using sqlite backend",
-		},
-		{
-			name: "invalid AMQP URL",
-			config: Config{
-				Port:                       "8080",
-				DataBackend:                "sqlite",
-				SQLiteDBPath:               "./test.db",
-				AMQPURL:                    "://invalid-url",
-				SyncBatchSize:              10,
-				SyncInterval:               30 * time.Second,
-				RecurringProcessorInterval: 1 * time.Hour,
-			},
-			wantErr:     true,
-			errorString: "invalid AMQP URL",
-		},
-		{
-			name: "invalid AMQP URL scheme",
-			config: Config{
-				Port:                       "8080",
-				DataBackend:                "sqlite",
-				SQLiteDBPath:               "./test.db",
-				AMQPURL:                    "http://localhost:5672/",
-				SyncBatchSize:              10,
-				SyncInterval:               30 * time.Second,
-				RecurringProcessorInterval: 1 * time.Hour,
-			},
-			wantErr:     true,
-			errorString: "invalid AMQP URL scheme 'http': must be 'amqp' or 'amqps'",
-		},
-		{
-			name: "AMQP URL without exchange",
-			config: Config{
-				Port:                       "8080",
-				DataBackend:                "sqlite",
-				SQLiteDBPath:               "./test.db",
-				AMQPURL:                    "amqp://localhost:5672/",
-				AMQPExchange:               "",
-				AMQPQueue:                  "test_queue",
-				SyncBatchSize:              10,
-				SyncInterval:               30 * time.Second,
-				RecurringProcessorInterval: 1 * time.Hour,
-			},
-			wantErr:     true,
-			errorString: "AMQP exchange name cannot be empty when AMQP URL is provided",
-		},
-		{
-			name: "AMQP URL without queue",
-			config: Config{
-				Port:                       "8080",
-				DataBackend:                "sqlite",
-				SQLiteDBPath:               "./test.db",
-				AMQPURL:                    "amqp://localhost:5672/",
-				AMQPExchange:               "test_exchange",
-				AMQPQueue:                  "",
-				SyncBatchSize:              10,
-				SyncInterval:               30 * time.Second,
-				RecurringProcessorInterval: 1 * time.Hour,
-			},
-			wantErr:     true,
-			errorString: "AMQP queue name cannot be empty when AMQP URL is provided",
 		},
 		{
 			name: "sheets backend missing spreadsheet ID",
@@ -331,7 +268,6 @@ func TestLoad(t *testing.T) {
 		"PORT":            os.Getenv("PORT"),
 		"DATA_BACKEND":    os.Getenv("DATA_BACKEND"),
 		"SQLITE_DB_PATH":  os.Getenv("SQLITE_DB_PATH"),
-		"AMQP_URL":        os.Getenv("AMQP_URL"),
 		"SYNC_BATCH_SIZE": os.Getenv("SYNC_BATCH_SIZE"),
 		"SYNC_INTERVAL":   os.Getenv("SYNC_INTERVAL"),
 	}
@@ -376,7 +312,6 @@ func TestLoad(t *testing.T) {
 		os.Setenv("PORT", "9090")
 		os.Setenv("DATA_BACKEND", "sqlite")
 		os.Setenv("SQLITE_DB_PATH", "/tmp/test.db")
-		os.Setenv("AMQP_URL", "amqp://test:test@localhost:5672/")
 		os.Setenv("SYNC_BATCH_SIZE", "25")
 		os.Setenv("SYNC_INTERVAL", "45s")
 
@@ -390,9 +325,6 @@ func TestLoad(t *testing.T) {
 		}
 		if cfg.SQLiteDBPath != "/tmp/test.db" {
 			t.Errorf("Load() SQLiteDBPath = %v, want /tmp/test.db", cfg.SQLiteDBPath)
-		}
-		if cfg.AMQPURL != "amqp://test:test@localhost:5672/" {
-			t.Errorf("Load() AMQPURL = %v, want amqp://test:test@localhost:5672/", cfg.AMQPURL)
 		}
 		if cfg.SyncBatchSize != 25 {
 			t.Errorf("Load() SyncBatchSize = %v, want 25", cfg.SyncBatchSize)

@@ -11,6 +11,18 @@ import (
 	"time"
 )
 
+const cleanupCompletedSyncs = `-- name: CleanupCompletedSyncs :exec
+DELETE FROM sync_queue
+WHERE status = 'completed'
+  AND processed_at < ?
+`
+
+// Removes completed items older than the specified timestamp.
+func (q *Queries) CleanupCompletedSyncs(ctx context.Context, processedAt interface{}) error {
+	_, err := q.db.ExecContext(ctx, cleanupCompletedSyncs, processedAt)
+	return err
+}
+
 const createExpense = `-- name: CreateExpense :one
 INSERT INTO expenses (date, description, amount_cents, primary_category, secondary_category)
 VALUES (date(?), ?, ?, ?, ?)
@@ -207,6 +219,145 @@ DELETE FROM secondary_categories WHERE name = ?
 func (q *Queries) DeleteSecondaryCategory(ctx context.Context, name string) error {
 	_, err := q.db.ExecContext(ctx, deleteSecondaryCategory, name)
 	return err
+}
+
+const dequeueSyncBatch = `-- name: DequeueSyncBatch :many
+SELECT id, operation, expense_id, expense_day, expense_month, expense_description, expense_amount_cents, expense_primary, expense_secondary, status, attempts, max_attempts, last_error, created_at, updated_at, processed_at, next_retry_at FROM sync_queue
+WHERE status = 'pending'
+  AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP)
+ORDER BY created_at ASC
+LIMIT ?
+`
+
+// Fetches a batch of pending items ready for processing.
+func (q *Queries) DequeueSyncBatch(ctx context.Context, limit int64) ([]SyncQueue, error) {
+	rows, err := q.db.QueryContext(ctx, dequeueSyncBatch, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SyncQueue
+	for rows.Next() {
+		var i SyncQueue
+		if err := rows.Scan(
+			&i.ID,
+			&i.Operation,
+			&i.ExpenseID,
+			&i.ExpenseDay,
+			&i.ExpenseMonth,
+			&i.ExpenseDescription,
+			&i.ExpenseAmountCents,
+			&i.ExpensePrimary,
+			&i.ExpenseSecondary,
+			&i.Status,
+			&i.Attempts,
+			&i.MaxAttempts,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProcessedAt,
+			&i.NextRetryAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const enqueueDelete = `-- name: EnqueueDelete :one
+INSERT INTO sync_queue (
+    operation, expense_id, status,
+    expense_day, expense_month, expense_description,
+    expense_amount_cents, expense_primary, expense_secondary,
+    created_at, updated_at
+)
+VALUES ('delete', ?, 'pending', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+RETURNING id, operation, expense_id, expense_day, expense_month, expense_description, expense_amount_cents, expense_primary, expense_secondary, status, attempts, max_attempts, last_error, created_at, updated_at, processed_at, next_retry_at
+`
+
+type EnqueueDeleteParams struct {
+	ExpenseID          int64       `db:"expense_id" json:"expense_id"`
+	ExpenseDay         interface{} `db:"expense_day" json:"expense_day"`
+	ExpenseMonth       interface{} `db:"expense_month" json:"expense_month"`
+	ExpenseDescription interface{} `db:"expense_description" json:"expense_description"`
+	ExpenseAmountCents interface{} `db:"expense_amount_cents" json:"expense_amount_cents"`
+	ExpensePrimary     interface{} `db:"expense_primary" json:"expense_primary"`
+	ExpenseSecondary   interface{} `db:"expense_secondary" json:"expense_secondary"`
+}
+
+// Enqueues a delete operation with full expense data.
+func (q *Queries) EnqueueDelete(ctx context.Context, arg EnqueueDeleteParams) (SyncQueue, error) {
+	row := q.db.QueryRowContext(ctx, enqueueDelete,
+		arg.ExpenseID,
+		arg.ExpenseDay,
+		arg.ExpenseMonth,
+		arg.ExpenseDescription,
+		arg.ExpenseAmountCents,
+		arg.ExpensePrimary,
+		arg.ExpenseSecondary,
+	)
+	var i SyncQueue
+	err := row.Scan(
+		&i.ID,
+		&i.Operation,
+		&i.ExpenseID,
+		&i.ExpenseDay,
+		&i.ExpenseMonth,
+		&i.ExpenseDescription,
+		&i.ExpenseAmountCents,
+		&i.ExpensePrimary,
+		&i.ExpenseSecondary,
+		&i.Status,
+		&i.Attempts,
+		&i.MaxAttempts,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProcessedAt,
+		&i.NextRetryAt,
+	)
+	return i, err
+}
+
+const enqueueSync = `-- name: EnqueueSync :one
+
+INSERT INTO sync_queue (operation, expense_id, status, created_at, updated_at)
+VALUES ('sync', ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+RETURNING id, operation, expense_id, expense_day, expense_month, expense_description, expense_amount_cents, expense_primary, expense_secondary, status, attempts, max_attempts, last_error, created_at, updated_at, processed_at, next_retry_at
+`
+
+// Sync Queue queries
+// Enqueues a sync operation for an expense.
+func (q *Queries) EnqueueSync(ctx context.Context, expenseID int64) (SyncQueue, error) {
+	row := q.db.QueryRowContext(ctx, enqueueSync, expenseID)
+	var i SyncQueue
+	err := row.Scan(
+		&i.ID,
+		&i.Operation,
+		&i.ExpenseID,
+		&i.ExpenseDay,
+		&i.ExpenseMonth,
+		&i.ExpenseDescription,
+		&i.ExpenseAmountCents,
+		&i.ExpensePrimary,
+		&i.ExpenseSecondary,
+		&i.Status,
+		&i.Attempts,
+		&i.MaxAttempts,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProcessedAt,
+		&i.NextRetryAt,
+	)
+	return i, err
 }
 
 const getActiveRecurrentExpensesByDate = `-- name: GetActiveRecurrentExpensesByDate :many
@@ -865,6 +1016,65 @@ func (q *Queries) GetSecondaryCategories(ctx context.Context) ([]string, error) 
 	return items, nil
 }
 
+const getSyncQueueItem = `-- name: GetSyncQueueItem :one
+SELECT id, operation, expense_id, expense_day, expense_month, expense_description, expense_amount_cents, expense_primary, expense_secondary, status, attempts, max_attempts, last_error, created_at, updated_at, processed_at, next_retry_at FROM sync_queue WHERE id = ?
+`
+
+// Gets a single sync queue item by ID.
+func (q *Queries) GetSyncQueueItem(ctx context.Context, id int64) (SyncQueue, error) {
+	row := q.db.QueryRowContext(ctx, getSyncQueueItem, id)
+	var i SyncQueue
+	err := row.Scan(
+		&i.ID,
+		&i.Operation,
+		&i.ExpenseID,
+		&i.ExpenseDay,
+		&i.ExpenseMonth,
+		&i.ExpenseDescription,
+		&i.ExpenseAmountCents,
+		&i.ExpensePrimary,
+		&i.ExpenseSecondary,
+		&i.Status,
+		&i.Attempts,
+		&i.MaxAttempts,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProcessedAt,
+		&i.NextRetryAt,
+	)
+	return i, err
+}
+
+const getSyncQueueStats = `-- name: GetSyncQueueStats :one
+SELECT
+    CAST(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS INTEGER) as pending_count,
+    CAST(SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS INTEGER) as processing_count,
+    CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_count,
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_count
+FROM sync_queue
+`
+
+type GetSyncQueueStatsRow struct {
+	PendingCount    int64 `db:"pending_count" json:"pending_count"`
+	ProcessingCount int64 `db:"processing_count" json:"processing_count"`
+	CompletedCount  int64 `db:"completed_count" json:"completed_count"`
+	FailedCount     int64 `db:"failed_count" json:"failed_count"`
+}
+
+// Returns counts by status for monitoring.
+func (q *Queries) GetSyncQueueStats(ctx context.Context) (GetSyncQueueStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getSyncQueueStats)
+	var i GetSyncQueueStatsRow
+	err := row.Scan(
+		&i.PendingCount,
+		&i.ProcessingCount,
+		&i.CompletedCount,
+		&i.FailedCount,
+	)
+	return i, err
+}
+
 const hardDeleteExpense = `-- name: HardDeleteExpense :exec
 DELETE FROM expenses 
 WHERE id = ?
@@ -882,6 +1092,27 @@ WHERE id = ?
 
 func (q *Queries) HardDeleteIncome(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, hardDeleteIncome, id)
+	return err
+}
+
+const incrementSyncAttempt = `-- name: IncrementSyncAttempt :exec
+UPDATE sync_queue
+SET attempts = attempts + 1,
+    last_error = ?,
+    status = 'pending',
+    next_retry_at = datetime(CURRENT_TIMESTAMP, '+' || (1 << attempts) || ' minutes'),
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+type IncrementSyncAttemptParams struct {
+	LastError interface{} `db:"last_error" json:"last_error"`
+	ID        int64       `db:"id" json:"id"`
+}
+
+// Increments attempt count and schedules next retry with exponential backoff.
+func (q *Queries) IncrementSyncAttempt(ctx context.Context, arg IncrementSyncAttemptParams) error {
+	_, err := q.db.ExecContext(ctx, incrementSyncAttempt, arg.LastError, arg.ID)
 	return err
 }
 
@@ -952,6 +1183,51 @@ func (q *Queries) MarkExpenseSynced(ctx context.Context, id int64) error {
 	return err
 }
 
+const markSyncComplete = `-- name: MarkSyncComplete :exec
+UPDATE sync_queue
+SET status = 'completed',
+    processed_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+// Marks a sync queue item as successfully completed.
+func (q *Queries) MarkSyncComplete(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, markSyncComplete, id)
+	return err
+}
+
+const markSyncFailed = `-- name: MarkSyncFailed :exec
+UPDATE sync_queue
+SET status = 'failed',
+    last_error = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+type MarkSyncFailedParams struct {
+	LastError interface{} `db:"last_error" json:"last_error"`
+	ID        int64       `db:"id" json:"id"`
+}
+
+// Marks a sync queue item as failed after max retries exceeded.
+func (q *Queries) MarkSyncFailed(ctx context.Context, arg MarkSyncFailedParams) error {
+	_, err := q.db.ExecContext(ctx, markSyncFailed, arg.LastError, arg.ID)
+	return err
+}
+
+const markSyncProcessing = `-- name: MarkSyncProcessing :exec
+UPDATE sync_queue
+SET status = 'processing', updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+// Marks an item as being processed.
+func (q *Queries) MarkSyncProcessing(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, markSyncProcessing, id)
+	return err
+}
+
 const refreshCategories = `-- name: RefreshCategories :exec
 DELETE FROM secondary_categories
 `
@@ -967,6 +1243,36 @@ DELETE FROM primary_categories
 
 func (q *Queries) RefreshPrimaryCategories(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, refreshPrimaryCategories)
+	return err
+}
+
+const resetStaleProcessing = `-- name: ResetStaleProcessing :exec
+UPDATE sync_queue
+SET status = 'pending',
+    updated_at = CURRENT_TIMESTAMP
+WHERE status = 'processing'
+  AND updated_at < datetime(CURRENT_TIMESTAMP, '-5 minutes')
+`
+
+// Resets items stuck in processing state (crash recovery).
+func (q *Queries) ResetStaleProcessing(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetStaleProcessing)
+	return err
+}
+
+const retryFailedSyncs = `-- name: RetryFailedSyncs :exec
+UPDATE sync_queue
+SET status = 'pending',
+    attempts = 0,
+    next_retry_at = NULL,
+    last_error = NULL,
+    updated_at = CURRENT_TIMESTAMP
+WHERE status = 'failed'
+`
+
+// Resets failed items back to pending for manual retry.
+func (q *Queries) RetryFailedSyncs(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, retryFailedSyncs)
 	return err
 }
 

@@ -9,9 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/joho/godotenv"
 	"spese/internal/adapters"
-	"spese/internal/amqp"
 	"spese/internal/config"
 	apphttp "spese/internal/http"
 	"spese/internal/services"
@@ -46,45 +47,43 @@ func main() {
 		expLister       ports.ExpenseLister
 		expDeleter      ports.ExpenseDeleter
 		expListerWithID ports.ExpenseListerWithID
-		cleanup         func() error
+		sqliteRepo      *storage.SQLiteRepository
+		expenseService  *services.ExpenseService
+		sheetsClient    *gsheet.Client
 	)
 
 	switch cfg.DataBackend {
 	case "sqlite":
 		// Initialize SQLite repository
-		sqliteRepo, err := storage.NewSQLiteRepository(cfg.SQLiteDBPath)
+		var err error
+		sqliteRepo, err = storage.NewSQLiteRepository(cfg.SQLiteDBPath)
 		if err != nil {
 			logger.Error("Failed to initialize SQLite repository", "error", err, "path", cfg.SQLiteDBPath)
 			os.Exit(1)
 		}
 
-		// Initialize AMQP client (optional, can be nil)
-		var amqpClient *amqp.Client
-		if cfg.AMQPURL != "" {
-			amqpClient, err = amqp.NewClient(cfg.AMQPURL, cfg.AMQPExchange, cfg.AMQPQueue)
-			if err != nil {
-				logger.Warn("Failed to initialize AMQP client, continuing without sync", "error", err)
-			} else {
-				logger.Info("Initialized AMQP client", "exchange", cfg.AMQPExchange, "queue", cfg.AMQPQueue)
-			}
-		}
-
-		// Create expense service and adapter
-		expenseService := services.NewExpenseService(sqliteRepo, amqpClient)
+		// Create expense service (no longer needs AMQP - uses sync queue)
+		expenseService = services.NewExpenseService(sqliteRepo)
 		adapter := adapters.NewSQLiteAdapter(sqliteRepo, expenseService)
 
 		expWriter, taxReader, dashReader, expLister, expDeleter, expListerWithID = adapter, adapter, adapter, adapter, adapter, adapter
-		cleanup = expenseService.Close
 
-		logger.Info("Initialized SQLite backend", "db_path", cfg.SQLiteDBPath, "amqp_enabled", amqpClient != nil)
+		// Initialize Google Sheets client for sync processor (optional)
+		sheetsClient, err = gsheet.NewFromEnv(context.Background())
+		if err != nil {
+			logger.Warn("Google Sheets client not available, sync processor will be disabled", "error", err)
+		}
+
+		logger.Info("Initialized SQLite backend", "db_path", cfg.SQLiteDBPath, "sheets_sync_enabled", sheetsClient != nil)
 
 	case "sheets":
-		cli, err := gsheet.NewFromEnv(context.Background())
+		var err error
+		sheetsClient, err = gsheet.NewFromEnv(context.Background())
 		if err != nil {
 			logger.Error("Failed to initialize Google Sheets client", "error", err)
 			os.Exit(1)
 		}
-		expWriter, taxReader, dashReader, expLister, expDeleter = cli, cli, cli, cli, cli
+		expWriter, taxReader, dashReader, expLister, expDeleter = sheetsClient, sheetsClient, sheetsClient, sheetsClient, sheetsClient
 		expListerWithID = nil // Google Sheets backend doesn't support listing with IDs yet
 		logger.Info("Initialized Google Sheets backend")
 
@@ -101,40 +100,122 @@ func main() {
 	srv.IdleTimeout = 60 * time.Second
 	srv.MaxHeaderBytes = 1 << 16 // 64KB
 
-	// Graceful shutdown handling
+	// Create context with cancellation for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go func() {
+	// Create errgroup for managing goroutines
+	g, gCtx := errgroup.WithContext(ctx)
+
+	// Handle shutdown signals
+	g.Go(func() error {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-		sig := <-sigChan
-		logger.Info("Shutdown signal received", "signal", sig.String())
+
+		select {
+		case sig := <-sigChan:
+			logger.Info("Shutdown signal received", "signal", sig.String())
+			cancel()
+			return nil
+		case <-gCtx.Done():
+			return nil
+		}
+	})
+
+	// Start HTTP server
+	g.Go(func() error {
+		logger.Info("Starting HTTP server", "port", cfg.Port, "backend", cfg.DataBackend)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			return err
+		}
+		return nil
+	})
+
+	// Graceful shutdown of HTTP server when context is cancelled
+	g.Go(func() error {
+		<-gCtx.Done()
 
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer shutdownCancel()
 
-		// Shutdown HTTP server
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			logger.Error("Server shutdown error", "error", err)
+		logger.Info("Shutting down HTTP server")
+		return srv.Shutdown(shutdownCtx)
+	})
+
+	// Start SyncProcessor (SQLite backend with Google Sheets client)
+	var syncProcessor *services.SyncProcessor
+	if cfg.DataBackend == "sqlite" && sheetsClient != nil && sqliteRepo != nil {
+		syncConfig := services.SyncProcessorConfig{
+			PollInterval:    cfg.SyncInterval,
+			BatchSize:       cfg.SyncBatchSize,
+			MaxRetries:      3,
+			CleanupInterval: 1 * time.Hour,
+			CleanupAge:      24 * time.Hour,
 		}
+		syncProcessor = services.NewSyncProcessor(sqliteRepo, sheetsClient, sheetsClient, syncConfig)
 
-		// Cleanup resources
-		if cleanup != nil {
-			if err := cleanup(); err != nil {
-				logger.Error("Cleanup error", "error", err)
-			}
-		}
+		g.Go(func() error {
+			logger.Info("Starting sync processor",
+				"poll_interval", cfg.SyncInterval,
+				"batch_size", cfg.SyncBatchSize)
+			return syncProcessor.Start(gCtx)
+		})
 
-		cancel()
-	}()
+		// Graceful shutdown of sync processor
+		g.Go(func() error {
+			<-gCtx.Done()
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer shutdownCancel()
 
-	logger.Info("Starting spese server", "port", cfg.Port, "backend", cfg.DataBackend)
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.Error("Server error", "error", err, "port", cfg.Port)
-		os.Exit(1)
+			logger.Info("Stopping sync processor")
+			return syncProcessor.Stop(shutdownCtx)
+		})
 	}
 
-	<-ctx.Done()
+	// Start RecurringProcessor (SQLite backend only)
+	if cfg.DataBackend == "sqlite" && sqliteRepo != nil && expenseService != nil {
+		recurringProcessor := services.NewRecurringProcessor(sqliteRepo, expenseService)
+
+		g.Go(func() error {
+			ticker := time.NewTicker(cfg.RecurringProcessorInterval)
+			defer ticker.Stop()
+
+			logger.Info("Starting recurring processor", "interval", cfg.RecurringProcessorInterval)
+
+			// Process immediately on startup
+			if count, err := recurringProcessor.ProcessDueExpenses(gCtx, time.Now()); err != nil {
+				logger.Error("Failed to process recurring expenses on startup", "error", err)
+			} else if count > 0 {
+				logger.Info("Processed recurring expenses on startup", "count", count)
+			}
+
+			for {
+				select {
+				case <-gCtx.Done():
+					logger.Info("Stopping recurring processor")
+					return nil
+				case <-ticker.C:
+					if count, err := recurringProcessor.ProcessDueExpenses(gCtx, time.Now()); err != nil {
+						logger.Error("Failed to process recurring expenses", "error", err)
+					} else if count > 0 {
+						logger.Info("Processed recurring expenses", "count", count)
+					}
+				}
+			}
+		})
+	}
+
+	// Wait for all goroutines to complete
+	if err := g.Wait(); err != nil {
+		logger.Error("Error during shutdown", "error", err)
+	}
+
+	// Cleanup resources
+	if expenseService != nil {
+		if err := expenseService.Close(); err != nil {
+			logger.Error("Failed to close expense service", "error", err)
+		}
+	}
+
 	logger.Info("Server stopped gracefully")
 }

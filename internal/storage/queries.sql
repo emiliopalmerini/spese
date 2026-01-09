@@ -209,3 +209,99 @@ ORDER BY name ASC;
 SELECT * FROM expenses
 WHERE date >= ? AND date <= ?
 ORDER BY date DESC, created_at DESC;
+
+-- Sync Queue queries
+
+-- name: EnqueueSync :one
+-- Enqueues a sync operation for an expense.
+INSERT INTO sync_queue (operation, expense_id, status, created_at, updated_at)
+VALUES ('sync', ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+RETURNING *;
+
+-- name: EnqueueDelete :one
+-- Enqueues a delete operation with full expense data.
+INSERT INTO sync_queue (
+    operation, expense_id, status,
+    expense_day, expense_month, expense_description,
+    expense_amount_cents, expense_primary, expense_secondary,
+    created_at, updated_at
+)
+VALUES ('delete', ?, 'pending', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+RETURNING *;
+
+-- name: DequeueSyncBatch :many
+-- Fetches a batch of pending items ready for processing.
+SELECT * FROM sync_queue
+WHERE status = 'pending'
+  AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP)
+ORDER BY created_at ASC
+LIMIT ?;
+
+-- name: MarkSyncProcessing :exec
+-- Marks an item as being processed.
+UPDATE sync_queue
+SET status = 'processing', updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- name: MarkSyncComplete :exec
+-- Marks a sync queue item as successfully completed.
+UPDATE sync_queue
+SET status = 'completed',
+    processed_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- name: MarkSyncFailed :exec
+-- Marks a sync queue item as failed after max retries exceeded.
+UPDATE sync_queue
+SET status = 'failed',
+    last_error = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- name: IncrementSyncAttempt :exec
+-- Increments attempt count and schedules next retry with exponential backoff.
+UPDATE sync_queue
+SET attempts = attempts + 1,
+    last_error = ?,
+    status = 'pending',
+    next_retry_at = datetime(CURRENT_TIMESTAMP, '+' || (1 << attempts) || ' minutes'),
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- name: RetryFailedSyncs :exec
+-- Resets failed items back to pending for manual retry.
+UPDATE sync_queue
+SET status = 'pending',
+    attempts = 0,
+    next_retry_at = NULL,
+    last_error = NULL,
+    updated_at = CURRENT_TIMESTAMP
+WHERE status = 'failed';
+
+-- name: CleanupCompletedSyncs :exec
+-- Removes completed items older than the specified timestamp.
+DELETE FROM sync_queue
+WHERE status = 'completed'
+  AND processed_at < ?;
+
+-- name: ResetStaleProcessing :exec
+-- Resets items stuck in processing state (crash recovery).
+UPDATE sync_queue
+SET status = 'pending',
+    updated_at = CURRENT_TIMESTAMP
+WHERE status = 'processing'
+  AND updated_at < datetime(CURRENT_TIMESTAMP, '-5 minutes');
+
+-- name: GetSyncQueueStats :one
+-- Returns counts by status for monitoring.
+SELECT
+    CAST(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS INTEGER) as pending_count,
+    CAST(SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS INTEGER) as processing_count,
+    CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_count,
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_count
+FROM sync_queue;
+
+-- name: GetSyncQueueItem :one
+-- Gets a single sync queue item by ID.
+SELECT * FROM sync_queue WHERE id = ?;

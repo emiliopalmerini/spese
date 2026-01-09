@@ -13,7 +13,7 @@ import (
 )
 
 // SQLiteAdapter adapts SQLiteRepository and ExpenseService to implement sheets.* interfaces
-// This allows the HTTP handlers to work unchanged while using SQLite + AMQP backend
+// This allows the HTTP handlers to work unchanged while using SQLite backend
 type SQLiteAdapter struct {
 	storage *storage.SQLiteRepository
 	service *services.ExpenseService
