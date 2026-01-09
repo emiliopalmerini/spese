@@ -7,7 +7,6 @@ toolchain go1.24.4
 require (
 	github.com/golang-migrate/migrate/v4 v4.19.0
 	github.com/joho/godotenv v1.5.1
-	github.com/rabbitmq/amqp091-go v1.10.0
 	golang.org/x/sync v0.16.0
 	google.golang.org/api v0.248.0
 	modernc.org/sqlite v1.38.2

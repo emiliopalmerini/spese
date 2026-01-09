@@ -2,11 +2,11 @@
 
 Simple expense tracking application that saves to Google Spreadsheets with hierarchical categories.
 - Automatic date (day and month) pre-filled in the form
-- Description and expense amount input  
+- Description and expense amount input
 - **Hierarchical categories**: Primary categories with dynamic secondary category loading
 - Categories and subcategories read from Spreadsheet with intelligent mapping
 
-Stack: Go, HTMX, SQLite, RabbitMQ, Google Sheets API, Docker (multistage), Docker Compose, Makefile, pre-commit.
+Stack: Go, HTMX, SQLite, Google Sheets API, Docker (multistage), Docker Compose, Makefile, pre-commit.
 
 ## Requirements
 
@@ -47,7 +47,7 @@ PORT=8080
 App available at `http://localhost:8080` (`PORT` variable).
 
 The app supports two backends:
-- `DATA_BACKEND=sqlite`: Uses local SQLite database with optional async Google Sheets sync
+- `DATA_BACKEND=sqlite`: Uses local SQLite database with async Google Sheets sync
 - `DATA_BACKEND=sheets`: Direct Google Sheets integration
 
 **Security and Performance:**
@@ -69,16 +69,14 @@ See `.env.example` for defaults. Main variables:
 - `DASHBOARD_SHEET_NAME`: base name of annual dashboard sheet to read totals from (preferred). Result: `"<year> <name>"`.
 - `DASHBOARD_SHEET_PREFIX`: (legacy) pattern or prefix of annual dashboard sheet (e.g. `%d Dashboard`). Used only if `DASHBOARD_SHEET_NAME` is not set.
 
-SQLite + AMQP (backend `sqlite`):
+SQLite Configuration (backend `sqlite`):
 - `SQLITE_DB_PATH`: SQLite database path (default: `./data/spese.db`)
-- `AMQP_URL`: RabbitMQ connection (default: `amqp://guest:guest@localhost:5672/`)
-- `AMQP_EXCHANGE`: AMQP exchange name (default: `spese`)
-- `AMQP_QUEUE`: AMQP queue name (default: `sync_expenses`)
-- `SYNC_BATCH_SIZE`: worker batch size (default: `10`)
+- `SYNC_BATCH_SIZE`: sync processor batch size (default: `10`)
 - `SYNC_INTERVAL`: periodic sync interval (default: `30s`)
+- `RECURRING_PROCESSOR_INTERVAL`: recurring expenses check interval (default: `1h`)
 
 Google Service Account:
-- `GOOGLE_SERVICE_ACCOUNT_JSON`: Service account credentials as JSON string  
+- `GOOGLE_SERVICE_ACCOUNT_JSON`: Service account credentials as JSON string
 - `GOOGLE_SERVICE_ACCOUNT_FILE`: Path to service account credentials file
 - `GOOGLE_APPLICATION_CREDENTIALS`: Standard Google Cloud credentials file path
 
@@ -86,11 +84,8 @@ Google Service Account:
 
 - `make setup`: setup dev tools (pre-commit, linters)
 - `make tidy`: manage Go modules
-- `make build`: compile main binary
-- `make build-worker`: compile synchronization worker
-- `make build-all`: compile both services
-- `make run`: run main app locally
-- `make run-worker`: run worker locally
+- `make build`: compile binary
+- `make run`: run app locally
 - `make sqlc-generate`: regenerate sqlc code after schema changes
 - `make test`: unit tests with race/coverage
 - `make lint`: lints and vet
@@ -99,50 +94,31 @@ Google Service Account:
 - `make docker-up`: start stack with Compose
 - `make docker-logs`: follow logs
 
-## SQLite + AMQP Architecture (Recommended)
+## Architecture
 
-To improve performance and scalability, the app supports an asynchronous architecture:
+The application runs as a single binary with integrated processors:
 
-1. **Main app** (`cmd/spese`): saves expenses to local SQLite (fast)
-2. **AMQP message**: publishes expense ID + version (lightweight, ~100 bytes)
-3. **Background worker** (`cmd/spese-worker`): consumes messages, reads full expense from SQLite, syncs with Google Sheets
-4. **Graceful fallback**: works even without RabbitMQ (SQLite-only mode)
+1. **HTTP Server**: Handles web requests with HTMX frontend
+2. **Sync Processor**: Periodically syncs pending expenses to Google Sheets
+3. **Recurring Processor**: Creates expenses from recurring configurations when due
 
 Benefits:
-- **Performance**: immediate HTTP responses (SQLite only)
-- **Reliability**: persistent messages, automatic retries
-- **Scalability**: independent workers, batch processing
-- **Resilience**: continues working even if Google Sheets is unavailable
-
-To use this mode:
-```bash
-# Start RabbitMQ
-docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
-
-# Start main app with SQLite
-DATA_BACKEND=sqlite AMQP_URL=amqp://localhost:5672 make run
-
-# In another terminal, start the worker
-DATA_BACKEND=sqlite AMQP_URL=amqp://localhost:5672 make run-worker
-```
-
-Or more simply with Docker Compose (includes RabbitMQ, app and worker):
-```bash
-make docker-up
-```
+- **Simplicity**: Single deployment unit
+- **Performance**: Immediate HTTP responses (SQLite only)
+- **Reliability**: SQLite queue with automatic retries
+- **Resilience**: Continues working even if Google Sheets is unavailable
 
 ## Docker
 
-- Multistage Dockerfile for small images (builder + distroless/alpine runner).
+- Multistage Dockerfile for small images (builder + scratch runner).
 - `docker compose up -d` for local execution; configuration reads `.env` and injects it into containers (`env_file`).
-- Includes RabbitMQ with management UI at http://localhost:15672 (admin/admin).
 
 ## Google Sheets Setup (Quick)
 
 1) Create document and sheets:
 - Expenses sheet (e.g. `2025 Expenses`) with headers in row 1:
   - A: Month, B: Day, C: Expense, D: Amount, E: Currency, F: EUR, G: Primary, H: Secondary
-- Categories sheet (e.g. `2025 Dashboard` column `A2:A65`) 
+- Categories sheet (e.g. `2025 Dashboard` column `A2:A65`)
 - Subcategories sheet (e.g. `2025 Dashboard` column `B2:B65`)
 
 2) Service Account setup:

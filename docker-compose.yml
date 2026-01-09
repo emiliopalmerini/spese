@@ -1,22 +1,4 @@
 services:
-  # RabbitMQ message broker for AMQP
-  rabbitmq:
-    image: rabbitmq:3.13-management
-    container_name: spese-rabbitmq
-    ports:
-      - "5672:5672" # AMQP port
-      - "15672:15672" # Management UI
-    environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
   spese:
     build: .
     image: spese:dev
@@ -30,35 +12,11 @@ services:
       - BASE_URL=${BASE_URL:-http://localhost:${PORT:-8081}}
       - DATA_BACKEND=${DATA_BACKEND:-sqlite}
       - SQLITE_DB_PATH=/data/spese.db
-      - AMQP_URL=amqp://admin:admin@rabbitmq:5672/
-      - AMQP_EXCHANGE=spese
-      - AMQP_QUEUE=sync_expenses
-      # Service Account: choose file- or json-based (file requires mounting volume)
-      # Values from .env are injected via env_file; uncomment below only to override
-      # - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON:-}
-    volumes:
-      - ./configs/service-account.json:${GOOGLE_SERVICE_ACCOUNT_FILE:-/service-account.json}:ro
-      - spese_data:/data
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    restart: unless-stopped
-
-  # Background worker for syncing to Google Sheets
-  spese-worker:
-    build: .
-    image: spese:dev
-    container_name: spese-worker
-    env_file:
-      - .env
-    environment:
-      - DATA_BACKEND=sqlite
-      - SQLITE_DB_PATH=/data/spese.db
-      - AMQP_URL=amqp://admin:admin@rabbitmq:5672/
-      - AMQP_EXCHANGE=spese
-      - AMQP_QUEUE=sync_expenses
+      # Sync Processor configuration
       - SYNC_BATCH_SIZE=${SYNC_BATCH_SIZE:-10}
       - SYNC_INTERVAL=${SYNC_INTERVAL:-30s}
+      # Recurring Processor configuration
+      - RECURRING_PROCESSOR_INTERVAL=${RECURRING_PROCESSOR_INTERVAL:-1h}
       # Google Sheets configuration
       - GOOGLE_SPREADSHEET_ID=${GOOGLE_SPREADSHEET_ID}
       - GOOGLE_SHEET_NAME=${GOOGLE_SHEET_NAME:-Expenses}
@@ -70,34 +28,7 @@ services:
     volumes:
       - ./configs/service-account.json:${GOOGLE_SERVICE_ACCOUNT_FILE:-/service-account.json}:ro
       - spese_data:/data
-    entrypoint: ["/app/bin/spese-worker"]
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    restart: unless-stopped
-
-  # Background worker for processing recurring expenses
-  recurring-worker:
-    build: .
-    image: spese:dev
-    container_name: spese-recurring-worker
-    env_file:
-      - .env
-    environment:
-      - DATA_BACKEND=sqlite
-      - SQLITE_DB_PATH=/data/spese.db
-      - AMQP_URL=amqp://admin:admin@rabbitmq:5672/
-      - AMQP_EXCHANGE=spese
-      - AMQP_QUEUE=sync_expenses
-      - RECURRING_PROCESSOR_INTERVAL=${RECURRING_PROCESSOR_INTERVAL:-1h}
-    volumes:
-      - spese_data:/data
-    entrypoint: ["/app/bin/recurring-worker"]
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  rabbitmq_data:
   spese_data:
