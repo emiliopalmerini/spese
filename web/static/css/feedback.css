@@ -1,0 +1,70 @@
+/* ==============================================================
+   Feedback
+============================================================== */
+.flash{margin:var(--space-4);min-height:1.5rem;}
+
+/* ==============================================================
+   htmx indicator
+============================================================== */
+.indicator{display:none;align-items:center;gap:8px;color:var(--muted);}
+.htmx-request .indicator{display:inline-flex;}
+.spinner{width:14px;height:14px;border-radius:999px;border:2px solid color-mix(in srgb,var(--muted) 30%, transparent);border-top-color:var(--accent);animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ==============================================================
+   Caption
+============================================================== */
+.caption{font-size:.75rem;color:var(--muted);margin-top:4px;}
+
+/* ==============================================================
+   Toast Notifications (positioned above FAB)
+============================================================== */
+.toast-container{
+  position:fixed;
+  bottom:calc(96px + var(--safe-bottom));
+  left:50%;
+  transform:translateX(-50%);
+  z-index:300;
+  display:flex;
+  flex-direction:column;
+  gap:var(--space-2);
+  pointer-events:none;
+  width:calc(100% - 32px);
+  max-width:400px;
+}
+.toast{
+  background:var(--black);
+  color:var(--white);
+  padding:var(--space-3) var(--space-4);
+  border-radius:0;
+  font-family:var(--font-body);
+  font-size:var(--text-sm);
+  font-weight:500;
+  box-shadow:none;
+  display:flex;
+  align-items:center;
+  gap:var(--space-3);
+  pointer-events:auto;
+  animation:toast-in var(--duration-normal) var(--ease-out-expo);
+}
+.toast--out{
+  animation:toast-out var(--duration-fast) var(--ease-out-quart) forwards;
+}
+@keyframes toast-in {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes toast-out {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(16px); opacity: 0; }
+}
+.toast--success{
+  background:var(--black);
+}
+.toast--error{
+  background:var(--black);
+  border:2px solid var(--gray-600);
+}
+.toast__message{
+  flex:1;
+}

@@ -1,0 +1,121 @@
+/* ==============================================================
+   Bottoni (Typography-first buttons)
+============================================================== */
+.btn{
+  appearance:none;
+  cursor:pointer;
+  border:2px solid var(--black);
+  padding:var(--space-3) var(--space-5);
+  border-radius:0;
+  font-family:var(--font-body);
+  font-weight:600;
+  font-size:var(--text-sm);
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  background:var(--white);
+  color:var(--black);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:var(--space-2);
+  min-height:48px;
+  text-decoration:none;
+  transition:
+    transform var(--duration-fast) var(--ease-spring),
+    background var(--duration-fast) var(--ease-out-quart),
+    color var(--duration-fast) var(--ease-out-quart);
+}
+.btn:hover{
+  background:var(--black);
+  color:var(--white);
+  transform:translateY(-2px);
+  box-shadow:none;
+}
+.btn:active{
+  transform:translateY(0) scale(0.98);
+  box-shadow:none;
+}
+.btn-primary{
+  color:var(--white);
+  background:var(--black);
+  border-color:var(--black);
+}
+.btn-primary:hover{
+  background:var(--gray-800);
+  border-color:var(--gray-800);
+}
+.btn-primary:active{
+  transform:translateY(0) scale(0.98);
+}
+.btn--block{width:100%}
+
+/* ==============================================================
+   Button Variants
+============================================================== */
+.btn-secondary{
+  background:var(--surface);
+  color:var(--text);
+  border:2px solid var(--border);
+}
+.btn-secondary:hover{
+  background:var(--bg-light);
+  border-color:var(--muted);
+}
+.btn-danger{
+  background:#FEE2E2;
+  color:#991B1B;
+  border:2px solid #EF4444;
+}
+.btn-danger:hover{
+  background:#EF4444;
+  color:white;
+  border-color:#DC2626;
+}
+.btn-sm{
+  padding:6px 12px;
+  font-size:0.875rem;
+  min-height:32px;
+}
+
+/* ==============================================================
+   Action Icons
+============================================================== */
+.action-icon{
+  appearance:none;
+  background:none;
+  border:none;
+  padding:var(--space-1);
+  border-radius:var(--radius);
+  cursor:pointer;
+  color:var(--muted);
+  transition:all 0.2s ease;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:32px;
+  height:32px;
+}
+.action-icon:hover{
+  background:var(--border);
+  color:var(--text);
+}
+.action-icon svg{
+  width:20px;
+  height:20px;
+  stroke:currentColor;
+  fill:none;
+  stroke-width:2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+
+.delete-btn:hover{
+  background:#FEE2E2;
+  color:#DC2626;
+}
+.delete-btn svg{
+  transition:transform 0.2s ease;
+}
+.delete-btn:hover svg{
+  transform:scale(1.1);
+}

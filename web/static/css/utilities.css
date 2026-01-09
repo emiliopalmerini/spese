@@ -1,0 +1,36 @@
+/* ==============================================================
+   Temi accento
+============================================================== */
+.theme-emerald{--accent:#10b981;--accent-600:#059669;--accent-700:#047857;--accent-contrast:#ffffff;--ring:0 0 0 3px rgba(16,185,129,.28);}
+.theme-teal{--accent:#14b8a6;--accent-600:#0d9488;--accent-700:#0f766e;--accent-contrast:#ffffff;--ring:0 0 0 3px rgba(20,184,166,.28);}
+.theme-purple{--accent:#8b5cf6;--accent-600:#7c3aed;--accent-700:#6d28d9;--accent-contrast:#ffffff;--ring:0 0 0 3px rgba(139,92,246,.28);}
+.theme-ink{--accent:#111111;--accent-600:#111111;--accent-700:#0a0a0a;--accent-contrast:#ffffff;--ring:0 0 0 2px rgba(17,17,17,.18);}
+
+/* ==============================================================
+   Densita
+============================================================== */
+.density-compact{
+  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:14px;
+  --radius:8px;--radius-card:12px;--control-pad-y:8px;--control-pad-x:10px;
+}
+.density-comfortable{
+  --space-1:8px;--space-2:12px;--space-3:16px;--space-4:22px;
+  --radius:12px;--radius-card:16px;--control-pad-y:12px;--control-pad-x:16px;--container-max:840px;
+}
+
+/* ==============================================================
+   Preset minimal
+============================================================== */
+.style-minimal{--radius:0px;--radius-card:0px;}
+.style-minimal .card{box-shadow:none;}
+.style-minimal .actions{gap:0;}
+.style-minimal input,.style-minimal select,.style-minimal .btn,.style-minimal .success,.style-minimal .error{border-radius:0;}
+.style-minimal input,.style-minimal select{background:var(--surface);}
+
+/* ==============================================================
+   Scrollbar sottili
+============================================================== */
+*{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 40%, transparent) transparent;}
+*::-webkit-scrollbar{height:8px;width:8px;}
+*::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 40%, transparent);}
+*::-webkit-scrollbar-track{background:transparent;}

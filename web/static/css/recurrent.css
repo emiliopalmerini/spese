@@ -1,0 +1,461 @@
+/* ==============================================================
+   Recurrent Expenses - using same style as normal expenses
+============================================================== */
+.recurrent-expenses{
+  background:var(--surface);
+  border-radius:var(--radius-card);
+  box-shadow:var(--shadow-md);
+  border:1px solid var(--border);
+  overflow:hidden;
+  margin-top:var(--space-4);
+}
+.recurrent-expenses h2{
+  margin:0;
+  padding:var(--space-4);
+  border-bottom:1px solid var(--line);
+  font-size:1.125rem;
+  font-weight:600;
+  color:var(--text);
+}
+.recurrent-list{
+  padding:var(--space-4);
+  display:grid;
+  gap:var(--space-2);
+}
+
+/* Recurrent expense item - same style as .month-overview .expense */
+.recurrent-item{
+  display:grid;
+  gap:var(--space-2);
+  align-items:center;
+  padding:var(--space-3) 0;
+  border-bottom:2px dashed var(--line);
+  grid-template-columns:1fr auto auto;
+  grid-template-areas:
+    "freq  amount actions"
+    "desc  amount actions"
+    "cat   amount actions"
+    "dates amount actions";
+  transition:background-color 0.2s ease;
+  position:relative;
+}
+.recurrent-item:hover{
+  background-color:var(--bg-light);
+  border-radius:var(--radius);
+}
+@media (min-width: 375px) {
+  .recurrent-item:hover{
+    margin:0 calc(-1 * var(--space-4));
+    padding-left:var(--space-4);
+    padding-right:var(--space-4);
+    padding-top:var(--space-3);
+    padding-bottom:var(--space-3);
+  }
+}
+.recurrent-item--editing:hover{
+  border-radius:var(--radius);
+}
+@media (min-width: 375px) {
+  .recurrent-item--editing:hover{
+    margin:0 calc(-1 * var(--space-4));
+    padding-left:var(--space-4);
+    padding-right:var(--space-4);
+  }
+}
+.recurrent-item:last-child{
+  border-bottom:none;
+}
+
+/* Grid areas for recurrent expense data */
+.recurrent-frequency{
+  grid-area:freq;
+  font-weight:500;
+  color:var(--text);
+  background:var(--bg-light);
+  padding:2px 8px;
+  border-radius:var(--radius);
+  border:1px solid var(--border);
+  font-size:0.875rem;
+  width:fit-content;
+}
+.recurrent-description{
+  grid-area:desc;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-weight:500;
+  color:var(--text);
+  margin:0;
+  min-width:0;
+}
+.recurrent-categories{
+  grid-area:cat;
+  color:var(--muted);
+  font-size:0.875rem;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.recurrent-dates{
+  grid-area:dates;
+  color:var(--muted);
+  font-variant-numeric:tabular-nums;
+  font-size:0.875rem;
+}
+.recurrent-amount{
+  grid-area:amount;
+  font-weight:600;
+  font-variant-numeric:tabular-nums;
+  justify-self:end;
+  color:var(--primary);
+  font-size:1rem;
+}
+
+/* Action icons */
+.recurrent-actions,
+.recurrent-item .expense__actions{
+  grid-area:actions;
+  display:flex;
+  gap:var(--space-1);
+  opacity:0;
+  transition:opacity 0.2s ease;
+  justify-self:end;
+}
+.recurrent-item:hover .recurrent-actions,
+.recurrent-item:hover .expense__actions{
+  opacity:1;
+}
+
+/* Category styling */
+.category-primary{
+  font-weight:500;
+  color:var(--text);
+}
+.category-separator{
+  color:var(--muted);
+  margin:0 4px;
+}
+.category-secondary{
+  color:var(--muted);
+}
+
+/* Mobile responsive - same as normal expenses */
+@media (min-width:560px){
+  .recurrent-item{
+    grid-template-columns:120px 1fr auto auto auto;
+    grid-template-areas:"freq desc cat amount actions";
+  }
+  .recurrent-dates{
+    display:none; /* Hide dates on desktop to save space */
+  }
+}
+
+/* Mobile: show actions always */
+@media (max-width: 559px) {
+  .recurrent-actions{
+    opacity:1;
+    position:absolute;
+    top:var(--space-1);
+    right:0;
+  }
+}
+
+/* ==============================================================
+   Seamless Inline Editing - Maintains Row Layout
+============================================================== */
+
+/* Editing state - maintains grid layout */
+.recurrent-item--editing{
+  background:var(--bg-light) !important;
+  border-color:var(--text) !important;
+  border-width:2px !important;
+  animation:editModeIn 0.2s ease-out;
+  min-height:var(--space-16);
+}
+.recurrent-item--editing:hover{
+  background:var(--bg-light) !important;
+  border-color:var(--text) !important;
+}
+
+@keyframes editModeIn {
+  from { background:var(--surface); border-color:var(--border); }
+  to { background:var(--bg-light); border-color:var(--text); }
+}
+
+/* Form maintains exact grid layout - identical to normal row */
+.recurrent-edit-inline{
+  display:grid;
+  gap:var(--space-2);
+  align-items:center;
+  padding:var(--space-3) 0;
+  width:100%;
+  grid-template-columns:1fr auto auto;
+  grid-template-areas:
+    "freq  amount actions"
+    "desc  amount actions"
+    "cat   amount actions"
+    "dates amount actions";
+  transition:all 0.2s ease;
+  position:relative;
+}
+
+/* Editable frequency - looks like badge but is select */
+.recurrent-frequency--editing{
+  grid-area:freq;
+  font-weight:500;
+  color:var(--text);
+  background:var(--surface);
+  padding:2px 8px;
+  border:1px solid var(--text);
+  border-radius:var(--radius);
+  font-size:0.875rem;
+  width:fit-content;
+  cursor:pointer;
+  transition:all 0.15s ease;
+}
+.recurrent-frequency--editing:focus{
+  outline:none;
+  box-shadow:0 0 0 2px rgba(31, 41, 55, 0.1);
+}
+
+/* Editable description - invisible input that looks like text */
+.recurrent-description--editing{
+  grid-area:desc;
+  background:transparent;
+  border:none;
+  border-bottom:1px dashed var(--muted);
+  padding:2px 4px;
+  font-weight:500;
+  color:var(--text);
+  font-size:inherit;
+  font-family:inherit;
+  width:100%;
+  transition:all 0.15s ease;
+}
+.recurrent-description--editing:focus{
+  outline:none;
+  border-bottom-color:var(--text);
+  border-bottom-style:solid;
+  background:var(--surface);
+}
+
+/* Editable categories - inline selects */
+.recurrent-categories--editing{
+  grid-area:cat;
+  display:flex;
+  align-items:center;
+  gap:4px;
+  font-size:0.875rem;
+}
+.category-select{
+  background:transparent;
+  border:none;
+  border-bottom:1px dashed var(--muted);
+  padding:2px 4px;
+  font-size:0.875rem;
+  font-family:inherit;
+  color:var(--text);
+  cursor:pointer;
+  transition:all 0.15s ease;
+}
+.category-primary--editing{
+  font-weight:500;
+}
+.category-secondary--editing{
+  color:var(--muted);
+}
+.category-select:focus{
+  outline:none;
+  border-bottom-color:var(--text);
+  border-bottom-style:solid;
+  background:var(--surface);
+}
+
+/* Editable dates - compact inline inputs */
+.recurrent-dates--editing{
+  grid-area:dates;
+  display:flex;
+  align-items:center;
+  gap:var(--space-1);
+  color:var(--muted);
+  font-variant-numeric:tabular-nums;
+  font-size:0.875rem;
+  flex-wrap:wrap;
+}
+.date-label{
+  font-size:0.8125rem;
+  color:var(--muted);
+}
+.date-input{
+  background:transparent;
+  border:none;
+  border-bottom:1px dashed var(--muted);
+  padding:2px 4px;
+  font-size:0.8125rem;
+  font-family:inherit;
+  color:var(--muted);
+  width:90px;
+  font-variant-numeric:tabular-nums;
+  transition:all 0.15s ease;
+}
+.date-input:focus{
+  outline:none;
+  border-bottom-color:var(--text);
+  border-bottom-style:solid;
+  background:var(--surface);
+  color:var(--text);
+}
+.date-input--optional{
+  border-bottom-style:dotted;
+  width:100px;
+}
+.date-endless{
+  font-style:italic;
+  color:var(--muted);
+  font-size:0.8125rem;
+}
+
+/* Editable amount - maintains blue styling */
+.recurrent-amount--editing{
+  grid-area:amount;
+  display:flex;
+  align-items:center;
+  font-weight:600;
+  font-variant-numeric:tabular-nums;
+  justify-self:end;
+  color:var(--primary);
+  font-size:1rem;
+}
+.recurrent-amount--editing .amount-currency{
+  color:var(--primary);
+  font-weight:600;
+  margin-right:2px;
+}
+.amount-input{
+  background:transparent;
+  border:none;
+  border-bottom:1px dashed var(--primary);
+  padding:2px 4px;
+  color:var(--primary);
+  font-weight:600;
+  font-variant-numeric:tabular-nums;
+  font-size:1rem;
+  font-family:inherit;
+  width:80px;
+  text-align:right;
+  transition:all 0.15s ease;
+}
+.amount-input:focus{
+  outline:none;
+  border-bottom-style:solid;
+  background:var(--surface);
+}
+
+/* Enhanced edit actions - compact and refined */
+.recurrent-actions--editing{
+  grid-area:actions;
+  display:flex;
+  align-items:center;
+  gap:var(--space-1);
+  justify-self:end;
+}
+
+.edit-action-btn{
+  width:28px;
+  height:28px;
+  border:1px solid var(--border);
+  background:var(--surface);
+  border-radius:var(--radius);
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:all 0.15s ease;
+}
+.edit-action-btn:hover{
+  border-color:var(--text);
+  transform:translateY(-1px);
+  box-shadow:0 2px 8px rgba(0,0,0,0.1);
+}
+
+.edit-action-btn--save{
+  background:var(--text);
+  border-color:var(--text);
+  color:var(--surface);
+}
+.edit-action-btn--save:hover{
+  background:var(--muted);
+  border-color:var(--muted);
+}
+
+.edit-action-btn--cancel{
+  background:var(--surface);
+  border-color:var(--muted);
+  color:var(--muted);
+}
+.edit-action-btn--cancel:hover{
+  background:var(--bg-light);
+  color:var(--text);
+  border-color:var(--text);
+}
+
+.edit-action-icon{
+  width:16px;
+  height:16px;
+  stroke:currentColor;
+  fill:none;
+  stroke-width:2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+
+/* Saving indicator */
+.edit-saving-indicator{
+  display:flex;
+  align-items:center;
+  margin-left:var(--space-1);
+}
+.saving-spinner{
+  width:16px;
+  height:16px;
+  border:2px solid var(--line);
+  border-top-color:var(--primary);
+  border-radius:50%;
+  animation:spin 1s linear infinite;
+}
+
+/* Mobile responsive - stack vertically but maintain feel */
+@media (min-width:560px){
+  .recurrent-edit-inline{
+    grid-template-columns:120px 1fr auto auto auto;
+    grid-template-areas:"freq desc cat amount actions";
+    width:100%;
+  }
+  .recurrent-dates--editing{
+    display:none; /* Hide dates on desktop like normal view */
+  }
+}
+
+/* Mobile: show actions always and make touch-friendly */
+@media (max-width: 559px) {
+  .recurrent-actions--editing{
+    opacity:1;
+    position:absolute;
+    top:var(--space-1);
+    right:var(--space-2);
+  }
+  .edit-action-btn{
+    width:32px;
+    height:32px;
+    background:var(--bg-light);
+    border-color:var(--border);
+  }
+  .recurrent-dates--editing{
+    font-size:0.8125rem;
+  }
+  .date-input{
+    width:70px;
+    font-size:0.75rem;
+  }
+}

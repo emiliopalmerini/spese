@@ -1,0 +1,187 @@
+/* ==============================================================
+   Month overview (Peso-style modern card)
+============================================================== */
+.month-overview{
+  background:var(--surface);
+  border-radius:var(--radius-card);
+  box-shadow:var(--shadow-md);
+  border:1px solid var(--border);
+  overflow:hidden;
+}
+.month-overview h2{
+  margin:0;
+  padding:var(--space-4);
+  border-bottom:1px solid var(--line);
+  font-size:1.125rem;
+  font-weight:600;
+  color:var(--text);
+}
+.month-overview .overview-body{padding:var(--space-4);}
+.month-overview .total{
+  padding:var(--space-3) 0;
+  font-weight:600;
+  font-size:1.125rem;
+  color:var(--primary);
+}
+.month-overview .legend{
+  color:var(--muted);
+  font-size:0.875rem;
+  margin-bottom:var(--space-3);
+}
+.month-overview .categories{border-top:1px solid var(--line);padding-top:var(--space-3);}
+.month-overview .row{
+  display:grid;
+  grid-template-columns:1fr auto;
+  align-items:center;
+  padding:var(--space-3) 0;
+}
+.month-overview .row + .row{border-top:1px solid var(--line);}
+.month-overview .row .name{color:var(--text);font-weight:500;}
+.month-overview .row .amount{color:var(--text);font-variant-numeric:tabular-nums;font-weight:600;}
+.month-overview .row.placeholder{color:var(--muted);}
+.month-overview .row .bar{
+  grid-column:1 / -1;
+  height:6px;
+  background:var(--line);
+  margin-top:var(--space-2);
+  border-radius:3px;
+  overflow:hidden;
+}
+.month-overview .row .bar__fill{
+  height:100%;
+  background:var(--accent-600);
+  border-radius:3px;
+  transition:width 0.3s ease;
+}
+.month-overview .expenses{margin-top:var(--space-4);}
+.month-overview .expenses h3{
+  margin:var(--space-3) 0 var(--space-2);
+  font-size:1rem;
+  font-weight:600;
+  color:var(--text);
+}
+.month-overview .expenses__list{display:grid;gap:var(--space-2);}
+
+/* Card spesa: layout mobile-first a griglie (Peso-style) */
+.month-overview .expense{
+  display:grid;
+  gap:var(--space-2);
+  align-items:center;
+  padding:var(--space-3) 0;
+  border-bottom:2px dashed var(--line);
+  grid-template-columns:1fr auto auto;
+  grid-template-areas:
+    "date amount actions"
+    "desc amount actions"
+    "cat  amount actions";
+  transition:background-color 0.2s ease;
+}
+.month-overview .expense:hover{
+  background-color:var(--bg-light);
+  border-radius:var(--radius);
+}
+@media (min-width: 375px) {
+  .month-overview .expense:hover{
+    margin:0 calc(-1 * var(--space-4));
+    padding-left:var(--space-4);
+    padding-right:var(--space-4);
+  }
+}
+.month-overview .expense__date{
+  grid-area:date;
+  color:var(--muted);
+  font-variant-numeric:tabular-nums;
+  font-size:0.875rem;
+}
+.month-overview .expense__desc{
+  grid-area:desc;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-weight:500;
+  color:var(--text);
+  min-width:0;
+}
+.month-overview .expense__cat{
+  grid-area:cat;
+  color:var(--muted);
+  font-size:0.875rem;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.month-overview .expense__amt{
+  grid-area:amount;
+  font-weight:600;
+  font-variant-numeric:tabular-nums;
+  justify-self:end;
+  color:var(--primary);
+}
+.month-overview .expense__actions{
+  grid-area:actions;
+  display:flex;
+  opacity:0;
+  transition:opacity 0.2s ease;
+  justify-self:end;
+}
+.month-overview .expense:hover .expense__actions{
+  opacity:1;
+}
+/* Mobile: always show delete button */
+@media (max-width: 559px) {
+  .month-overview .expense__actions{
+    opacity:1;
+  }
+}
+@media (min-width:560px){
+  .month-overview .expense{
+    grid-template-columns:64px 1fr auto auto auto;
+    grid-template-areas:"date desc cat amount actions";
+  }
+}
+
+/* Slide out animation for deleted items */
+.expense.deleting{
+  opacity:0;
+  transform:translateX(-100%);
+  transition:all 0.3s ease;
+}
+
+/* ==============================================================
+   Section Titles
+============================================================== */
+.section-title{
+  font-size:1.25rem;
+  font-weight:600;
+  color:var(--text);
+  margin:var(--space-4) 0;
+  padding-bottom:var(--space-2);
+  border-bottom:2px solid var(--line);
+}
+
+/* ==============================================================
+   Empty State
+============================================================== */
+.empty-state{
+  text-align:center;
+  padding:calc(var(--space-4)*3) var(--space-4);
+  background:var(--surface);
+  border-radius:var(--radius-card);
+  border:1px solid var(--border);
+}
+.empty-state p{
+  margin:var(--space-2) 0;
+}
+.text-muted{
+  color:var(--muted);
+}
+
+/* ==============================================================
+   Expense Actions
+============================================================== */
+.expense__actions{
+  display:flex;
+  gap:var(--space-1);
+  align-items:center;
+}
