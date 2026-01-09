@@ -912,3 +912,123 @@ func (r *SQLiteRepository) HardDeleteIncome(ctx context.Context, id int64) error
 	slog.InfoContext(ctx, "Income hard deleted", "id", id)
 	return nil
 }
+
+// Sync Queue methods
+
+// EnqueueSync adds a sync operation to the queue
+func (r *SQLiteRepository) EnqueueSync(ctx context.Context, expenseID int64) (SyncQueue, error) {
+	item, err := r.queries.EnqueueSync(ctx, expenseID)
+	if err != nil {
+		return SyncQueue{}, fmt.Errorf("enqueue sync: %w", err)
+	}
+	slog.DebugContext(ctx, "Enqueued sync operation", "id", item.ID, "expense_id", expenseID)
+	return item, nil
+}
+
+// EnqueueDelete adds a delete operation to the queue with expense data
+func (r *SQLiteRepository) EnqueueDelete(ctx context.Context, expenseID int64, day, month int, description string, amountCents int64, primary, secondary string) (SyncQueue, error) {
+	item, err := r.queries.EnqueueDelete(ctx, EnqueueDeleteParams{
+		ExpenseID:          expenseID,
+		ExpenseDay:         int64(day),
+		ExpenseMonth:       int64(month),
+		ExpenseDescription: description,
+		ExpenseAmountCents: amountCents,
+		ExpensePrimary:     primary,
+		ExpenseSecondary:   secondary,
+	})
+	if err != nil {
+		return SyncQueue{}, fmt.Errorf("enqueue delete: %w", err)
+	}
+	slog.DebugContext(ctx, "Enqueued delete operation", "id", item.ID, "expense_id", expenseID)
+	return item, nil
+}
+
+// DequeueSyncBatch fetches a batch of pending items ready for processing
+func (r *SQLiteRepository) DequeueSyncBatch(ctx context.Context, limit int64) ([]SyncQueue, error) {
+	items, err := r.queries.DequeueSyncBatch(ctx, limit)
+	if err != nil {
+		return nil, fmt.Errorf("dequeue sync batch: %w", err)
+	}
+	return items, nil
+}
+
+// MarkSyncProcessing marks an item as being processed
+func (r *SQLiteRepository) MarkSyncProcessing(ctx context.Context, id int64) error {
+	err := r.queries.MarkSyncProcessing(ctx, id)
+	if err != nil {
+		return fmt.Errorf("mark sync processing: %w", err)
+	}
+	return nil
+}
+
+// MarkSyncComplete marks a sync queue item as successfully completed
+func (r *SQLiteRepository) MarkSyncComplete(ctx context.Context, id int64) error {
+	err := r.queries.MarkSyncComplete(ctx, id)
+	if err != nil {
+		return fmt.Errorf("mark sync complete: %w", err)
+	}
+	slog.DebugContext(ctx, "Sync queue item completed", "id", id)
+	return nil
+}
+
+// MarkSyncFailed marks a sync queue item as failed after max retries exceeded
+func (r *SQLiteRepository) MarkSyncFailed(ctx context.Context, id int64, errorMsg string) error {
+	err := r.queries.MarkSyncFailed(ctx, MarkSyncFailedParams{
+		ID:        id,
+		LastError: errorMsg,
+	})
+	if err != nil {
+		return fmt.Errorf("mark sync failed: %w", err)
+	}
+	slog.WarnContext(ctx, "Sync queue item marked as failed", "id", id, "error", errorMsg)
+	return nil
+}
+
+// IncrementSyncAttempt increments attempt count and schedules next retry
+func (r *SQLiteRepository) IncrementSyncAttempt(ctx context.Context, id int64, errorMsg string) error {
+	err := r.queries.IncrementSyncAttempt(ctx, IncrementSyncAttemptParams{
+		ID:        id,
+		LastError: errorMsg,
+	})
+	if err != nil {
+		return fmt.Errorf("increment sync attempt: %w", err)
+	}
+	return nil
+}
+
+// RetryFailedSyncs resets failed items back to pending for manual retry
+func (r *SQLiteRepository) RetryFailedSyncs(ctx context.Context) error {
+	err := r.queries.RetryFailedSyncs(ctx)
+	if err != nil {
+		return fmt.Errorf("retry failed syncs: %w", err)
+	}
+	slog.InfoContext(ctx, "Reset failed sync items for retry")
+	return nil
+}
+
+// CleanupCompletedSyncs removes completed items older than the specified time
+func (r *SQLiteRepository) CleanupCompletedSyncs(ctx context.Context, olderThan time.Time) error {
+	err := r.queries.CleanupCompletedSyncs(ctx, olderThan)
+	if err != nil {
+		return fmt.Errorf("cleanup completed syncs: %w", err)
+	}
+	return nil
+}
+
+// ResetStaleProcessing resets items stuck in processing state (crash recovery)
+func (r *SQLiteRepository) ResetStaleProcessing(ctx context.Context) error {
+	err := r.queries.ResetStaleProcessing(ctx)
+	if err != nil {
+		return fmt.Errorf("reset stale processing: %w", err)
+	}
+	return nil
+}
+
+// GetSyncQueueStats returns counts by status for monitoring
+func (r *SQLiteRepository) GetSyncQueueStats(ctx context.Context) (*GetSyncQueueStatsRow, error) {
+	stats, err := r.queries.GetSyncQueueStats(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get sync queue stats: %w", err)
+	}
+	return &stats, nil
+}

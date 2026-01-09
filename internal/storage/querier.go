@@ -9,6 +9,8 @@ import (
 )
 
 type Querier interface {
+	// Removes completed items older than the specified timestamp.
+	CleanupCompletedSyncs(ctx context.Context, processedAt interface{}) error
 	CreateExpense(ctx context.Context, arg CreateExpenseParams) (Expense, error)
 	// Income queries
 	CreateIncome(ctx context.Context, arg CreateIncomeParams) (Income, error)
@@ -20,6 +22,13 @@ type Querier interface {
 	DeletePrimaryCategory(ctx context.Context, name string) error
 	DeleteRecurrentExpense(ctx context.Context, id int64) error
 	DeleteSecondaryCategory(ctx context.Context, name string) error
+	// Fetches a batch of pending items ready for processing.
+	DequeueSyncBatch(ctx context.Context, limit int64) ([]SyncQueue, error)
+	// Enqueues a delete operation with full expense data.
+	EnqueueDelete(ctx context.Context, arg EnqueueDeleteParams) (SyncQueue, error)
+	// Sync Queue queries
+	// Enqueues a sync operation for an expense.
+	EnqueueSync(ctx context.Context, expenseID int64) (SyncQueue, error)
 	GetActiveRecurrentExpensesByDate(ctx context.Context, arg GetActiveRecurrentExpensesByDateParams) ([]RecurrentExpense, error)
 	GetActiveRecurrentExpensesForProcessing(ctx context.Context, arg GetActiveRecurrentExpensesForProcessingParams) ([]RecurrentExpense, error)
 	GetAllCategoriesWithSubs(ctx context.Context) ([]GetAllCategoriesWithSubsRow, error)
@@ -41,13 +50,29 @@ type Querier interface {
 	GetSecondariesByPrimary(ctx context.Context, name string) ([]string, error)
 	// Secondary Categories queries
 	GetSecondaryCategories(ctx context.Context) ([]string, error)
+	// Gets a single sync queue item by ID.
+	GetSyncQueueItem(ctx context.Context, id int64) (SyncQueue, error)
+	// Returns counts by status for monitoring.
+	GetSyncQueueStats(ctx context.Context) (GetSyncQueueStatsRow, error)
 	HardDeleteExpense(ctx context.Context, id int64) error
 	HardDeleteIncome(ctx context.Context, id int64) error
+	// Increments attempt count and schedules next retry with exponential backoff.
+	IncrementSyncAttempt(ctx context.Context, arg IncrementSyncAttemptParams) error
 	ListExpensesByDateRange(ctx context.Context, arg ListExpensesByDateRangeParams) ([]Expense, error)
 	MarkExpenseSyncError(ctx context.Context, id int64) error
 	MarkExpenseSynced(ctx context.Context, id int64) error
+	// Marks a sync queue item as successfully completed.
+	MarkSyncComplete(ctx context.Context, id int64) error
+	// Marks a sync queue item as failed after max retries exceeded.
+	MarkSyncFailed(ctx context.Context, arg MarkSyncFailedParams) error
+	// Marks an item as being processed.
+	MarkSyncProcessing(ctx context.Context, id int64) error
 	RefreshCategories(ctx context.Context) error
 	RefreshPrimaryCategories(ctx context.Context) error
+	// Resets items stuck in processing state (crash recovery).
+	ResetStaleProcessing(ctx context.Context) error
+	// Resets failed items back to pending for manual retry.
+	RetryFailedSyncs(ctx context.Context) error
 	UpdateRecurrentExpense(ctx context.Context, arg UpdateRecurrentExpenseParams) error
 	UpdateRecurrentLastExecution(ctx context.Context, arg UpdateRecurrentLastExecutionParams) error
 }

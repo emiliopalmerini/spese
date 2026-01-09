@@ -407,8 +407,10 @@ func TestStaticServesWithCacheHeader(t *testing.T) {
 	if got := rr.Header().Get("Cache-Control"); got == "" {
 		t.Fatalf("expected Cache-Control header")
 	}
-	if !strings.Contains(rr.Body.String(), ":root") {
-		t.Fatalf("unexpected static body: %s", rr.Body.String())
+	// Check for @import (modular CSS structure) or :root (legacy/inlined CSS)
+	body := rr.Body.String()
+	if !strings.Contains(body, "@import") && !strings.Contains(body, ":root") {
+		t.Fatalf("unexpected static body: %s", body)
 	}
 }
 
