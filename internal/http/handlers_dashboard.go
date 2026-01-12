@@ -30,7 +30,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleDashboardStatHero returns the stat hero partial (monthly total with trend)
+// handleDashboardStatHero returns the stat hero partial (BILANCIO - monthly balance)
 func (s *Server) handleDashboardStatHero(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
@@ -44,59 +44,65 @@ func (s *Server) handleDashboardStatHero(w http.ResponseWriter, r *http.Request)
 	now := time.Now()
 	year, month := now.Year(), int(now.Month())
 
-	// Get current month expenses
 	adapter, ok := s.expLister.(*adapters.SQLiteAdapter)
 	if !ok {
 		http.Error(w, "adapter not available", http.StatusInternalServerError)
 		return
 	}
 
-	currentTotal, err := adapter.GetMonthlyExpenseTotal(ctx, year, month)
-	if err != nil {
-		slog.ErrorContext(ctx, "Failed to get monthly total", "error", err)
-		currentTotal = 0
-	}
+	// Get current month expenses and income
+	expenses, _ := adapter.GetMonthlyExpenseTotal(ctx, year, month)
+	income, _ := adapter.GetMonthlyIncomeTotal(ctx, year, month)
+	balance := income - expenses
 
-	// Get previous month expenses for trend
+	// Get previous month balance for trend
 	prevMonth := month - 1
 	prevYear := year
 	if prevMonth < 1 {
 		prevMonth = 12
 		prevYear--
 	}
-	prevTotal, _ := adapter.GetMonthlyExpenseTotal(ctx, prevYear, prevMonth)
+	prevExpenses, _ := adapter.GetMonthlyExpenseTotal(ctx, prevYear, prevMonth)
+	prevIncome, _ := adapter.GetMonthlyIncomeTotal(ctx, prevYear, prevMonth)
+	prevBalance := prevIncome - prevExpenses
 
-	// Calculate trend
+	// Calculate trend (positive diff = better balance this month)
 	var trendValue string
 	var trendClass string
-	if prevTotal > 0 {
-		diff := currentTotal - prevTotal
-		diffEuros := float64(diff) / 100
-		if diff < 0 {
-			trendValue = formatEuros(-diff) + " in meno"
-			trendClass = "stat-hero__trend--down"
-		} else if diff > 0 {
+	if prevIncome > 0 || prevExpenses > 0 {
+		diff := balance - prevBalance
+		if diff > 0 {
 			trendValue = formatEuros(diff) + " in più"
-			trendClass = "stat-hero__trend--up"
+			trendClass = "stat-hero__trend--down" // down arrow = positive (spending less/earning more)
+		} else if diff < 0 {
+			trendValue = formatEuros(-diff) + " in meno"
+			trendClass = "stat-hero__trend--up" // up arrow = negative (spending more/earning less)
 		} else {
 			trendValue = "invariato"
 			trendClass = "stat-hero__trend--neutral"
 		}
-		_ = diffEuros // suppress unused variable warning
+	}
+
+	// Balance class for positive/negative styling
+	balanceClass := ""
+	if balance > 0 {
+		balanceClass = "stat-hero__value--positive"
+	} else if balance < 0 {
+		balanceClass = "stat-hero__value--negative"
 	}
 
 	data := struct {
-		HasData     bool
-		Total       string
-		PeriodLabel string
-		TrendValue  string
-		TrendClass  string
+		HasData      bool
+		Total        string
+		BalanceClass string
+		TrendValue   string
+		TrendClass   string
 	}{
-		HasData:     currentTotal > 0,
-		Total:       formatEuros(currentTotal),
-		PeriodLabel: "questo mese",
-		TrendValue:  trendValue,
-		TrendClass:  trendClass,
+		HasData:      income > 0 || expenses > 0,
+		Total:        formatEuros(balance),
+		BalanceClass: balanceClass,
+		TrendValue:   trendValue,
+		TrendClass:   trendClass,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -106,7 +112,7 @@ func (s *Server) handleDashboardStatHero(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// handleDashboardStatPills returns the stat pills partial (expenses + balance + savings rate)
+// handleDashboardStatPills returns the stat pills partial (expenses + savings rate)
 func (s *Server) handleDashboardStatPills(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
@@ -131,12 +137,6 @@ func (s *Server) handleDashboardStatPills(w http.ResponseWriter, r *http.Request
 	income, _ := adapter.GetMonthlyIncomeTotal(ctx, year, month)
 
 	balance := income - expenses
-	balanceClass := ""
-	if balance > 0 {
-		balanceClass = "stat-pill__value--positive"
-	} else if balance < 0 {
-		balanceClass = "stat-pill__value--negative"
-	}
 
 	// Calculate savings rate
 	savingsRate := 0
@@ -146,13 +146,9 @@ func (s *Server) handleDashboardStatPills(w http.ResponseWriter, r *http.Request
 
 	data := struct {
 		TotalExpenses string
-		Balance       string
-		BalanceClass  string
 		SavingsRate   int
 	}{
 		TotalExpenses: formatEuros(expenses),
-		Balance:       formatEuros(balance),
-		BalanceClass:  balanceClass,
 		SavingsRate:   savingsRate,
 	}
 

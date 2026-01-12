@@ -68,6 +68,12 @@
 .stat-hero--empty .stat-hero__value{
   color:var(--gray-300);
 }
+.stat-hero__value--positive{
+  color:var(--success);
+}
+.stat-hero__value--negative{
+  color:var(--danger);
+}
 
 /* Stat Pills - Inline secondary stats */
 .stat-pills{
@@ -429,7 +435,7 @@
 .fab-backdrop{
   position:fixed;
   inset:0;
-  background:rgba(0, 0, 0, 0.2);
+  background:var(--backdrop);
   z-index:89;
   opacity:0;
   visibility:hidden;
@@ -456,7 +462,7 @@
 .bottom-sheet-backdrop{
   position:fixed;
   inset:0;
-  background:rgba(0, 0, 0, 0.3);
+  background:var(--backdrop);
   z-index:200;
   opacity:0;
   visibility:hidden;
@@ -740,6 +746,19 @@
     text-align:center;
   }
 }
+
+/* 2-column stat pills */
+.stat-pills--two{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:var(--space-4);
+}
+@media (max-width: 374px) {
+  .stat-pills--two{
+    gap:var(--space-3);
+  }
+}
+
 .stat-pill__value--percent{
   font-family:var(--font-display);
 }
