@@ -62,14 +62,14 @@
   border-color:var(--muted);
 }
 .btn-danger{
-  background:#FEE2E2;
-  color:#991B1B;
-  border:2px solid #EF4444;
+  background:var(--danger-bg);
+  color:var(--danger-text);
+  border:2px solid var(--danger-border);
 }
 .btn-danger:hover{
-  background:#EF4444;
-  color:white;
-  border-color:#DC2626;
+  background:var(--danger-hover-bg);
+  color:var(--danger-hover-text);
+  border-color:var(--danger-hover-border);
 }
 .btn-sm{
   padding:6px 12px;
@@ -110,8 +110,8 @@
 }
 
 .delete-btn:hover{
-  background:#FEE2E2;
-  color:#DC2626;
+  background:var(--danger-bg);
+  color:var(--danger-text);
 }
 .delete-btn svg{
   transition:transform 0.2s ease;

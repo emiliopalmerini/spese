@@ -58,6 +58,17 @@
   --accent-contrast: var(--white);
   --ring: 0 0 0 2px var(--black);
 
+  /* Danger colors */
+  --danger-bg: #FEE2E2;
+  --danger-text: #991B1B;
+  --danger-border: #EF4444;
+  --danger-hover-bg: #EF4444;
+  --danger-hover-text: #FFFFFF;
+  --danger-hover-border: #DC2626;
+
+  /* Backdrop overlay */
+  --backdrop: rgba(0, 0, 0, 0.3);
+
   /* Spacing scale */
   --space-0: 0;
   --space-1: 4px;
@@ -93,6 +104,50 @@
   --duration-normal: 250ms;
   --duration-slow: 400ms;
   --duration-slower: 600ms;
+}
+
+/* ==============================================================
+   Dark Mode (auto via prefers-color-scheme)
+============================================================== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Inverted monochrome palette */
+    --black: #ffffff;
+    --white: #121212;
+    --gray-50: #1a1a1a;
+    --gray-100: #262626;
+    --gray-200: #3d3d3d;
+    --gray-300: #525252;
+    --gray-400: #737373;
+    --gray-500: #a3a3a3;
+    --gray-600: #d4d4d4;
+    --gray-700: #e5e5e5;
+    --gray-800: #f5f5f5;
+    --gray-900: #fafafa;
+
+    /* Semantic overrides for dark */
+    --bg: #121212;
+    --bg-light: #1a1a1a;
+    --surface: #1e1e1e;
+    --surface-2: #262626;
+    --text: #f5f5f5;
+    --text-secondary: #a3a3a3;
+    --muted: #737373;
+    --line: #3d3d3d;
+    --border: #3d3d3d;
+    --border-strong: #ffffff;
+
+    /* Danger colors for dark */
+    --danger-bg: #450a0a;
+    --danger-text: #fca5a5;
+    --danger-border: #b91c1c;
+    --danger-hover-bg: #7f1d1d;
+    --danger-hover-text: #fef2f2;
+    --danger-hover-border: #991b1b;
+
+    /* Backdrop overlay for dark */
+    --backdrop: rgba(0, 0, 0, 0.6);
+  }
 }
 
 /* ==============================================================
