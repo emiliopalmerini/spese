@@ -56,4 +56,10 @@ type (
 		// ListActiveRecurrentExpenses returns all active recurrent expenses.
 		ListActiveRecurrentExpenses(ctx context.Context) ([]core.RecurrentExpenses, error)
 	}
+
+	// IncomeWriter provides income append functionality.
+	IncomeWriter interface {
+		// AppendIncome writes an income to the backing store.
+		AppendIncome(ctx context.Context, i core.Income) (rowRef string, err error)
+	}
 )
