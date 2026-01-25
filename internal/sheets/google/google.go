@@ -24,6 +24,7 @@ type Client struct {
 	svc                *gsheet.Service
 	spreadsheetID      string
 	expensesSheet      string
+	incomeSheet        string
 	categoriesSheet    string
 	subcategoriesSheet string
 	// Preferred: base name without year (e.g. "Dashboard"); code prefixes year.
@@ -36,11 +37,16 @@ type Client struct {
 	cachedRowCount     int
 	cacheExpiresAt     time.Time
 	cacheValidDuration time.Duration
+
+	// Separate row count cache for income sheet
+	cachedIncomeRowCount int
+	incomeCacheExpiresAt time.Time
 }
 
 // Ensure interface conformance
 var (
 	_ ports.ExpenseWriter   = (*Client)(nil)
+	_ ports.IncomeWriter    = (*Client)(nil)
 	_ ports.TaxonomyReader  = (*Client)(nil)
 	_ ports.DashboardReader = (*Client)(nil)
 	_ ports.ExpenseLister   = (*Client)(nil)
@@ -63,6 +69,10 @@ func NewFromEnv(ctx context.Context) (*Client, error) {
 	expensesBase := strings.TrimSpace(os.Getenv("GOOGLE_SHEET_NAME"))
 	if expensesBase == "" {
 		expensesBase = "Expenses"
+	}
+	incomeBase := strings.TrimSpace(os.Getenv("GOOGLE_INCOME_SHEET_NAME"))
+	if incomeBase == "" {
+		incomeBase = "Income"
 	}
 	catsBase := strings.TrimSpace(os.Getenv("GOOGLE_CATEGORIES_SHEET_NAME"))
 	if catsBase == "" {
@@ -89,6 +99,7 @@ func NewFromEnv(ctx context.Context) (*Client, error) {
 	// Compute year-prefixed names for this client instance
 	currentYear := time.Now().Year()
 	expenses := yearPrefixedName(expensesBase, currentYear)
+	income := yearPrefixedName(incomeBase, currentYear)
 	cats := yearPrefixedName(catsBase, currentYear)
 	subs := yearPrefixedName(subsBase, currentYear)
 
@@ -96,6 +107,7 @@ func NewFromEnv(ctx context.Context) (*Client, error) {
 		svc:                svc,
 		spreadsheetID:      spreadsheetID,
 		expensesSheet:      expenses,
+		incomeSheet:        income,
 		categoriesSheet:    cats,
 		subcategoriesSheet: subs,
 		dashboardBase:      dashBase,
