@@ -11,6 +11,18 @@ import (
 	"time"
 )
 
+const cleanupCompletedIncomeSyncs = `-- name: CleanupCompletedIncomeSyncs :exec
+DELETE FROM income_sync_queue
+WHERE status = 'completed'
+  AND processed_at < ?
+`
+
+// Removes completed income items older than the specified timestamp.
+func (q *Queries) CleanupCompletedIncomeSyncs(ctx context.Context, processedAt interface{}) error {
+	_, err := q.db.ExecContext(ctx, cleanupCompletedIncomeSyncs, processedAt)
+	return err
+}
+
 const cleanupCompletedSyncs = `-- name: CleanupCompletedSyncs :exec
 DELETE FROM sync_queue
 WHERE status = 'completed'
@@ -221,6 +233,55 @@ func (q *Queries) DeleteSecondaryCategory(ctx context.Context, name string) erro
 	return err
 }
 
+const dequeueIncomeSyncBatch = `-- name: DequeueIncomeSyncBatch :many
+SELECT id, operation, income_id, income_day, income_month, income_description, income_amount_cents, income_category, status, attempts, max_attempts, last_error, created_at, updated_at, processed_at, next_retry_at FROM income_sync_queue
+WHERE status = 'pending'
+  AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP)
+ORDER BY created_at ASC
+LIMIT ?
+`
+
+// Fetches a batch of pending income items ready for processing.
+func (q *Queries) DequeueIncomeSyncBatch(ctx context.Context, limit int64) ([]IncomeSyncQueue, error) {
+	rows, err := q.db.QueryContext(ctx, dequeueIncomeSyncBatch, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []IncomeSyncQueue
+	for rows.Next() {
+		var i IncomeSyncQueue
+		if err := rows.Scan(
+			&i.ID,
+			&i.Operation,
+			&i.IncomeID,
+			&i.IncomeDay,
+			&i.IncomeMonth,
+			&i.IncomeDescription,
+			&i.IncomeAmountCents,
+			&i.IncomeCategory,
+			&i.Status,
+			&i.Attempts,
+			&i.MaxAttempts,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProcessedAt,
+			&i.NextRetryAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const dequeueSyncBatch = `-- name: DequeueSyncBatch :many
 SELECT id, operation, expense_id, expense_day, expense_month, expense_description, expense_amount_cents, expense_primary, expense_secondary, status, attempts, max_attempts, last_error, created_at, updated_at, processed_at, next_retry_at FROM sync_queue
 WHERE status = 'pending'
@@ -314,6 +375,91 @@ func (q *Queries) EnqueueDelete(ctx context.Context, arg EnqueueDeleteParams) (S
 		&i.ExpenseAmountCents,
 		&i.ExpensePrimary,
 		&i.ExpenseSecondary,
+		&i.Status,
+		&i.Attempts,
+		&i.MaxAttempts,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProcessedAt,
+		&i.NextRetryAt,
+	)
+	return i, err
+}
+
+const enqueueIncomeDelete = `-- name: EnqueueIncomeDelete :one
+INSERT INTO income_sync_queue (
+    operation, income_id, status,
+    income_day, income_month, income_description,
+    income_amount_cents, income_category,
+    created_at, updated_at
+)
+VALUES ('delete', ?, 'pending', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+RETURNING id, operation, income_id, income_day, income_month, income_description, income_amount_cents, income_category, status, attempts, max_attempts, last_error, created_at, updated_at, processed_at, next_retry_at
+`
+
+type EnqueueIncomeDeleteParams struct {
+	IncomeID          int64       `db:"income_id" json:"income_id"`
+	IncomeDay         interface{} `db:"income_day" json:"income_day"`
+	IncomeMonth       interface{} `db:"income_month" json:"income_month"`
+	IncomeDescription interface{} `db:"income_description" json:"income_description"`
+	IncomeAmountCents interface{} `db:"income_amount_cents" json:"income_amount_cents"`
+	IncomeCategory    interface{} `db:"income_category" json:"income_category"`
+}
+
+// Enqueues a delete operation with full income data.
+func (q *Queries) EnqueueIncomeDelete(ctx context.Context, arg EnqueueIncomeDeleteParams) (IncomeSyncQueue, error) {
+	row := q.db.QueryRowContext(ctx, enqueueIncomeDelete,
+		arg.IncomeID,
+		arg.IncomeDay,
+		arg.IncomeMonth,
+		arg.IncomeDescription,
+		arg.IncomeAmountCents,
+		arg.IncomeCategory,
+	)
+	var i IncomeSyncQueue
+	err := row.Scan(
+		&i.ID,
+		&i.Operation,
+		&i.IncomeID,
+		&i.IncomeDay,
+		&i.IncomeMonth,
+		&i.IncomeDescription,
+		&i.IncomeAmountCents,
+		&i.IncomeCategory,
+		&i.Status,
+		&i.Attempts,
+		&i.MaxAttempts,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProcessedAt,
+		&i.NextRetryAt,
+	)
+	return i, err
+}
+
+const enqueueIncomeSync = `-- name: EnqueueIncomeSync :one
+
+INSERT INTO income_sync_queue (operation, income_id, status, created_at, updated_at)
+VALUES ('sync', ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+RETURNING id, operation, income_id, income_day, income_month, income_description, income_amount_cents, income_category, status, attempts, max_attempts, last_error, created_at, updated_at, processed_at, next_retry_at
+`
+
+// Income Sync Queue queries
+// Enqueues a sync operation for an income.
+func (q *Queries) EnqueueIncomeSync(ctx context.Context, incomeID int64) (IncomeSyncQueue, error) {
+	row := q.db.QueryRowContext(ctx, enqueueIncomeSync, incomeID)
+	var i IncomeSyncQueue
+	err := row.Scan(
+		&i.ID,
+		&i.Operation,
+		&i.IncomeID,
+		&i.IncomeDay,
+		&i.IncomeMonth,
+		&i.IncomeDescription,
+		&i.IncomeAmountCents,
+		&i.IncomeCategory,
 		&i.Status,
 		&i.Attempts,
 		&i.MaxAttempts,
@@ -761,6 +907,64 @@ func (q *Queries) GetIncomeMonthTotal(ctx context.Context, arg GetIncomeMonthTot
 	return total, err
 }
 
+const getIncomeSyncQueueItem = `-- name: GetIncomeSyncQueueItem :one
+SELECT id, operation, income_id, income_day, income_month, income_description, income_amount_cents, income_category, status, attempts, max_attempts, last_error, created_at, updated_at, processed_at, next_retry_at FROM income_sync_queue WHERE id = ?
+`
+
+// Gets a single income sync queue item by ID.
+func (q *Queries) GetIncomeSyncQueueItem(ctx context.Context, id int64) (IncomeSyncQueue, error) {
+	row := q.db.QueryRowContext(ctx, getIncomeSyncQueueItem, id)
+	var i IncomeSyncQueue
+	err := row.Scan(
+		&i.ID,
+		&i.Operation,
+		&i.IncomeID,
+		&i.IncomeDay,
+		&i.IncomeMonth,
+		&i.IncomeDescription,
+		&i.IncomeAmountCents,
+		&i.IncomeCategory,
+		&i.Status,
+		&i.Attempts,
+		&i.MaxAttempts,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProcessedAt,
+		&i.NextRetryAt,
+	)
+	return i, err
+}
+
+const getIncomeSyncQueueStats = `-- name: GetIncomeSyncQueueStats :one
+SELECT
+    CAST(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS INTEGER) as pending_count,
+    CAST(SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS INTEGER) as processing_count,
+    CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_count,
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_count
+FROM income_sync_queue
+`
+
+type GetIncomeSyncQueueStatsRow struct {
+	PendingCount    int64 `db:"pending_count" json:"pending_count"`
+	ProcessingCount int64 `db:"processing_count" json:"processing_count"`
+	CompletedCount  int64 `db:"completed_count" json:"completed_count"`
+	FailedCount     int64 `db:"failed_count" json:"failed_count"`
+}
+
+// Returns counts by status for monitoring.
+func (q *Queries) GetIncomeSyncQueueStats(ctx context.Context) (GetIncomeSyncQueueStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getIncomeSyncQueueStats)
+	var i GetIncomeSyncQueueStatsRow
+	err := row.Scan(
+		&i.PendingCount,
+		&i.ProcessingCount,
+		&i.CompletedCount,
+		&i.FailedCount,
+	)
+	return i, err
+}
+
 const getIncomesByMonth = `-- name: GetIncomesByMonth :many
 SELECT id, date, description, amount_cents, category, version, created_at, synced_at, sync_status FROM incomes
 WHERE strftime('%Y', date) = printf('%04d', ?)
@@ -1095,6 +1299,27 @@ func (q *Queries) HardDeleteIncome(ctx context.Context, id int64) error {
 	return err
 }
 
+const incrementIncomeSyncAttempt = `-- name: IncrementIncomeSyncAttempt :exec
+UPDATE income_sync_queue
+SET attempts = attempts + 1,
+    last_error = ?,
+    status = 'pending',
+    next_retry_at = datetime(CURRENT_TIMESTAMP, '+' || (1 << attempts) || ' minutes'),
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+type IncrementIncomeSyncAttemptParams struct {
+	LastError interface{} `db:"last_error" json:"last_error"`
+	ID        int64       `db:"id" json:"id"`
+}
+
+// Increments attempt count and schedules next retry with exponential backoff.
+func (q *Queries) IncrementIncomeSyncAttempt(ctx context.Context, arg IncrementIncomeSyncAttemptParams) error {
+	_, err := q.db.ExecContext(ctx, incrementIncomeSyncAttempt, arg.LastError, arg.ID)
+	return err
+}
+
 const incrementSyncAttempt = `-- name: IncrementSyncAttempt :exec
 UPDATE sync_queue
 SET attempts = attempts + 1,
@@ -1183,6 +1408,75 @@ func (q *Queries) MarkExpenseSynced(ctx context.Context, id int64) error {
 	return err
 }
 
+const markIncomeSyncComplete = `-- name: MarkIncomeSyncComplete :exec
+UPDATE income_sync_queue
+SET status = 'completed',
+    processed_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+// Marks an income sync queue item as successfully completed.
+func (q *Queries) MarkIncomeSyncComplete(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, markIncomeSyncComplete, id)
+	return err
+}
+
+const markIncomeSyncError = `-- name: MarkIncomeSyncError :exec
+UPDATE incomes
+SET sync_status = 'error'
+WHERE id = ?
+`
+
+// Marks an income as having sync errors.
+func (q *Queries) MarkIncomeSyncError(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, markIncomeSyncError, id)
+	return err
+}
+
+const markIncomeSyncFailed = `-- name: MarkIncomeSyncFailed :exec
+UPDATE income_sync_queue
+SET status = 'failed',
+    last_error = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+type MarkIncomeSyncFailedParams struct {
+	LastError interface{} `db:"last_error" json:"last_error"`
+	ID        int64       `db:"id" json:"id"`
+}
+
+// Marks an income sync queue item as failed after max retries exceeded.
+func (q *Queries) MarkIncomeSyncFailed(ctx context.Context, arg MarkIncomeSyncFailedParams) error {
+	_, err := q.db.ExecContext(ctx, markIncomeSyncFailed, arg.LastError, arg.ID)
+	return err
+}
+
+const markIncomeSyncProcessing = `-- name: MarkIncomeSyncProcessing :exec
+UPDATE income_sync_queue
+SET status = 'processing', updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+// Marks an income sync item as being processed.
+func (q *Queries) MarkIncomeSyncProcessing(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, markIncomeSyncProcessing, id)
+	return err
+}
+
+const markIncomeSynced = `-- name: MarkIncomeSynced :exec
+UPDATE incomes
+SET sync_status = 'synced', synced_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+// Marks an income as successfully synced.
+func (q *Queries) MarkIncomeSynced(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, markIncomeSynced, id)
+	return err
+}
+
 const markSyncComplete = `-- name: MarkSyncComplete :exec
 UPDATE sync_queue
 SET status = 'completed',
@@ -1246,6 +1540,20 @@ func (q *Queries) RefreshPrimaryCategories(ctx context.Context) error {
 	return err
 }
 
+const resetStaleIncomeProcessing = `-- name: ResetStaleIncomeProcessing :exec
+UPDATE income_sync_queue
+SET status = 'pending',
+    updated_at = CURRENT_TIMESTAMP
+WHERE status = 'processing'
+  AND updated_at < datetime(CURRENT_TIMESTAMP, '-5 minutes')
+`
+
+// Resets income items stuck in processing state (crash recovery).
+func (q *Queries) ResetStaleIncomeProcessing(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetStaleIncomeProcessing)
+	return err
+}
+
 const resetStaleProcessing = `-- name: ResetStaleProcessing :exec
 UPDATE sync_queue
 SET status = 'pending',
@@ -1257,6 +1565,22 @@ WHERE status = 'processing'
 // Resets items stuck in processing state (crash recovery).
 func (q *Queries) ResetStaleProcessing(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, resetStaleProcessing)
+	return err
+}
+
+const retryFailedIncomeSyncs = `-- name: RetryFailedIncomeSyncs :exec
+UPDATE income_sync_queue
+SET status = 'pending',
+    attempts = 0,
+    next_retry_at = NULL,
+    last_error = NULL,
+    updated_at = CURRENT_TIMESTAMP
+WHERE status = 'failed'
+`
+
+// Resets failed income items back to pending for manual retry.
+func (q *Queries) RetryFailedIncomeSyncs(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, retryFailedIncomeSyncs)
 	return err
 }
 

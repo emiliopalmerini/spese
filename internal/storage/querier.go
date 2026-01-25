@@ -9,6 +9,8 @@ import (
 )
 
 type Querier interface {
+	// Removes completed income items older than the specified timestamp.
+	CleanupCompletedIncomeSyncs(ctx context.Context, processedAt interface{}) error
 	// Removes completed items older than the specified timestamp.
 	CleanupCompletedSyncs(ctx context.Context, processedAt interface{}) error
 	CreateExpense(ctx context.Context, arg CreateExpenseParams) (Expense, error)
@@ -22,10 +24,17 @@ type Querier interface {
 	DeletePrimaryCategory(ctx context.Context, name string) error
 	DeleteRecurrentExpense(ctx context.Context, id int64) error
 	DeleteSecondaryCategory(ctx context.Context, name string) error
+	// Fetches a batch of pending income items ready for processing.
+	DequeueIncomeSyncBatch(ctx context.Context, limit int64) ([]IncomeSyncQueue, error)
 	// Fetches a batch of pending items ready for processing.
 	DequeueSyncBatch(ctx context.Context, limit int64) ([]SyncQueue, error)
 	// Enqueues a delete operation with full expense data.
 	EnqueueDelete(ctx context.Context, arg EnqueueDeleteParams) (SyncQueue, error)
+	// Enqueues a delete operation with full income data.
+	EnqueueIncomeDelete(ctx context.Context, arg EnqueueIncomeDeleteParams) (IncomeSyncQueue, error)
+	// Income Sync Queue queries
+	// Enqueues a sync operation for an income.
+	EnqueueIncomeSync(ctx context.Context, incomeID int64) (IncomeSyncQueue, error)
 	// Sync Queue queries
 	// Enqueues a sync operation for an expense.
 	EnqueueSync(ctx context.Context, expenseID int64) (SyncQueue, error)
@@ -40,6 +49,10 @@ type Querier interface {
 	GetIncomeCategories(ctx context.Context) ([]string, error)
 	GetIncomeCategorySums(ctx context.Context, arg GetIncomeCategorySumsParams) ([]GetIncomeCategorySumsRow, error)
 	GetIncomeMonthTotal(ctx context.Context, arg GetIncomeMonthTotalParams) (int64, error)
+	// Gets a single income sync queue item by ID.
+	GetIncomeSyncQueueItem(ctx context.Context, id int64) (IncomeSyncQueue, error)
+	// Returns counts by status for monitoring.
+	GetIncomeSyncQueueStats(ctx context.Context) (GetIncomeSyncQueueStatsRow, error)
 	GetIncomesByMonth(ctx context.Context, arg GetIncomesByMonthParams) ([]Income, error)
 	GetMonthTotal(ctx context.Context, arg GetMonthTotalParams) (int64, error)
 	GetPendingSyncExpenses(ctx context.Context, limit int64) ([]GetPendingSyncExpensesRow, error)
@@ -57,10 +70,22 @@ type Querier interface {
 	HardDeleteExpense(ctx context.Context, id int64) error
 	HardDeleteIncome(ctx context.Context, id int64) error
 	// Increments attempt count and schedules next retry with exponential backoff.
+	IncrementIncomeSyncAttempt(ctx context.Context, arg IncrementIncomeSyncAttemptParams) error
+	// Increments attempt count and schedules next retry with exponential backoff.
 	IncrementSyncAttempt(ctx context.Context, arg IncrementSyncAttemptParams) error
 	ListExpensesByDateRange(ctx context.Context, arg ListExpensesByDateRangeParams) ([]Expense, error)
 	MarkExpenseSyncError(ctx context.Context, id int64) error
 	MarkExpenseSynced(ctx context.Context, id int64) error
+	// Marks an income sync queue item as successfully completed.
+	MarkIncomeSyncComplete(ctx context.Context, id int64) error
+	// Marks an income as having sync errors.
+	MarkIncomeSyncError(ctx context.Context, id int64) error
+	// Marks an income sync queue item as failed after max retries exceeded.
+	MarkIncomeSyncFailed(ctx context.Context, arg MarkIncomeSyncFailedParams) error
+	// Marks an income sync item as being processed.
+	MarkIncomeSyncProcessing(ctx context.Context, id int64) error
+	// Marks an income as successfully synced.
+	MarkIncomeSynced(ctx context.Context, id int64) error
 	// Marks a sync queue item as successfully completed.
 	MarkSyncComplete(ctx context.Context, id int64) error
 	// Marks a sync queue item as failed after max retries exceeded.
@@ -69,8 +94,12 @@ type Querier interface {
 	MarkSyncProcessing(ctx context.Context, id int64) error
 	RefreshCategories(ctx context.Context) error
 	RefreshPrimaryCategories(ctx context.Context) error
+	// Resets income items stuck in processing state (crash recovery).
+	ResetStaleIncomeProcessing(ctx context.Context) error
 	// Resets items stuck in processing state (crash recovery).
 	ResetStaleProcessing(ctx context.Context) error
+	// Resets failed income items back to pending for manual retry.
+	RetryFailedIncomeSyncs(ctx context.Context) error
 	// Resets failed items back to pending for manual retry.
 	RetryFailedSyncs(ctx context.Context) error
 	UpdateRecurrentExpense(ctx context.Context, arg UpdateRecurrentExpenseParams) error

@@ -40,6 +40,25 @@ type IncomeCategory struct {
 	CreatedAt sql.NullTime `db:"created_at" json:"created_at"`
 }
 
+type IncomeSyncQueue struct {
+	ID                int64       `db:"id" json:"id"`
+	Operation         string      `db:"operation" json:"operation"`
+	IncomeID          int64       `db:"income_id" json:"income_id"`
+	IncomeDay         interface{} `db:"income_day" json:"income_day"`
+	IncomeMonth       interface{} `db:"income_month" json:"income_month"`
+	IncomeDescription interface{} `db:"income_description" json:"income_description"`
+	IncomeAmountCents interface{} `db:"income_amount_cents" json:"income_amount_cents"`
+	IncomeCategory    interface{} `db:"income_category" json:"income_category"`
+	Status            string      `db:"status" json:"status"`
+	Attempts          int64       `db:"attempts" json:"attempts"`
+	MaxAttempts       int64       `db:"max_attempts" json:"max_attempts"`
+	LastError         interface{} `db:"last_error" json:"last_error"`
+	CreatedAt         time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time   `db:"updated_at" json:"updated_at"`
+	ProcessedAt       interface{} `db:"processed_at" json:"processed_at"`
+	NextRetryAt       interface{} `db:"next_retry_at" json:"next_retry_at"`
+}
+
 type PrimaryCategory struct {
 	ID        int64        `db:"id" json:"id"`
 	Name      string       `db:"name" json:"name"`

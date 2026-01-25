@@ -305,3 +305,111 @@ FROM sync_queue;
 -- name: GetSyncQueueItem :one
 -- Gets a single sync queue item by ID.
 SELECT * FROM sync_queue WHERE id = ?;
+
+-- Income Sync Queue queries
+
+-- name: EnqueueIncomeSync :one
+-- Enqueues a sync operation for an income.
+INSERT INTO income_sync_queue (operation, income_id, status, created_at, updated_at)
+VALUES ('sync', ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+RETURNING *;
+
+-- name: EnqueueIncomeDelete :one
+-- Enqueues a delete operation with full income data.
+INSERT INTO income_sync_queue (
+    operation, income_id, status,
+    income_day, income_month, income_description,
+    income_amount_cents, income_category,
+    created_at, updated_at
+)
+VALUES ('delete', ?, 'pending', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+RETURNING *;
+
+-- name: DequeueIncomeSyncBatch :many
+-- Fetches a batch of pending income items ready for processing.
+SELECT * FROM income_sync_queue
+WHERE status = 'pending'
+  AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP)
+ORDER BY created_at ASC
+LIMIT ?;
+
+-- name: MarkIncomeSyncProcessing :exec
+-- Marks an income sync item as being processed.
+UPDATE income_sync_queue
+SET status = 'processing', updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- name: MarkIncomeSyncComplete :exec
+-- Marks an income sync queue item as successfully completed.
+UPDATE income_sync_queue
+SET status = 'completed',
+    processed_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- name: MarkIncomeSyncFailed :exec
+-- Marks an income sync queue item as failed after max retries exceeded.
+UPDATE income_sync_queue
+SET status = 'failed',
+    last_error = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- name: IncrementIncomeSyncAttempt :exec
+-- Increments attempt count and schedules next retry with exponential backoff.
+UPDATE income_sync_queue
+SET attempts = attempts + 1,
+    last_error = ?,
+    status = 'pending',
+    next_retry_at = datetime(CURRENT_TIMESTAMP, '+' || (1 << attempts) || ' minutes'),
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- name: RetryFailedIncomeSyncs :exec
+-- Resets failed income items back to pending for manual retry.
+UPDATE income_sync_queue
+SET status = 'pending',
+    attempts = 0,
+    next_retry_at = NULL,
+    last_error = NULL,
+    updated_at = CURRENT_TIMESTAMP
+WHERE status = 'failed';
+
+-- name: CleanupCompletedIncomeSyncs :exec
+-- Removes completed income items older than the specified timestamp.
+DELETE FROM income_sync_queue
+WHERE status = 'completed'
+  AND processed_at < ?;
+
+-- name: ResetStaleIncomeProcessing :exec
+-- Resets income items stuck in processing state (crash recovery).
+UPDATE income_sync_queue
+SET status = 'pending',
+    updated_at = CURRENT_TIMESTAMP
+WHERE status = 'processing'
+  AND updated_at < datetime(CURRENT_TIMESTAMP, '-5 minutes');
+
+-- name: GetIncomeSyncQueueStats :one
+-- Returns counts by status for monitoring.
+SELECT
+    CAST(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS INTEGER) as pending_count,
+    CAST(SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS INTEGER) as processing_count,
+    CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_count,
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_count
+FROM income_sync_queue;
+
+-- name: GetIncomeSyncQueueItem :one
+-- Gets a single income sync queue item by ID.
+SELECT * FROM income_sync_queue WHERE id = ?;
+
+-- name: MarkIncomeSynced :exec
+-- Marks an income as successfully synced.
+UPDATE incomes
+SET sync_status = 'synced', synced_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- name: MarkIncomeSyncError :exec
+-- Marks an income as having sync errors.
+UPDATE incomes
+SET sync_status = 'error'
+WHERE id = ?;
