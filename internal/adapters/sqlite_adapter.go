@@ -93,9 +93,9 @@ func (a *SQLiteAdapter) GetStorage() *storage.SQLiteRepository {
 
 // Income methods
 
-// AppendIncome creates a new income entry
+// AppendIncome creates a new income entry and enqueues it for Google Sheets sync
 func (a *SQLiteAdapter) AppendIncome(ctx context.Context, i core.Income) (string, error) {
-	return a.storage.AppendIncome(ctx, i)
+	return a.storage.AppendIncomeAndEnqueueSync(ctx, i)
 }
 
 // GetIncomeCategories returns all income categories
@@ -118,13 +118,13 @@ func (a *SQLiteAdapter) ListIncomesWithID(ctx context.Context, year int, month i
 	return a.storage.ListIncomesWithID(ctx, year, month)
 }
 
-// DeleteIncome deletes an income entry
+// DeleteIncome deletes an income entry and enqueues delete operation for Google Sheets sync
 func (a *SQLiteAdapter) DeleteIncome(ctx context.Context, id string) error {
 	incomeID, err := strconv.ParseInt(id, 10, 64)
 	if err != nil {
 		return fmt.Errorf("invalid income ID: %w", err)
 	}
-	return a.storage.HardDeleteIncome(ctx, incomeID)
+	return a.storage.HardDeleteIncomeAndEnqueueSync(ctx, incomeID)
 }
 
 // Dashboard methods

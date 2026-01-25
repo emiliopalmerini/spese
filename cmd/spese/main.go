@@ -142,7 +142,7 @@ func main() {
 		return srv.Shutdown(shutdownCtx)
 	})
 
-	// Start SyncProcessor (SQLite backend with Google Sheets client)
+	// Start SyncProcessor for expenses (SQLite backend with Google Sheets client)
 	var syncProcessor *services.SyncProcessor
 	if cfg.DataBackend == "sqlite" && sheetsClient != nil && sqliteRepo != nil {
 		syncConfig := services.SyncProcessorConfig{
@@ -155,7 +155,7 @@ func main() {
 		syncProcessor = services.NewSyncProcessor(sqliteRepo, sheetsClient, sheetsClient, syncConfig)
 
 		g.Go(func() error {
-			logger.Info("Starting sync processor",
+			logger.Info("Starting expense sync processor",
 				"poll_interval", cfg.SyncInterval,
 				"batch_size", cfg.SyncBatchSize)
 			return syncProcessor.Start(gCtx)
@@ -167,8 +167,38 @@ func main() {
 			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer shutdownCancel()
 
-			logger.Info("Stopping sync processor")
+			logger.Info("Stopping expense sync processor")
 			return syncProcessor.Stop(shutdownCtx)
+		})
+	}
+
+	// Start IncomeSyncProcessor (SQLite backend with Google Sheets client)
+	var incomeSyncProcessor *services.IncomeSyncProcessor
+	if cfg.DataBackend == "sqlite" && sheetsClient != nil && sqliteRepo != nil {
+		syncConfig := services.SyncProcessorConfig{
+			PollInterval:    cfg.SyncInterval,
+			BatchSize:       cfg.SyncBatchSize,
+			MaxRetries:      3,
+			CleanupInterval: 1 * time.Hour,
+			CleanupAge:      24 * time.Hour,
+		}
+		incomeSyncProcessor = services.NewIncomeSyncProcessor(sqliteRepo, sheetsClient, syncConfig)
+
+		g.Go(func() error {
+			logger.Info("Starting income sync processor",
+				"poll_interval", cfg.SyncInterval,
+				"batch_size", cfg.SyncBatchSize)
+			return incomeSyncProcessor.Start(gCtx)
+		})
+
+		// Graceful shutdown of income sync processor
+		g.Go(func() error {
+			<-gCtx.Done()
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer shutdownCancel()
+
+			logger.Info("Stopping income sync processor")
+			return incomeSyncProcessor.Stop(shutdownCtx)
 		})
 	}
 
