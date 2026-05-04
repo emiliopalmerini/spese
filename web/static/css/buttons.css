@@ -4,16 +4,16 @@
 .btn{
   appearance:none;
   cursor:pointer;
-  border:2px solid var(--black);
+  border:1px solid var(--ink);
   padding:var(--space-3) var(--space-5);
   border-radius:0;
-  font-family:var(--font-body);
-  font-weight:600;
-  font-size:var(--text-sm);
+  font-family:var(--font-mono);
+  font-weight:500;
+  font-size:var(--text-xs);
   text-transform:uppercase;
-  letter-spacing:0.05em;
-  background:var(--white);
-  color:var(--black);
+  letter-spacing:0.16em;
+  background:transparent;
+  color:var(--ink);
   display:inline-flex;
   align-items:center;
   justify-content:center;
@@ -26,9 +26,9 @@
     color var(--duration-fast) var(--ease-out-quart);
 }
 .btn:hover{
-  background:var(--black);
-  color:var(--white);
-  transform:translateY(-2px);
+  background:var(--ink);
+  color:var(--paper-raised);
+  transform:translateY(-1px);
   box-shadow:none;
 }
 .btn:active{
@@ -36,18 +36,65 @@
   box-shadow:none;
 }
 .btn-primary{
-  color:var(--white);
-  background:var(--black);
-  border-color:var(--black);
+  color:var(--paper-raised);
+  background:var(--ink);
+  border-color:var(--ink);
 }
 .btn-primary:hover{
-  background:var(--gray-800);
-  border-color:var(--gray-800);
+  background:var(--ink-2);
+  border-color:var(--ink-2);
+  color:var(--paper-raised);
 }
 .btn-primary:active{
   transform:translateY(0) scale(0.98);
 }
+.btn-accent{
+  color:#fff;
+  background:var(--accent);
+  border-color:var(--accent);
+}
+.btn-accent:hover{
+  background:var(--accent-700);
+  border-color:var(--accent-700);
+  color:#fff;
+}
+.btn-accent:active{
+  transform:translateY(0) scale(0.98);
+}
 .btn--block{width:100%}
+.btn--dashed{border-style:dashed;}
+
+/* ==============================================================
+   Chips (period selectors, quick add)
+============================================================== */
+.chip{
+  appearance:none;
+  cursor:pointer;
+  background:var(--paper-raised);
+  border:1px solid var(--line);
+  border-radius:var(--radius-pill);
+  padding:8px 14px;
+  font-family:var(--font-mono);
+  font-size:var(--text-xs);
+  letter-spacing:0.04em;
+  color:var(--ink);
+  text-decoration:none;
+  display:inline-flex;
+  align-items:center;
+  gap:var(--space-1);
+  transition:background var(--duration-fast) var(--ease-out-quart),
+             color var(--duration-fast) var(--ease-out-quart),
+             border-color var(--duration-fast) var(--ease-out-quart);
+}
+.chip:hover{
+  border-color:var(--ink);
+}
+.chip--active,
+.chip[aria-current="true"]{
+  background:var(--ink);
+  color:var(--paper-raised);
+  border-color:var(--ink);
+}
 
 /* ==============================================================
    Button Variants

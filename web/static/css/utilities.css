@@ -1,10 +1,21 @@
 /* ==============================================================
+   Quaderno mono label utility (ADR-0008)
+============================================================== */
+.label-mono{
+  font-family:var(--font-mono);
+  font-size:var(--text-xs);
+  letter-spacing:0.16em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+
+/* ==============================================================
    Temi accento
 ============================================================== */
 .theme-emerald{--accent:#10b981;--accent-600:#059669;--accent-700:#047857;--accent-contrast:#ffffff;--ring:0 0 0 3px rgba(16,185,129,.28);}
 .theme-teal{--accent:#14b8a6;--accent-600:#0d9488;--accent-700:#0f766e;--accent-contrast:#ffffff;--ring:0 0 0 3px rgba(20,184,166,.28);}
 .theme-purple{--accent:#8b5cf6;--accent-600:#7c3aed;--accent-700:#6d28d9;--accent-contrast:#ffffff;--ring:0 0 0 3px rgba(139,92,246,.28);}
-.theme-ink{--accent:#111111;--accent-600:#111111;--accent-700:#0a0a0a;--accent-contrast:#ffffff;--ring:0 0 0 2px rgba(17,17,17,.18);}
+.theme-ink{--accent:var(--accent-terra);--accent-600:var(--accent-terra);--accent-700:var(--accent-terra-dark);--accent-contrast:#ffffff;--ring:0 0 0 2px rgba(184,69,28,.22);}
 
 /* ==============================================================
    Densita

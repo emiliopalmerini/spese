@@ -325,22 +325,23 @@
 .fab{
   width:56px;
   height:56px;
-  border-radius:0;
-  background:var(--black);
-  color:var(--white);
+  border-radius:50%;
+  background:var(--accent);
+  color:#ffffff;
   border:none;
-  box-shadow:none;
+  box-shadow:0 6px 16px rgba(184,69,28,0.3);
   cursor:pointer;
   display:flex;
   align-items:center;
   justify-content:center;
-  transition:transform var(--duration-fast) var(--ease-spring);
+  transition:transform var(--duration-fast) var(--ease-spring),
+             box-shadow var(--duration-fast) var(--ease-out-quart);
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
 .fab:hover{
   transform:scale(1.05);
-  box-shadow:none;
+  box-shadow:0 8px 22px rgba(184,69,28,0.36);
 }
 .fab:active{
   transform:scale(0.95);

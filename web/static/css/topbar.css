@@ -5,8 +5,8 @@
   position:sticky;
   top:0;
   z-index:100;
-  background:var(--white);
-  border-bottom:1px solid var(--border);
+  background:var(--paper-raised);
+  border-bottom:1px solid var(--line);
   padding-top:var(--safe-top);
 }
 .topbar__inner{
@@ -19,11 +19,19 @@
 }
 .brand{
   font-family:var(--font-display);
-  font-weight:700;
-  font-size:var(--text-lg);
-  letter-spacing:-0.03em;
+  font-weight:400;
+  font-size:var(--text-xl);
+  letter-spacing:-0.01em;
   color:var(--text);
   text-decoration:none;
+  display:inline-flex;
+  align-items:baseline;
+  gap:6px;
+}
+.brand__sub{
+  font-style:italic;
+  color:var(--accent);
+  font-size:var(--text-base);
 }
 .topbar__nav{
   display:flex;
@@ -38,9 +46,11 @@
   position:relative;
   color:var(--text-secondary);
   text-decoration:none;
-  font-family:var(--font-body);
+  font-family:var(--font-mono);
   font-weight:500;
-  font-size:var(--text-sm);
+  font-size:var(--text-xs);
+  letter-spacing:0.14em;
+  text-transform:uppercase;
   padding:var(--space-2) 0;
   transition:color var(--duration-fast) var(--ease-out-quart);
   white-space:nowrap;

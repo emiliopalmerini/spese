@@ -1,13 +1,13 @@
 /* ==============================================================
-   Base + variabili (Typography-first monochrome design system)
-   Inspired by Google Fonts Korean
+   Base + variabili (Quaderno design system, ADR-0008)
+   Editorial paper, ink black, terracotta accent.
 ============================================================== */
 *, *::before, *::after { box-sizing: border-box; }
 :root{
   /* Typography */
-  --font-display: 'Space Grotesk', 'SF Pro Display', -apple-system, sans-serif;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+  --font-display: 'Instrument Serif', 'EB Garamond', Georgia, serif;
+  --font-body: 'Geist', 'Inter', -apple-system, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
   --font: var(--font-body);
 
   /* Fluid typography scale */
@@ -22,9 +22,21 @@
   --text-5xl: clamp(3rem, 2rem + 5vw, 5rem);
   --text-hero: clamp(3.5rem, 2rem + 8vw, 7rem);
 
-  /* Pure monochrome palette */
-  --black: #000000;
-  --white: #FFFFFF;
+  /* Quaderno raw tokens */
+  --paper:         #f5f1e8;
+  --paper-raised:  #fbf7ee;
+  --ink:           #1a1612;
+  --ink-2:         #5a5650;
+  --muted-ink:     #8a847a;
+  --line-ink:      rgba(26,22,18,0.12);
+  --accent-terra:  #b8451c;
+  --accent-terra-dark: #9a3917;
+  --positive:      #3d6b4a;
+  --negative:      #a83c2e;
+
+  /* Legacy monochrome ramp kept for unported components */
+  --black: var(--ink);
+  --white: var(--paper-raised);
   --gray-50: #FAFAFA;
   --gray-100: #F5F5F5;
   --gray-200: #E5E5E5;
@@ -36,27 +48,27 @@
   --gray-800: #262626;
   --gray-900: #171717;
 
-  /* Semantic color mapping */
-  --bg: var(--white);
-  --bg-light: var(--gray-50);
-  --surface: var(--white);
-  --surface-2: var(--white);
-  --text: var(--black);
-  --text-secondary: var(--gray-500);
-  --muted: var(--gray-500);
-  --line: var(--gray-200);
-  --border: var(--gray-200);
-  --border-strong: var(--black);
+  /* Semantic color mapping (Quaderno) */
+  --bg: var(--paper);
+  --bg-light: var(--paper-raised);
+  --surface: var(--paper-raised);
+  --surface-2: var(--paper);
+  --text: var(--ink);
+  --text-secondary: var(--ink-2);
+  --muted: var(--muted-ink);
+  --line: var(--line-ink);
+  --border: var(--line-ink);
+  --border-strong: var(--ink);
 
-  /* Accent is pure black */
-  --primary: var(--black);
-  --primary-dark: var(--gray-900);
-  --primary-light: var(--gray-100);
-  --accent: var(--black);
-  --accent-600: var(--black);
-  --accent-700: var(--gray-900);
-  --accent-contrast: var(--white);
-  --ring: 0 0 0 2px var(--black);
+  /* Accent is terracotta */
+  --primary: var(--ink);
+  --primary-dark: var(--ink);
+  --primary-light: var(--paper-raised);
+  --accent: var(--accent-terra);
+  --accent-600: var(--accent-terra);
+  --accent-700: var(--accent-terra-dark);
+  --accent-contrast: #ffffff;
+  --ring: 0 0 0 2px var(--ink);
 
   /* Danger colors */
   --danger-bg: #FEE2E2;
@@ -106,49 +118,7 @@
   --duration-slower: 600ms;
 }
 
-/* ==============================================================
-   Dark Mode (auto via prefers-color-scheme)
-============================================================== */
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Inverted monochrome palette */
-    --black: #ffffff;
-    --white: #121212;
-    --gray-50: #1a1a1a;
-    --gray-100: #262626;
-    --gray-200: #3d3d3d;
-    --gray-300: #525252;
-    --gray-400: #737373;
-    --gray-500: #a3a3a3;
-    --gray-600: #d4d4d4;
-    --gray-700: #e5e5e5;
-    --gray-800: #f5f5f5;
-    --gray-900: #fafafa;
-
-    /* Semantic overrides for dark */
-    --bg: #121212;
-    --bg-light: #1a1a1a;
-    --surface: #1e1e1e;
-    --surface-2: #262626;
-    --text: #f5f5f5;
-    --text-secondary: #a3a3a3;
-    --muted: #737373;
-    --line: #3d3d3d;
-    --border: #3d3d3d;
-    --border-strong: #ffffff;
-
-    /* Danger colors for dark */
-    --danger-bg: #450a0a;
-    --danger-text: #fca5a5;
-    --danger-border: #b91c1c;
-    --danger-hover-bg: #7f1d1d;
-    --danger-hover-text: #fef2f2;
-    --danger-hover-border: #991b1b;
-
-    /* Backdrop overlay for dark */
-    --backdrop: rgba(0, 0, 0, 0.6);
-  }
-}
+/* Dark / Quaderno-night theme deferred to ADR-0013. */
 
 /* ==============================================================
    Layout e tipografia
@@ -184,8 +154,8 @@ html{font-size:16px;}
   font-size:var(--text-3xl);
   line-height:1.1;
   margin:0 0 var(--space-5);
-  letter-spacing:-0.03em;
-  font-weight:700;
+  letter-spacing:-0.01em;
+  font-weight:400;
   color:var(--text);
   text-align:center;
 }
