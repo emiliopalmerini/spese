@@ -101,6 +101,9 @@ func (c *Client) UpsertExpense(ctx context.Context, e core.Expense) (string, err
 	if e.ID <= 0 {
 		return "", ErrMissingID
 	}
+	if err := c.checkRawTabLayout(ctx); err != nil {
+		return "", err
+	}
 
 	idCol, err := c.fetchIDColumn(ctx, c.expensesSheet, expenseIDColumnLetter)
 	if err != nil {
@@ -166,6 +169,9 @@ func (c *Client) UpsertIncome(ctx context.Context, i core.Income) (string, error
 	}
 	if i.ID <= 0 {
 		return "", ErrMissingID
+	}
+	if err := c.checkRawTabLayout(ctx); err != nil {
+		return "", err
 	}
 
 	idCol, err := c.fetchIDColumn(ctx, c.incomeSheet, incomeIDColumnLetter)

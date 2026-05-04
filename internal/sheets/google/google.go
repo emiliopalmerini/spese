@@ -41,6 +41,11 @@ type Client struct {
 	// Separate row count cache for income sheet
 	cachedIncomeRowCount int
 	incomeCacheExpiresAt time.Time
+
+	// Layout guard: validates raw-tab headers once per process. Failure is
+	// cached so subsequent writes fail fast.
+	layoutOnce sync.Once
+	layoutErr  error
 }
 
 // Ensure interface conformance
