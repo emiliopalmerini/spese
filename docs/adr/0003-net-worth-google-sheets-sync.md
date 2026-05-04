@@ -1,7 +1,7 @@
 # ADR-0003: Net Worth Google Sheets sync
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 ADR-0001 owns the data; ADR-0002 lets the user enter it. This ADR adds a one-way

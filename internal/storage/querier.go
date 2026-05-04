@@ -6,11 +6,13 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 )
 
 type Querier interface {
 	// Removes completed income items older than the specified timestamp.
 	CleanupCompletedIncomeSyncs(ctx context.Context, processedAt interface{}) error
+	CleanupCompletedNetWorthSyncs(ctx context.Context, processedAt sql.NullTime) error
 	// Removes completed items older than the specified timestamp.
 	CleanupCompletedSyncs(ctx context.Context, processedAt interface{}) error
 	// Net Worth queries
@@ -28,6 +30,7 @@ type Querier interface {
 	DeleteSecondaryCategory(ctx context.Context, name string) error
 	// Fetches a batch of pending income items ready for processing.
 	DequeueIncomeSyncBatch(ctx context.Context, limit int64) ([]IncomeSyncQueue, error)
+	DequeueNetWorthSyncBatch(ctx context.Context, limit int64) ([]NwSyncQueue, error)
 	// Fetches a batch of pending items ready for processing.
 	DequeueSyncBatch(ctx context.Context, limit int64) ([]SyncQueue, error)
 	// Enqueues a delete operation with full expense data.
@@ -37,6 +40,9 @@ type Querier interface {
 	// Income Sync Queue queries
 	// Enqueues a sync operation for an income.
 	EnqueueIncomeSync(ctx context.Context, incomeID int64) (IncomeSyncQueue, error)
+	// Net Worth sync queue queries
+	// Inserts (or replaces existing pending row) for a balance to be synced.
+	EnqueueNetWorthSync(ctx context.Context, arg EnqueueNetWorthSyncParams) (NwSyncQueue, error)
 	// Sync Queue queries
 	// Enqueues a sync operation for an expense.
 	EnqueueSync(ctx context.Context, expenseID int64) (SyncQueue, error)
@@ -61,6 +67,7 @@ type Querier interface {
 	GetLatestBalancePerAccount(ctx context.Context) ([]AccountBalance, error)
 	GetMonthTotal(ctx context.Context, arg GetMonthTotalParams) (int64, error)
 	GetMonthlyNetWorthTotal(ctx context.Context, arg GetMonthlyNetWorthTotalParams) (int64, error)
+	GetNetWorthSyncQueueStats(ctx context.Context) (GetNetWorthSyncQueueStatsRow, error)
 	GetPendingSyncExpenses(ctx context.Context, limit int64) ([]GetPendingSyncExpensesRow, error)
 	// Primary Categories queries
 	GetPrimaryCategories(ctx context.Context) ([]string, error)
@@ -77,6 +84,7 @@ type Querier interface {
 	HardDeleteIncome(ctx context.Context, id int64) error
 	// Increments attempt count and schedules next retry with exponential backoff.
 	IncrementIncomeSyncAttempt(ctx context.Context, arg IncrementIncomeSyncAttemptParams) error
+	IncrementNetWorthSyncAttempt(ctx context.Context, arg IncrementNetWorthSyncAttemptParams) error
 	// Increments attempt count and schedules next retry with exponential backoff.
 	IncrementSyncAttempt(ctx context.Context, arg IncrementSyncAttemptParams) error
 	ListActiveAccounts(ctx context.Context) ([]Account, error)
@@ -96,6 +104,9 @@ type Querier interface {
 	MarkIncomeSyncProcessing(ctx context.Context, id int64) error
 	// Marks an income as successfully synced.
 	MarkIncomeSynced(ctx context.Context, id int64) error
+	MarkNetWorthSyncComplete(ctx context.Context, id int64) error
+	MarkNetWorthSyncFailed(ctx context.Context, arg MarkNetWorthSyncFailedParams) error
+	MarkNetWorthSyncProcessing(ctx context.Context, id int64) error
 	// Marks a sync queue item as successfully completed.
 	MarkSyncComplete(ctx context.Context, id int64) error
 	// Marks a sync queue item as failed after max retries exceeded.
@@ -106,10 +117,12 @@ type Querier interface {
 	RefreshPrimaryCategories(ctx context.Context) error
 	// Resets income items stuck in processing state (crash recovery).
 	ResetStaleIncomeProcessing(ctx context.Context) error
+	ResetStaleNetWorthProcessing(ctx context.Context) error
 	// Resets items stuck in processing state (crash recovery).
 	ResetStaleProcessing(ctx context.Context) error
 	// Resets failed income items back to pending for manual retry.
 	RetryFailedIncomeSyncs(ctx context.Context) error
+	RetryFailedNetWorthSyncs(ctx context.Context) error
 	// Resets failed items back to pending for manual retry.
 	RetryFailedSyncs(ctx context.Context) error
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) error

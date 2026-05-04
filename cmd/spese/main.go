@@ -202,6 +202,35 @@ func main() {
 		})
 	}
 
+	// Start NetWorthSyncProcessor (SQLite backend with Google Sheets client)
+	var netWorthSyncProcessor *services.NetWorthSyncProcessor
+	if cfg.DataBackend == "sqlite" && sheetsClient != nil && sqliteRepo != nil {
+		syncConfig := services.SyncProcessorConfig{
+			PollInterval:    cfg.SyncInterval,
+			BatchSize:       cfg.SyncBatchSize,
+			MaxRetries:      3,
+			CleanupInterval: 1 * time.Hour,
+			CleanupAge:      24 * time.Hour,
+		}
+		netWorthSyncProcessor = services.NewNetWorthSyncProcessor(sqliteRepo, sheetsClient, syncConfig)
+
+		g.Go(func() error {
+			logger.Info("Starting net worth sync processor",
+				"poll_interval", cfg.SyncInterval,
+				"batch_size", cfg.SyncBatchSize)
+			return netWorthSyncProcessor.Start(gCtx)
+		})
+
+		g.Go(func() error {
+			<-gCtx.Done()
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer shutdownCancel()
+
+			logger.Info("Stopping net worth sync processor")
+			return netWorthSyncProcessor.Stop(shutdownCtx)
+		})
+	}
+
 	// Start RecurringProcessor (SQLite backend only)
 	if cfg.DataBackend == "sqlite" && sqliteRepo != nil && expenseService != nil {
 		recurringProcessor := services.NewRecurringProcessor(sqliteRepo, expenseService)

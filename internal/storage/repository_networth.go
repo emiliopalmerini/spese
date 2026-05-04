@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"spese/internal/core"
 )
@@ -181,4 +182,115 @@ func (r *SQLiteRepository) MonthlyNetWorth(ctx context.Context, year, month int)
 		return core.Money{}, fmt.Errorf("monthly net worth: %w", err)
 	}
 	return core.Money{Cents: total}, nil
+}
+
+// UpsertBalanceAndEnqueueSync writes the balance and enqueues a sync row
+// atomically. Returns ErrAccountNotFound if the account does not exist.
+func (r *SQLiteRepository) UpsertBalanceAndEnqueueSync(ctx context.Context, b core.AccountBalance) error {
+	if _, err := r.readQueries.GetAccountByID(ctx, b.AccountID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrAccountNotFound
+		}
+		return fmt.Errorf("verify account: %w", err)
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+	q := r.queries.WithTx(tx)
+
+	if err := q.UpsertAccountBalance(ctx, UpsertAccountBalanceParams{
+		AccountID:   b.AccountID,
+		Year:        int64(b.Year),
+		Month:       int64(b.Month),
+		AmountCents: b.Amount.Cents,
+	}); err != nil {
+		return fmt.Errorf("upsert balance: %w", err)
+	}
+	if _, err := q.EnqueueNetWorthSync(ctx, EnqueueNetWorthSyncParams{
+		AccountID:   b.AccountID,
+		Year:        int64(b.Year),
+		Month:       int64(b.Month),
+		AmountCents: b.Amount.Cents,
+	}); err != nil {
+		return fmt.Errorf("enqueue nw sync: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	return nil
+}
+
+// DequeueNetWorthSyncBatch fetches a batch of pending NW sync rows.
+func (r *SQLiteRepository) DequeueNetWorthSyncBatch(ctx context.Context, limit int64) ([]NwSyncQueue, error) {
+	items, err := r.queries.DequeueNetWorthSyncBatch(ctx, limit)
+	if err != nil {
+		return nil, fmt.Errorf("dequeue nw sync batch: %w", err)
+	}
+	return items, nil
+}
+
+func (r *SQLiteRepository) MarkNetWorthSyncProcessing(ctx context.Context, id int64) error {
+	if err := r.queries.MarkNetWorthSyncProcessing(ctx, id); err != nil {
+		return fmt.Errorf("mark nw sync processing: %w", err)
+	}
+	return nil
+}
+
+func (r *SQLiteRepository) MarkNetWorthSyncComplete(ctx context.Context, id int64) error {
+	if err := r.queries.MarkNetWorthSyncComplete(ctx, id); err != nil {
+		return fmt.Errorf("mark nw sync complete: %w", err)
+	}
+	return nil
+}
+
+func (r *SQLiteRepository) MarkNetWorthSyncFailed(ctx context.Context, id int64, errorMsg string) error {
+	if err := r.queries.MarkNetWorthSyncFailed(ctx, MarkNetWorthSyncFailedParams{
+		ID:        id,
+		LastError: sql.NullString{String: errorMsg, Valid: errorMsg != ""},
+	}); err != nil {
+		return fmt.Errorf("mark nw sync failed: %w", err)
+	}
+	return nil
+}
+
+func (r *SQLiteRepository) IncrementNetWorthSyncAttempt(ctx context.Context, id int64, errorMsg string) error {
+	if err := r.queries.IncrementNetWorthSyncAttempt(ctx, IncrementNetWorthSyncAttemptParams{
+		ID:        id,
+		LastError: sql.NullString{String: errorMsg, Valid: errorMsg != ""},
+	}); err != nil {
+		return fmt.Errorf("increment nw sync attempt: %w", err)
+	}
+	return nil
+}
+
+func (r *SQLiteRepository) RetryFailedNetWorthSyncs(ctx context.Context) error {
+	if err := r.queries.RetryFailedNetWorthSyncs(ctx); err != nil {
+		return fmt.Errorf("retry failed nw syncs: %w", err)
+	}
+	return nil
+}
+
+func (r *SQLiteRepository) CleanupCompletedNetWorthSyncs(ctx context.Context, olderThan time.Time) error {
+	if err := r.queries.CleanupCompletedNetWorthSyncs(ctx, sql.NullTime{Time: olderThan, Valid: true}); err != nil {
+		return fmt.Errorf("cleanup completed nw syncs: %w", err)
+	}
+	return nil
+}
+
+func (r *SQLiteRepository) ResetStaleNetWorthProcessing(ctx context.Context) error {
+	if err := r.queries.ResetStaleNetWorthProcessing(ctx); err != nil {
+		return fmt.Errorf("reset stale nw processing: %w", err)
+	}
+	return nil
+}
+
+func (r *SQLiteRepository) GetNetWorthSyncQueueStats(ctx context.Context) (*GetNetWorthSyncQueueStatsRow, error) {
+	stats, err := r.queries.GetNetWorthSyncQueueStats(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get nw sync queue stats: %w", err)
+	}
+	return &stats, nil
 }

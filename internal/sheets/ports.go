@@ -62,4 +62,11 @@ type (
 		// AppendIncome writes an income to the backing store.
 		AppendIncome(ctx context.Context, i core.Income) (rowRef string, err error)
 	}
+
+	// NetWorthWriter writes a single account balance for a given month into
+	// the Net Worth section of the dashboard sheet.
+	NetWorthWriter interface {
+		UpsertBalance(ctx context.Context, accountName string, accountType core.AccountType,
+			year, month int, amount core.Money) (rowRef string, err error)
+	}
 )

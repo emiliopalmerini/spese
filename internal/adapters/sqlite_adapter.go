@@ -727,9 +727,10 @@ func (a *SQLiteAdapter) GetAccount(ctx context.Context, id int64) (core.Account,
 	return a.storage.GetAccount(ctx, id)
 }
 
-// UpsertBalance writes the monthly balance for an account.
+// UpsertBalance writes the monthly balance for an account and enqueues a
+// Google Sheets sync row in the same transaction.
 func (a *SQLiteAdapter) UpsertBalance(ctx context.Context, b core.AccountBalance) error {
-	return a.storage.UpsertBalance(ctx, b)
+	return a.storage.UpsertBalanceAndEnqueueSync(ctx, b)
 }
 
 // ListBalancesByMonth returns all balances for a given year/month.

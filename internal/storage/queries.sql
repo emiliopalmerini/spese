@@ -476,3 +476,80 @@ ORDER BY ab.account_id ASC;
 SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) AS total
 FROM account_balances
 WHERE year = ? AND month = ?;
+
+-- Net Worth sync queue queries
+
+-- name: EnqueueNetWorthSync :one
+-- Inserts (or replaces existing pending row) for a balance to be synced.
+INSERT INTO nw_sync_queue (account_id, year, month, amount_cents, status, attempts, last_error, created_at, updated_at)
+VALUES (?, ?, ?, ?, 'pending', 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT(account_id, year, month, status) DO UPDATE
+SET amount_cents = excluded.amount_cents,
+    attempts = 0,
+    last_error = NULL,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING *;
+
+-- name: DequeueNetWorthSyncBatch :many
+SELECT * FROM nw_sync_queue
+WHERE status = 'pending'
+  AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP)
+ORDER BY created_at ASC
+LIMIT ?;
+
+-- name: MarkNetWorthSyncProcessing :exec
+UPDATE nw_sync_queue
+SET status = 'processing', updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- name: MarkNetWorthSyncComplete :exec
+UPDATE nw_sync_queue
+SET status = 'completed',
+    processed_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- name: MarkNetWorthSyncFailed :exec
+UPDATE nw_sync_queue
+SET status = 'failed',
+    last_error = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- name: IncrementNetWorthSyncAttempt :exec
+UPDATE nw_sync_queue
+SET attempts = attempts + 1,
+    last_error = ?,
+    status = 'pending',
+    next_retry_at = datetime(CURRENT_TIMESTAMP, '+' || (1 << attempts) || ' minutes'),
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- name: RetryFailedNetWorthSyncs :exec
+UPDATE nw_sync_queue
+SET status = 'pending',
+    attempts = 0,
+    next_retry_at = NULL,
+    last_error = NULL,
+    updated_at = CURRENT_TIMESTAMP
+WHERE status = 'failed';
+
+-- name: CleanupCompletedNetWorthSyncs :exec
+DELETE FROM nw_sync_queue
+WHERE status = 'completed'
+  AND processed_at < ?;
+
+-- name: ResetStaleNetWorthProcessing :exec
+UPDATE nw_sync_queue
+SET status = 'pending',
+    updated_at = CURRENT_TIMESTAMP
+WHERE status = 'processing'
+  AND updated_at < datetime(CURRENT_TIMESTAMP, '-5 minutes');
+
+-- name: GetNetWorthSyncQueueStats :one
+SELECT
+    CAST(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS INTEGER) as pending_count,
+    CAST(SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS INTEGER) as processing_count,
+    CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_count,
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_count
+FROM nw_sync_queue;

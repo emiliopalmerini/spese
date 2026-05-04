@@ -75,6 +75,22 @@ type IncomeSyncQueue struct {
 	NextRetryAt       interface{} `db:"next_retry_at" json:"next_retry_at"`
 }
 
+type NwSyncQueue struct {
+	ID          int64          `db:"id" json:"id"`
+	AccountID   int64          `db:"account_id" json:"account_id"`
+	Year        int64          `db:"year" json:"year"`
+	Month       int64          `db:"month" json:"month"`
+	AmountCents int64          `db:"amount_cents" json:"amount_cents"`
+	Status      string         `db:"status" json:"status"`
+	Attempts    int64          `db:"attempts" json:"attempts"`
+	MaxAttempts int64          `db:"max_attempts" json:"max_attempts"`
+	LastError   sql.NullString `db:"last_error" json:"last_error"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+	ProcessedAt sql.NullTime   `db:"processed_at" json:"processed_at"`
+	NextRetryAt sql.NullTime   `db:"next_retry_at" json:"next_retry_at"`
+}
+
 type PrimaryCategory struct {
 	ID        int64        `db:"id" json:"id"`
 	Name      string       `db:"name" json:"name"`

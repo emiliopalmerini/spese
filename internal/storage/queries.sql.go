@@ -23,6 +23,17 @@ func (q *Queries) CleanupCompletedIncomeSyncs(ctx context.Context, processedAt i
 	return err
 }
 
+const cleanupCompletedNetWorthSyncs = `-- name: CleanupCompletedNetWorthSyncs :exec
+DELETE FROM nw_sync_queue
+WHERE status = 'completed'
+  AND processed_at < ?
+`
+
+func (q *Queries) CleanupCompletedNetWorthSyncs(ctx context.Context, processedAt sql.NullTime) error {
+	_, err := q.db.ExecContext(ctx, cleanupCompletedNetWorthSyncs, processedAt)
+	return err
+}
+
 const cleanupCompletedSyncs = `-- name: CleanupCompletedSyncs :exec
 DELETE FROM sync_queue
 WHERE status = 'completed'
@@ -309,6 +320,51 @@ func (q *Queries) DequeueIncomeSyncBatch(ctx context.Context, limit int64) ([]In
 	return items, nil
 }
 
+const dequeueNetWorthSyncBatch = `-- name: DequeueNetWorthSyncBatch :many
+SELECT id, account_id, year, month, amount_cents, status, attempts, max_attempts, last_error, created_at, updated_at, processed_at, next_retry_at FROM nw_sync_queue
+WHERE status = 'pending'
+  AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP)
+ORDER BY created_at ASC
+LIMIT ?
+`
+
+func (q *Queries) DequeueNetWorthSyncBatch(ctx context.Context, limit int64) ([]NwSyncQueue, error) {
+	rows, err := q.db.QueryContext(ctx, dequeueNetWorthSyncBatch, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NwSyncQueue
+	for rows.Next() {
+		var i NwSyncQueue
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.Year,
+			&i.Month,
+			&i.AmountCents,
+			&i.Status,
+			&i.Attempts,
+			&i.MaxAttempts,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProcessedAt,
+			&i.NextRetryAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const dequeueSyncBatch = `-- name: DequeueSyncBatch :many
 SELECT id, operation, expense_id, expense_day, expense_month, expense_description, expense_amount_cents, expense_primary, expense_secondary, status, attempts, max_attempts, last_error, created_at, updated_at, processed_at, next_retry_at FROM sync_queue
 WHERE status = 'pending'
@@ -487,6 +543,53 @@ func (q *Queries) EnqueueIncomeSync(ctx context.Context, incomeID int64) (Income
 		&i.IncomeDescription,
 		&i.IncomeAmountCents,
 		&i.IncomeCategory,
+		&i.Status,
+		&i.Attempts,
+		&i.MaxAttempts,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProcessedAt,
+		&i.NextRetryAt,
+	)
+	return i, err
+}
+
+const enqueueNetWorthSync = `-- name: EnqueueNetWorthSync :one
+
+INSERT INTO nw_sync_queue (account_id, year, month, amount_cents, status, attempts, last_error, created_at, updated_at)
+VALUES (?, ?, ?, ?, 'pending', 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT(account_id, year, month, status) DO UPDATE
+SET amount_cents = excluded.amount_cents,
+    attempts = 0,
+    last_error = NULL,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING id, account_id, year, month, amount_cents, status, attempts, max_attempts, last_error, created_at, updated_at, processed_at, next_retry_at
+`
+
+type EnqueueNetWorthSyncParams struct {
+	AccountID   int64 `db:"account_id" json:"account_id"`
+	Year        int64 `db:"year" json:"year"`
+	Month       int64 `db:"month" json:"month"`
+	AmountCents int64 `db:"amount_cents" json:"amount_cents"`
+}
+
+// Net Worth sync queue queries
+// Inserts (or replaces existing pending row) for a balance to be synced.
+func (q *Queries) EnqueueNetWorthSync(ctx context.Context, arg EnqueueNetWorthSyncParams) (NwSyncQueue, error) {
+	row := q.db.QueryRowContext(ctx, enqueueNetWorthSync,
+		arg.AccountID,
+		arg.Year,
+		arg.Month,
+		arg.AmountCents,
+	)
+	var i NwSyncQueue
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Year,
+		&i.Month,
+		&i.AmountCents,
 		&i.Status,
 		&i.Attempts,
 		&i.MaxAttempts,
@@ -1152,6 +1255,34 @@ func (q *Queries) GetMonthlyNetWorthTotal(ctx context.Context, arg GetMonthlyNet
 	return total, err
 }
 
+const getNetWorthSyncQueueStats = `-- name: GetNetWorthSyncQueueStats :one
+SELECT
+    CAST(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS INTEGER) as pending_count,
+    CAST(SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS INTEGER) as processing_count,
+    CAST(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS INTEGER) as completed_count,
+    CAST(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS INTEGER) as failed_count
+FROM nw_sync_queue
+`
+
+type GetNetWorthSyncQueueStatsRow struct {
+	PendingCount    int64 `db:"pending_count" json:"pending_count"`
+	ProcessingCount int64 `db:"processing_count" json:"processing_count"`
+	CompletedCount  int64 `db:"completed_count" json:"completed_count"`
+	FailedCount     int64 `db:"failed_count" json:"failed_count"`
+}
+
+func (q *Queries) GetNetWorthSyncQueueStats(ctx context.Context) (GetNetWorthSyncQueueStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getNetWorthSyncQueueStats)
+	var i GetNetWorthSyncQueueStatsRow
+	err := row.Scan(
+		&i.PendingCount,
+		&i.ProcessingCount,
+		&i.CompletedCount,
+		&i.FailedCount,
+	)
+	return i, err
+}
+
 const getPendingSyncExpenses = `-- name: GetPendingSyncExpenses :many
 SELECT id, version, created_at FROM expenses 
 WHERE sync_status = 'pending'
@@ -1440,6 +1571,26 @@ type IncrementIncomeSyncAttemptParams struct {
 // Increments attempt count and schedules next retry with exponential backoff.
 func (q *Queries) IncrementIncomeSyncAttempt(ctx context.Context, arg IncrementIncomeSyncAttemptParams) error {
 	_, err := q.db.ExecContext(ctx, incrementIncomeSyncAttempt, arg.LastError, arg.ID)
+	return err
+}
+
+const incrementNetWorthSyncAttempt = `-- name: IncrementNetWorthSyncAttempt :exec
+UPDATE nw_sync_queue
+SET attempts = attempts + 1,
+    last_error = ?,
+    status = 'pending',
+    next_retry_at = datetime(CURRENT_TIMESTAMP, '+' || (1 << attempts) || ' minutes'),
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+type IncrementNetWorthSyncAttemptParams struct {
+	LastError sql.NullString `db:"last_error" json:"last_error"`
+	ID        int64          `db:"id" json:"id"`
+}
+
+func (q *Queries) IncrementNetWorthSyncAttempt(ctx context.Context, arg IncrementNetWorthSyncAttemptParams) error {
+	_, err := q.db.ExecContext(ctx, incrementNetWorthSyncAttempt, arg.LastError, arg.ID)
 	return err
 }
 
@@ -1744,6 +1895,48 @@ func (q *Queries) MarkIncomeSynced(ctx context.Context, id int64) error {
 	return err
 }
 
+const markNetWorthSyncComplete = `-- name: MarkNetWorthSyncComplete :exec
+UPDATE nw_sync_queue
+SET status = 'completed',
+    processed_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+func (q *Queries) MarkNetWorthSyncComplete(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, markNetWorthSyncComplete, id)
+	return err
+}
+
+const markNetWorthSyncFailed = `-- name: MarkNetWorthSyncFailed :exec
+UPDATE nw_sync_queue
+SET status = 'failed',
+    last_error = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+type MarkNetWorthSyncFailedParams struct {
+	LastError sql.NullString `db:"last_error" json:"last_error"`
+	ID        int64          `db:"id" json:"id"`
+}
+
+func (q *Queries) MarkNetWorthSyncFailed(ctx context.Context, arg MarkNetWorthSyncFailedParams) error {
+	_, err := q.db.ExecContext(ctx, markNetWorthSyncFailed, arg.LastError, arg.ID)
+	return err
+}
+
+const markNetWorthSyncProcessing = `-- name: MarkNetWorthSyncProcessing :exec
+UPDATE nw_sync_queue
+SET status = 'processing', updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+func (q *Queries) MarkNetWorthSyncProcessing(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, markNetWorthSyncProcessing, id)
+	return err
+}
+
 const markSyncComplete = `-- name: MarkSyncComplete :exec
 UPDATE sync_queue
 SET status = 'completed',
@@ -1821,6 +2014,19 @@ func (q *Queries) ResetStaleIncomeProcessing(ctx context.Context) error {
 	return err
 }
 
+const resetStaleNetWorthProcessing = `-- name: ResetStaleNetWorthProcessing :exec
+UPDATE nw_sync_queue
+SET status = 'pending',
+    updated_at = CURRENT_TIMESTAMP
+WHERE status = 'processing'
+  AND updated_at < datetime(CURRENT_TIMESTAMP, '-5 minutes')
+`
+
+func (q *Queries) ResetStaleNetWorthProcessing(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetStaleNetWorthProcessing)
+	return err
+}
+
 const resetStaleProcessing = `-- name: ResetStaleProcessing :exec
 UPDATE sync_queue
 SET status = 'pending',
@@ -1848,6 +2054,21 @@ WHERE status = 'failed'
 // Resets failed income items back to pending for manual retry.
 func (q *Queries) RetryFailedIncomeSyncs(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, retryFailedIncomeSyncs)
+	return err
+}
+
+const retryFailedNetWorthSyncs = `-- name: RetryFailedNetWorthSyncs :exec
+UPDATE nw_sync_queue
+SET status = 'pending',
+    attempts = 0,
+    next_retry_at = NULL,
+    last_error = NULL,
+    updated_at = CURRENT_TIMESTAMP
+WHERE status = 'failed'
+`
+
+func (q *Queries) RetryFailedNetWorthSyncs(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, retryFailedNetWorthSyncs)
 	return err
 }
 
