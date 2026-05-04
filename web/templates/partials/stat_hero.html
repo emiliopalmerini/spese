@@ -1,17 +1,35 @@
 {{ define "stat_hero" }}
-{{if .HasData}}
-<div class="stat-hero__value {{.BalanceClass}}">{{.Total}}</div>
-<div class="stat-hero__label">Bilancio questo mese</div>
-{{if .TrendValue}}
-<div class="stat-hero__trend {{.TrendClass}}">
-  {{if eq .TrendClass "stat-hero__trend--down"}}↓{{else if eq .TrendClass "stat-hero__trend--up"}}↑{{else}}→{{end}}
-  {{.TrendValue}}
+<div class="masthead">
+  <div class="masthead__meta">
+    <span>Anno · {{.Year}}</span>
+    <span>Edizione №{{.EditionRoman}}</span>
+  </div>
+  <h1 class="masthead__month">{{.MonthLong}}</h1>
+  <div class="label-mono masthead__sub">Diario delle spese</div>
 </div>
-{{end}}
-{{else}}
-<div class="stat-hero stat-hero--empty">
-  <div class="stat-hero__value">€0,00</div>
-  <div class="stat-hero__label">Bilancio questo mese</div>
+<div class="hero-number">
+  <div class="label-mono">Speso questo mese</div>
+  {{if .HasData}}
+  <div class="hero-number__row">
+    <span class="hero-number__int">{{.SpentInt}}</span>
+    <span class="hero-number__dec">,{{.SpentDec}}</span>
+    <span class="hero-number__cur">€</span>
+  </div>
+  <div class="hero-number__delta label-mono">
+    {{if ne .DeltaPct 0}}
+      <span class="{{if .DeltaIsPositive}}is-negative{{else}}is-positive{{end}}">
+        {{if .DeltaIsPositive}}↑{{else}}↓{{end}} {{.DeltaPctAbs}}% vs. {{.PrevMonthShort}}
+      </span>
+      <span>·</span>
+    {{end}}
+    <span>{{.RunRateFmt}} € / giorno</span>
+  </div>
+  {{else}}
+  <div class="hero-number__row hero-number__row--empty">
+    <span class="hero-number__int">0</span>
+    <span class="hero-number__dec">,00</span>
+    <span class="hero-number__cur">€</span>
+  </div>
+  {{end}}
 </div>
-{{end}}
 {{ end }}

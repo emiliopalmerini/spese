@@ -129,7 +129,7 @@
   <section class="page__section" x-data="{ period: 'month' }">
     <div class="categories-section">
       <div class="section-header">
-        <h3 class="section-title">Categorie</h3>
+        {{template "section_label" (dict "Num" "II" "Title" "Per categoria" "Sub" "Mese in corso")}}
         <div class="period-chips">
           <button class="period-chip" :class="{ 'period-chip--active': period === 'week' }"
                   @click="period = 'week'; htmx.ajax('GET', '/ui/dashboard/categories?period=week', '#categories-list')">Sett</button>
@@ -155,7 +155,7 @@
   <!-- Recurrent Expenses Section -->
   <section class="page__section">
     <div class="categories-section">
-      <h3 class="section-title">Spese Ricorrenti</h3>
+      {{template "section_label" (dict "Num" "IV" "Title" "Spese ricorrenti" "Sub" "Abbonamenti attivi")}}
       <div class="recurrents-list" id="recurrents-list"
            hx-get="/ui/dashboard/recurrents"
            hx-trigger="load, dashboard:refresh from:body, recurrent:deleted from:body, recurrent:updated from:body"

@@ -55,55 +55,41 @@ func (s *Server) handleDashboardStatHero(w http.ResponseWriter, r *http.Request)
 	income, _ := adapter.GetMonthlyIncomeTotal(ctx, year, month)
 	balance := income - expenses
 
-	// Get previous month balance for trend
-	prevMonth := month - 1
-	prevYear := year
-	if prevMonth < 1 {
-		prevMonth = 12
-		prevYear--
-	}
+	// Get previous month spend for delta
+	prevYear, prevMonth := prevYearMonth(year, month)
 	prevExpenses, _ := adapter.GetMonthlyExpenseTotal(ctx, prevYear, prevMonth)
-	prevIncome, _ := adapter.GetMonthlyIncomeTotal(ctx, prevYear, prevMonth)
-	prevBalance := prevIncome - prevExpenses
 
-	// Calculate trend (positive diff = better balance this month)
-	var trendValue string
-	var trendClass string
-	if prevIncome > 0 || prevExpenses > 0 {
-		diff := balance - prevBalance
-		if diff > 0 {
-			trendValue = formatEuros(diff) + " in più"
-			trendClass = "stat-hero__trend--down" // down arrow = positive (spending less/earning more)
-		} else if diff < 0 {
-			trendValue = formatEuros(-diff) + " in meno"
-			trendClass = "stat-hero__trend--up" // up arrow = negative (spending more/earning less)
-		} else {
-			trendValue = "invariato"
-			trendClass = "stat-hero__trend--neutral"
-		}
-	}
-
-	// Balance class for positive/negative styling
-	balanceClass := ""
-	if balance > 0 {
-		balanceClass = "stat-hero__value--positive"
-	} else if balance < 0 {
-		balanceClass = "stat-hero__value--negative"
-	}
+	deltaPct := signedDeltaPct(expenses, prevExpenses)
+	runRateCents := dailyRunRate(expenses, asOfDay(now))
 
 	data := struct {
-		HasData      bool
-		Total        string
-		BalanceClass string
-		TrendValue   string
-		TrendClass   string
+		HasData         bool
+		Year            int
+		EditionRoman    string
+		MonthLong       string
+		PrevMonthShort  string
+		SpentInt        string
+		SpentDec        string
+		BalanceClass    string
+		DeltaPct        int
+		DeltaPctAbs     int
+		DeltaIsPositive bool // true = spent more (negative semantically)
+		RunRateFmt      string
 	}{
-		HasData:      income > 0 || expenses > 0,
-		Total:        formatEuros(balance),
-		BalanceClass: balanceClass,
-		TrendValue:   trendValue,
-		TrendClass:   trendClass,
+		HasData:         income > 0 || expenses > 0,
+		Year:            year,
+		EditionRoman:    romanNumeral(month),
+		MonthLong:       italianMonthLong(month),
+		PrevMonthShort:  italianMonthShort(prevMonth),
+		SpentInt:        formatEurosInt(expenses),
+		SpentDec:        formatEurosDec(expenses),
+		BalanceClass:    "",
+		DeltaPct:        deltaPct,
+		DeltaPctAbs:     intAbs(deltaPct),
+		DeltaIsPositive: deltaPct > 0,
+		RunRateFmt:      formatEurosInt(runRateCents),
 	}
+	_ = balance
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.templates.ExecuteTemplate(w, "stat_hero", data); err != nil {

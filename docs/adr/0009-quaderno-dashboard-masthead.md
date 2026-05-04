@@ -1,7 +1,7 @@
 # ADR-0009: Quaderno dashboard masthead, hero number, KPI strip
 
 ## Status
-Proposed
+Accepted (partial — KPI strip endpoint deferred; existing stat_pills + stat_grid kept and restyled by ADR-0008 tokens. Bar chart in ADR-0011.)
 
 ## Context
 ADR-0008 ports tokens + chrome. The dashboard (`pages/dashboard.html` +

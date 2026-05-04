@@ -1,24 +1,76 @@
 /* ==============================================================
-   Dashboard - Typography-first Layout
+   Dashboard - Quaderno editorial layout (ADR-0009)
 ============================================================== */
 .dashboard{
   display:flex;
   flex-direction:column;
-  gap:var(--space-4);
+  gap:0;
 }
 .dashboard .page__section{
   margin-top:0;
 }
 
-/* Stat Hero - Dramatic hero number */
-.stat-hero{
-  padding:var(--space-6) 0;
-  text-align:center;
+/* Masthead */
+.masthead{
+  padding:var(--space-6) 0 var(--space-4);
 }
+.masthead__meta{
+  display:flex;justify-content:space-between;align-items:baseline;
+  font-family:var(--font-mono);font-size:var(--text-xs);
+  letter-spacing:0.16em;color:var(--muted);text-transform:uppercase;
+}
+.masthead__month{
+  font-family:var(--font-display);font-weight:400;
+  font-size:clamp(2.5rem, 1.5rem + 4vw, 3.5rem);
+  line-height:1;margin:14px 0 4px;letter-spacing:-0.01em;
+}
+.masthead__sub{margin-top:2px;}
+
+/* Hero number */
+.hero-number{
+  padding:var(--space-5) 0 var(--space-5);
+  border-top:1px dotted var(--line);
+  border-bottom:1px dotted var(--line);
+}
+.hero-number__row{
+  display:flex;align-items:baseline;gap:8px;margin-top:8px;
+  animation:count-up var(--duration-slow) var(--ease-out-expo) both;
+}
+.hero-number__int{
+  font-family:var(--font-display);font-size:72px;font-weight:400;
+  line-height:0.95;letter-spacing:-0.03em;color:var(--ink);
+}
+.hero-number__dec,
+.hero-number__cur{
+  font-family:var(--font-display);font-size:28px;color:var(--ink-2);
+}
+.hero-number__cur{margin-left:4px;}
+.hero-number__row--empty .hero-number__int{color:var(--muted);}
+.hero-number__delta{
+  margin-top:10px;display:flex;gap:14px;align-items:center;
+  font-size:var(--text-xs);
+}
+.hero-number__delta .is-negative{color:var(--negative);}
+.hero-number__delta .is-positive{color:var(--positive);}
+
+/* Section label (Roman numeral + serif title + mono sub) */
+.section-label{display:flex;align-items:baseline;gap:12px;margin-bottom:var(--space-3);}
+.section-label__num{
+  font-family:var(--font-display);font-style:italic;
+  color:var(--accent);font-size:14px;
+}
+.section-label__title{
+  font-family:var(--font-display);font-size:22px;line-height:1.1;
+  letter-spacing:-0.01em;font-weight:400;color:var(--ink);
+}
+.section-label__sub{margin-top:2px;}
+
+/* Stat Hero (legacy class kept for compat; rules retired) */
+.stat-hero{padding:0;text-align:left;}
 .stat-hero__value{
   font-family:var(--font-display);
   font-size:var(--text-hero);
-  font-weight:700;
+  font-weight:400;
   color:var(--text);
   font-variant-numeric:tabular-nums;
   letter-spacing:-0.04em;
