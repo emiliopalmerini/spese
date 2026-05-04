@@ -22,12 +22,12 @@
 .field:last-child{border-bottom:0;}
 .field label{
   display:block;
-  font-family:var(--font-body);
+  font-family:var(--font-mono);
   font-size:var(--text-xs);
-  font-weight:600;
+  font-weight:500;
   text-transform:uppercase;
-  letter-spacing:0.05em;
-  color:var(--text-secondary);
+  letter-spacing:0.16em;
+  color:var(--muted);
   margin-bottom:var(--space-2);
 }
 @media (min-width:560px){
@@ -39,8 +39,8 @@ input,select{
   width:100%;
   padding:var(--space-3);
   min-height:48px;
-  background:var(--white);
-  border:2px solid var(--border);
+  background:var(--paper-raised);
+  border:1px solid var(--line);
   border-radius:0;
   color:var(--text);
   font-family:var(--font-body);
@@ -48,10 +48,10 @@ input,select{
   transition:border-color var(--duration-fast) var(--ease-out-quart);
 }
 input:focus,select:focus{
-  border-color:var(--black);
+  border-color:var(--ink);
   box-shadow:none;
 }
-input::placeholder{color:var(--text-secondary);}
+input::placeholder{color:var(--muted);}
 
 /* Numerici: togli spinner */
 input[type="number"]{-moz-appearance:textfield;}
@@ -81,48 +81,55 @@ input[type="date"]{
   font-size:0.875rem;
 }
 
-/* Amount input - dramatic sizing */
+/* Amount input - Quaderno serif hero (ADR-0010) */
 .field--amount{
   background:transparent;
-  padding:var(--space-4) 0;
-  border-bottom:none;
+  padding:var(--space-5) 0;
+  border-bottom:1px dotted var(--line);
+  text-align:center;
+}
+.field--amount > label{
+  text-align:center;
 }
 .amount-input-wrapper{
   display:flex;
   align-items:baseline;
-  gap:var(--space-2);
+  justify-content:center;
+  gap:6px;
+  margin-top:8px;
 }
 .amount-currency{
   font-family:var(--font-display);
-  font-size:var(--text-3xl);
-  font-weight:700;
-  color:var(--text);
-  letter-spacing:-0.02em;
+  font-size:30px;
+  font-weight:400;
+  color:var(--ink-2);
+  letter-spacing:-0.01em;
 }
 .amount-input-wrapper input{
   font-family:var(--font-display);
-  font-size:var(--text-3xl);
-  font-weight:700;
-  letter-spacing:-0.02em;
+  font-size:64px;
+  font-weight:400;
+  letter-spacing:-0.03em;
+  color:var(--ink);
   border:none;
-  border-bottom:2px solid var(--border);
   background:transparent;
-  padding:var(--space-2) 0;
+  padding:0;
   min-height:auto;
-  transition:border-color var(--duration-fast) var(--ease-out-quart);
+  width:240px;
+  text-align:center;
+  transition:none;
 }
 .amount-input-wrapper input:focus{
   box-shadow:none;
   border:none;
-  border-bottom:2px solid var(--black);
   outline:none;
 }
 .amount-input-wrapper input::placeholder{
-  color:var(--gray-300);
+  color:var(--muted);
 }
 @media (min-width:560px){
-  .field--amount{padding:var(--space-5) 0;}
-  .amount-currency,.amount-input-wrapper input{font-size:var(--text-4xl);}
+  .amount-input-wrapper input{font-size:80px;}
+  .amount-currency{font-size:36px;}
 }
 
 /* Category chips */
@@ -138,20 +145,21 @@ input[type="date"]{
   gap:var(--space-2);
 }
 .category-chip{
-  padding:var(--space-2) var(--space-4);
-  border:2px solid var(--border);
+  padding:8px 14px;
+  border:1px solid var(--line);
   border-radius:var(--radius-pill);
-  background:transparent;
-  color:var(--text);
-  font-family:var(--font-body);
-  font-size:var(--text-sm);
+  background:var(--paper-raised);
+  color:var(--ink);
+  font-family:var(--font-mono);
+  font-size:var(--text-xs);
   font-weight:500;
+  letter-spacing:0.04em;
   cursor:pointer;
   transition:
     border-color var(--duration-fast) var(--ease-out-quart),
     background var(--duration-fast) var(--ease-out-quart),
-    transform var(--duration-fast) var(--ease-spring);
-  min-height:40px;
+    color var(--duration-fast) var(--ease-out-quart);
+  min-height:36px;
   display:flex;
   align-items:center;
 }
@@ -163,14 +171,13 @@ input[type="date"]{
   }
 }
 .category-chip:hover{
-  border-color:var(--black);
-  background:transparent;
-  transform:translateY(-1px);
+  border-color:var(--ink);
+  background:var(--paper-raised);
 }
 .category-chip.active{
-  background:var(--black);
-  border-color:var(--black);
-  color:var(--white);
+  background:var(--ink);
+  border-color:var(--ink);
+  color:var(--paper-raised);
 }
 .category-chip--secondary{
   font-size:var(--text-sm);
@@ -199,8 +206,9 @@ input[type="date"]{
   }
 }
 .category-chip--secondary.active{
-  background:var(--black);
-  border-color:var(--black);
+  background:var(--ink);
+  border-color:var(--ink);
+  color:var(--paper-raised);
 }
 
 /* Subcategory section */

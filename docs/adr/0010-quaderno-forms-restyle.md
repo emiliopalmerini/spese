@@ -1,7 +1,7 @@
 # ADR-0010: Quaderno restyle of expense, income, recurrent forms
 
 ## Status
-Proposed
+Accepted (CSS-only restyle of existing markup; new partials form_amount/form_chips/form_field-inline + dynamic chip data deferred — current Alpine.js category-picker chips already provide the chip pattern.)
 
 ## Context
 ADR-0008 (tokens) + ADR-0009 (dashboard chrome) leave the Add/Edit forms
