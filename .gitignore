@@ -16,9 +16,9 @@ coverage/
 tmp/
 
 # Compiled binaries (root level)
-spese
-spese-worker
-oauth-init
+/spese
+/spese-worker
+/oauth-init
 
 # Go
 *.test

@@ -31,6 +31,14 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
+	// Subcommand dispatch. Without a subcommand, run the HTTP server.
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "export-sheet":
+			os.Exit(runExportSheet(os.Args[2:]))
+		}
+	}
+
 	// Load configuration
 	cfg := config.Load()
 
