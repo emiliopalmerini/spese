@@ -66,7 +66,16 @@ type Querier interface {
 	GetIncomesByMonth(ctx context.Context, arg GetIncomesByMonthParams) ([]Income, error)
 	GetLatestBalancePerAccount(ctx context.Context) ([]AccountBalance, error)
 	GetMonthTotal(ctx context.Context, arg GetMonthTotalParams) (int64, error)
+	// Pick Months pivot
+	// Returns one row per (month, primary_category) for a given year, with totals.
+	// Excludes the "Lavoro" primary category (work expenses live separately).
+	GetMonthlyExpensesByPrimary(ctx context.Context, printf interface{}) ([]GetMonthlyExpensesByPrimaryRow, error)
+	// Cash Flow
+	// Returns one row per (month, category) for a given year, with totals.
+	GetMonthlyIncomeByCategory(ctx context.Context, printf interface{}) ([]GetMonthlyIncomeByCategoryRow, error)
 	GetMonthlyNetWorthTotal(ctx context.Context, arg GetMonthlyNetWorthTotalParams) (int64, error)
+	// Returns one row per (month, tax_code) for a given year, with totals.
+	GetMonthlyTaxAccrualsByCode(ctx context.Context, printf interface{}) ([]GetMonthlyTaxAccrualsByCodeRow, error)
 	GetNetWorthSyncQueueStats(ctx context.Context) (GetNetWorthSyncQueueStatsRow, error)
 	GetPendingSyncExpenses(ctx context.Context, limit int64) ([]GetPendingSyncExpensesRow, error)
 	// Primary Categories queries

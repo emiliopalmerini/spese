@@ -1,0 +1,39 @@
+{{ define "pick_months" }}
+{{ if not .HasData }}
+<div class="placeholder">Nessun dato per {{ .Year }}</div>
+{{ else }}
+<div class="pick-months">
+  <table class="pick-months__table">
+    <thead>
+      <tr>
+        <th class="pick-months__head pick-months__head--month">Mese</th>
+        {{ range .Primaries }}
+        <th class="pick-months__head">{{ . }}</th>
+        {{ end }}
+        <th class="pick-months__head pick-months__head--total">Totale</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .Rows }}
+      <tr class="pick-months__row{{ if .IsZero }} pick-months__row--empty{{ end }}">
+        <td class="pick-months__cell pick-months__cell--month">{{ .Label }}</td>
+        {{ range .Cells }}
+        <td class="pick-months__cell{{ if .IsZero }} pick-months__cell--zero{{ end }}">{{ .Amount }}</td>
+        {{ end }}
+        <td class="pick-months__cell pick-months__cell--total">{{ .Total }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+    <tfoot>
+      <tr class="pick-months__row pick-months__row--total">
+        <td class="pick-months__cell pick-months__cell--month">Totale</td>
+        {{ range .ColTotals }}
+        <td class="pick-months__cell pick-months__cell--total">{{ . }}</td>
+        {{ end }}
+        <td class="pick-months__cell pick-months__cell--total">{{ .GrandTotal }}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{{ end }}
+{{ end }}

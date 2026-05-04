@@ -166,6 +166,24 @@
     </div>
   </section>
 
+  <!-- Pick Months Accordion -->
+  <section class="page__section">
+    <div class="accordion" id="pickMonthsAccordion">
+      <button class="accordion__trigger" type="button">
+        <h3 class="accordion__title">Pick Months</h3>
+        <svg class="accordion__icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="accordion__content">
+        <div class="accordion__body" id="pick-months-content"
+             hx-get="/ui/dashboard/pick-months"
+             hx-trigger="load, dashboard:refresh from:body"
+             hx-swap="innerHTML">
+          <div class="skeleton" style="height: 200px;"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Projections Accordion (YTD + Forecast) -->
   <section class="page__section">
     <div class="accordion" id="projectionsAccordion">

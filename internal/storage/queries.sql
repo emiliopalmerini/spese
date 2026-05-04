@@ -546,6 +546,45 @@ SET status = 'pending',
 WHERE status = 'processing'
   AND updated_at < datetime(CURRENT_TIMESTAMP, '-5 minutes');
 
+-- Pick Months pivot
+
+-- name: GetMonthlyExpensesByPrimary :many
+-- Returns one row per (month, primary_category) for a given year, with totals.
+-- Excludes the "Lavoro" primary category (work expenses live separately).
+SELECT
+    CAST(strftime('%m', date) AS INTEGER) AS month,
+    primary_category,
+    CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) AS total_cents
+FROM expenses
+WHERE strftime('%Y', date) = printf('%04d', ?)
+  AND primary_category != 'Lavoro'
+GROUP BY month, primary_category
+ORDER BY month ASC, primary_category ASC;
+
+-- Cash Flow
+
+-- name: GetMonthlyIncomeByCategory :many
+-- Returns one row per (month, category) for a given year, with totals.
+SELECT
+    CAST(strftime('%m', date) AS INTEGER) AS month,
+    category,
+    CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) AS total_cents
+FROM incomes
+WHERE strftime('%Y', date) = printf('%04d', ?)
+GROUP BY month, category
+ORDER BY month ASC, category ASC;
+
+-- name: GetMonthlyTaxAccrualsByCode :many
+-- Returns one row per (month, tax_code) for a given year, with totals.
+SELECT
+    CAST(strftime('%m', date) AS INTEGER) AS month,
+    tax_code,
+    CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) AS total_cents
+FROM tax_accruals
+WHERE strftime('%Y', date) = printf('%04d', ?)
+GROUP BY month, tax_code
+ORDER BY month ASC, tax_code ASC;
+
 -- Tax rate queries
 
 -- name: ResolveTaxRate :one

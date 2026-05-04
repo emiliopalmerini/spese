@@ -1237,6 +1237,94 @@ func (q *Queries) GetMonthTotal(ctx context.Context, arg GetMonthTotalParams) (i
 	return total, err
 }
 
+const getMonthlyExpensesByPrimary = `-- name: GetMonthlyExpensesByPrimary :many
+
+SELECT
+    CAST(strftime('%m', date) AS INTEGER) AS month,
+    primary_category,
+    CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) AS total_cents
+FROM expenses
+WHERE strftime('%Y', date) = printf('%04d', ?)
+  AND primary_category != 'Lavoro'
+GROUP BY month, primary_category
+ORDER BY month ASC, primary_category ASC
+`
+
+type GetMonthlyExpensesByPrimaryRow struct {
+	Month           int64  `db:"month" json:"month"`
+	PrimaryCategory string `db:"primary_category" json:"primary_category"`
+	TotalCents      int64  `db:"total_cents" json:"total_cents"`
+}
+
+// Pick Months pivot
+// Returns one row per (month, primary_category) for a given year, with totals.
+// Excludes the "Lavoro" primary category (work expenses live separately).
+func (q *Queries) GetMonthlyExpensesByPrimary(ctx context.Context, printf interface{}) ([]GetMonthlyExpensesByPrimaryRow, error) {
+	rows, err := q.db.QueryContext(ctx, getMonthlyExpensesByPrimary, printf)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetMonthlyExpensesByPrimaryRow
+	for rows.Next() {
+		var i GetMonthlyExpensesByPrimaryRow
+		if err := rows.Scan(&i.Month, &i.PrimaryCategory, &i.TotalCents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMonthlyIncomeByCategory = `-- name: GetMonthlyIncomeByCategory :many
+
+SELECT
+    CAST(strftime('%m', date) AS INTEGER) AS month,
+    category,
+    CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) AS total_cents
+FROM incomes
+WHERE strftime('%Y', date) = printf('%04d', ?)
+GROUP BY month, category
+ORDER BY month ASC, category ASC
+`
+
+type GetMonthlyIncomeByCategoryRow struct {
+	Month      int64  `db:"month" json:"month"`
+	Category   string `db:"category" json:"category"`
+	TotalCents int64  `db:"total_cents" json:"total_cents"`
+}
+
+// Cash Flow
+// Returns one row per (month, category) for a given year, with totals.
+func (q *Queries) GetMonthlyIncomeByCategory(ctx context.Context, printf interface{}) ([]GetMonthlyIncomeByCategoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, getMonthlyIncomeByCategory, printf)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetMonthlyIncomeByCategoryRow
+	for rows.Next() {
+		var i GetMonthlyIncomeByCategoryRow
+		if err := rows.Scan(&i.Month, &i.Category, &i.TotalCents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getMonthlyNetWorthTotal = `-- name: GetMonthlyNetWorthTotal :one
 SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) AS total
 FROM account_balances
@@ -1253,6 +1341,47 @@ func (q *Queries) GetMonthlyNetWorthTotal(ctx context.Context, arg GetMonthlyNet
 	var total int64
 	err := row.Scan(&total)
 	return total, err
+}
+
+const getMonthlyTaxAccrualsByCode = `-- name: GetMonthlyTaxAccrualsByCode :many
+SELECT
+    CAST(strftime('%m', date) AS INTEGER) AS month,
+    tax_code,
+    CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) AS total_cents
+FROM tax_accruals
+WHERE strftime('%Y', date) = printf('%04d', ?)
+GROUP BY month, tax_code
+ORDER BY month ASC, tax_code ASC
+`
+
+type GetMonthlyTaxAccrualsByCodeRow struct {
+	Month      int64  `db:"month" json:"month"`
+	TaxCode    string `db:"tax_code" json:"tax_code"`
+	TotalCents int64  `db:"total_cents" json:"total_cents"`
+}
+
+// Returns one row per (month, tax_code) for a given year, with totals.
+func (q *Queries) GetMonthlyTaxAccrualsByCode(ctx context.Context, printf interface{}) ([]GetMonthlyTaxAccrualsByCodeRow, error) {
+	rows, err := q.db.QueryContext(ctx, getMonthlyTaxAccrualsByCode, printf)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetMonthlyTaxAccrualsByCodeRow
+	for rows.Next() {
+		var i GetMonthlyTaxAccrualsByCodeRow
+		if err := rows.Scan(&i.Month, &i.TaxCode, &i.TotalCents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getNetWorthSyncQueueStats = `-- name: GetNetWorthSyncQueueStats :one

@@ -1,7 +1,7 @@
 # ADR-0005: Pick Months pivot view
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 The sheet has a `Pick Months` table that pivots primary expense categories

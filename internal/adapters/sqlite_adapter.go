@@ -722,6 +722,23 @@ func (a *SQLiteAdapter) GetMonthEndForecast(ctx context.Context) (*ForecastStats
 	}, nil
 }
 
+// Pick Months / Cash Flow aggregations
+
+// MonthlyExpensesByPrimary delegates to storage.
+func (a *SQLiteAdapter) MonthlyExpensesByPrimary(ctx context.Context, year int) ([]storage.MonthlyPrimaryRow, []string, error) {
+	return a.storage.MonthlyExpensesByPrimary(ctx, year)
+}
+
+// MonthlyIncomeByCategory delegates to storage.
+func (a *SQLiteAdapter) MonthlyIncomeByCategory(ctx context.Context, year int) (map[string][12]int64, error) {
+	return a.storage.MonthlyIncomeByCategory(ctx, year)
+}
+
+// MonthlyTaxAccrualsByCode delegates to storage.
+func (a *SQLiteAdapter) MonthlyTaxAccrualsByCode(ctx context.Context, year int) (map[string][12]int64, error) {
+	return a.storage.MonthlyTaxAccrualsByCode(ctx, year)
+}
+
 // Net Worth methods
 
 // CreateAccount creates a new account.
