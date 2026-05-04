@@ -405,6 +405,10 @@
   transform:scale(1.05);
   box-shadow:0 8px 22px rgba(184,69,28,0.36);
 }
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .fab{box-shadow:0 6px 16px rgba(215,122,79,0.35);}
+}
+html[data-theme="night"] .fab{box-shadow:0 6px 16px rgba(215,122,79,0.35);}
 .fab:active{
   transform:scale(0.95);
 }

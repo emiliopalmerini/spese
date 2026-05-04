@@ -1,7 +1,7 @@
 # ADR-0013: Quaderno-night (dark) theme tweak
 
 ## Status
-Proposed
+Accepted (Settings UI for theme picker deferred to ADR-0014; toggle is currently exposed only via window.SpeseTheme.set('light'|'night'|'auto').)
 
 ## Context
 ADR-0008 dropped the previous `prefers-color-scheme: dark` mapping because
