@@ -1,7 +1,7 @@
 # ADR-0007: Sheet-as-backup model
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 The Google Sheet (`GE Net Worth`, ID `1CJf-cbHqTKOJRUi0unnwycLvnh4Smo13tzXzNUdimgc`)
@@ -83,19 +83,17 @@ Pick Months / Pick Expenses pivots reference the `YYYY Dashboard` totals.
 The exact formula set lives in `docs/sheet-template.md` (new), not in code, so
 a fresh sheet can be reproduced by hand or by the rollover CLI.
 
-### Year rollover CLI
-- New subcommand `spese roll-year YYYY+1`.
-- Steps:
-  1. Duplicate `YYYY` → `YYYY+1` (sheet API `duplicateSheet`).
-  2. Duplicate `YYYY Dashboard` → `YYYY+1 Dashboard`.
-  3. Create empty `YYYY+1 Expenses` and `YYYY+1 Incomes` from a header-only
-     template stored in `docs/sheet-template.md`.
-  4. Rewrite formulas in the duplicated tabs to reference `YYYY+1 *` ranges
-     (string replace `'YYYY Expenses'` → `'YYYY+1 Expenses'`, same for
-     Incomes).
-  5. Extend the NW header on `YYYY+1`: shift columns so the new year column
-     appears after `Dec`.
-- Idempotent: refuses if `YYYY+1` tabs already exist (override with `--force`).
+### Year rollover (manual, documented)
+- A `spese roll-year YYYY+1` CLI was considered and deferred. Year rollover
+  is a once-per-year, ~5-minute task in the Sheets UI; codifying it adds
+  meaningful sheet-API surface area (duplicateSheet, rename, formula
+  rewrite, NW header extension) for limited recurring value.
+- The procedure lives in `docs/sheet-template.md`: duplicate the previous
+  year's tabs, rename them, retarget formulas. The same document defines the
+  expected raw-tab headers and the dashboard SUMIFS template, so a fresh
+  sheet can be reproduced by hand without grepping the codebase.
+- Reopen this section if the manual step turns out to be a recurring source
+  of mistakes.
 
 ### Layout pinning
 - New file `internal/sheets/google/layout.go` exposing constants for:
@@ -121,7 +119,6 @@ These are tracked as follow-up ADRs.
 | Upsert expense row | `core.Expense` (with id) | sheet row at id, created or updated |
 | Upsert income row | `core.Income` (with id) | sheet row at id, created or updated |
 | `export-sheet --year Y` | year | counts (added/updated/unchanged) per tab |
-| `roll-year Y+1` | next year | new tabs with formulas pointing at Y+1 |
 | Layout check | — | nil or `ErrSheetLayoutMismatch` |
 
 ## Edge cases
@@ -134,8 +131,6 @@ These are tracked as follow-up ADRs.
 - SQLite row exists, id missing in sheet → appended.
 - Concurrent edits during `export-sheet` → last-write-wins from app side; user
   warned in CLI banner.
-- `roll-year` run before any data exists for `YYYY+1` → succeeds, leaves raw
-  tabs empty.
 - Layout mismatch (renamed section, removed account row) → adapter returns
   `ErrSheetLayoutMismatch`, processor stops syncing for that account; no
   partial writes.
@@ -144,8 +139,9 @@ These are tracked as follow-up ADRs.
 
 ## Error conditions
 - Upsert by id finds duplicate ids → return `ErrDuplicateRowID`; no write.
-- `export-sheet` on a year with no `YYYY Expenses` tab → suggest `roll-year`.
-- `roll-year` when target tabs exist and `--force` not set → exit 2.
+- `export-sheet` on a year with no `YYYY Expenses` tab → caller-visible
+  Sheets API error; user must roll the year manually first
+  (see `docs/sheet-template.md`).
 - Sheets auth error → propagated, no retry, exit non-zero.
 
 ## Test plan
@@ -158,10 +154,6 @@ These are tracked as follow-up ADRs.
    - `internal/services/export_sheet_test.go`:
      - SQLite seeded with N expenses + M incomes + K NW balances → CLI produces
        a sheet with N+M+K rows; second run reports 0 added, 0 updated.
-   - `internal/services/roll_year_test.go`:
-     - Run against fixture sheet → new tabs exist, formulas point at new year,
-       NW header extended.
-
 2. **Unit**
    - `internal/sheets/google/layout_test.go`: header validation + missing
      headers produce `ErrSheetLayoutMismatch`.
@@ -181,5 +173,4 @@ These are tracked as follow-up ADRs.
 2. Ship `export-sheet --dry-run`; verify diff against current sheet by hand.
 3. Run `export-sheet` for `2024`, `2025`, `2026` to backfill ids.
 4. Replace dashboard cells with formulas (manual, per `docs/sheet-template.md`).
-5. Ship `roll-year`; use it for `2027` in Jan 2027.
-6. Remove `DATA_BACKEND=sheets` code path.
+5. Remove `DATA_BACKEND=sheets` code path.
