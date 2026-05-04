@@ -1,7 +1,7 @@
 # ADR-0006: Cash flow detail panel
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 The sheet's Cash Flow section breaks income down by source (`EFreelance`,

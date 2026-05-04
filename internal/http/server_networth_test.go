@@ -47,6 +47,7 @@ func newNetWorthServer(t *testing.T) (*Server, *adapters.SQLiteAdapter) {
 
 	svc := services.NewExpenseService(repo)
 	adapter := adapters.NewSQLiteAdapter(repo, svc)
+	adapter.SetTaxAccrualService(services.NewTaxAccrualService(repo))
 
 	var ew ports.ExpenseWriter = adapter
 	var tr ports.TaxonomyReader = adapter

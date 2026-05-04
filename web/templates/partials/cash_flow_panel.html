@@ -1,0 +1,44 @@
+{{ define "cash_flow_panel" }}
+{{ if not .HasData }}
+<div class="placeholder">Nessun dato per {{ .Year }}</div>
+{{ else }}
+<div class="cash-flow">
+  <table class="cash-flow__table">
+    <thead>
+      <tr>
+        <th class="cash-flow__head cash-flow__head--label">Voce</th>
+        {{ range .Months }}
+        <th class="cash-flow__head">{{ . }}</th>
+        {{ end }}
+        <th class="cash-flow__head cash-flow__head--total">Totale</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .Sections }}
+      <tr class="cash-flow__section">
+        <th class="cash-flow__section-label" colspan="14">{{ .Name }}</th>
+      </tr>
+      {{ range .Rows }}
+      <tr class="cash-flow__row cash-flow__row--{{ .Group }}{{ if .IsNeg }} cash-flow__row--negative{{ end }}">
+        <td class="cash-flow__cell cash-flow__cell--label">{{ .Label }}</td>
+        {{ range .Cells }}
+        <td class="cash-flow__cell{{ if .IsNegative }} cash-flow__cell--negative{{ end }}{{ if .IsZero }} cash-flow__cell--zero{{ end }}">{{ .Amount }}</td>
+        {{ end }}
+        <td class="cash-flow__cell cash-flow__cell--total{{ if .IsNeg }} cash-flow__cell--negative{{ end }}">{{ .Total }}</td>
+      </tr>
+      {{ end }}
+      {{ end }}
+    </tbody>
+    <tfoot>
+      <tr class="cash-flow__row cash-flow__row--grand">
+        <td class="cash-flow__cell cash-flow__cell--label">Totale</td>
+        {{ range .ColTotals }}
+        <td class="cash-flow__cell cash-flow__cell--total">{{ . }}</td>
+        {{ end }}
+        <td class="cash-flow__cell cash-flow__cell--total">{{ .GrandTotal }}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{{ end }}
+{{ end }}
