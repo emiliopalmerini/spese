@@ -1,0 +1,21 @@
+{{ define "dashboard_net_worth" }}
+<div class="net-worth-tile">
+  <div class="net-worth-tile__head">
+    <span class="net-worth-tile__label">Net Worth · {{ printf "%04d-%02d" .Year .Month }}</span>
+    <a class="net-worth-tile__link" href="/networth">Gestisci</a>
+  </div>
+  {{ if .HasData }}
+  <div class="net-worth-tile__value">{{ .Total }}</div>
+  {{ if .ShowDelta }}
+  <div class="net-worth-tile__delta net-worth-tile__delta--{{ .DeltaDirection }}">
+    <span class="net-worth-tile__delta-amount">{{ .DeltaAmount }}</span>
+    <span class="net-worth-tile__delta-percent">({{ .DeltaPercent }})</span>
+    <span class="net-worth-tile__delta-period">vs mese prec.</span>
+  </div>
+  {{ end }}
+  {{ else }}
+  <div class="net-worth-tile__value net-worth-tile__value--empty">—</div>
+  <div class="net-worth-tile__hint">Aggiungi i tuoi saldi su <a href="/networth">/networth</a>.</div>
+  {{ end }}
+</div>
+{{ end }}

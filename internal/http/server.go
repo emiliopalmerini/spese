@@ -184,6 +184,14 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	mux.HandleFunc("/ui/dashboard/recurrents", s.withSecurityHeaders(s.handleDashboardRecurrentsWithSummary))
 	mux.HandleFunc("/ui/dashboard/projections", s.withSecurityHeaders(s.handleDashboardProjections))
 	mux.HandleFunc("/ui/dashboard/income-breakdown", s.withSecurityHeaders(s.handleDashboardIncomeBreakdown))
+	mux.HandleFunc("/ui/dashboard/net-worth", s.withSecurityHeaders(s.handleDashboardNetWorth))
+
+	// Net Worth routes
+	mux.HandleFunc("/networth", s.withSecurityHeaders(s.handleNetWorthPage))
+	mux.HandleFunc("/ui/networth/accounts", s.withSecurityHeaders(s.handleNetWorthAccounts))
+	mux.HandleFunc("/ui/networth/accounts/", s.withSecurityHeaders(s.handleNetWorthAccountUpdate))
+	mux.HandleFunc("/ui/networth/balances", s.withSecurityHeaders(s.handleNetWorthBalanceUpsert))
+	mux.HandleFunc("/ui/networth/month", s.withSecurityHeaders(s.handleNetWorthMonth))
 	// Dashboard API endpoints (JSON)
 	mux.HandleFunc("/api/dashboard/trend", s.withSecurityHeaders(s.handleDashboardTrend))
 	// Form partials for bottom sheet

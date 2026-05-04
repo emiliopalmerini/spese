@@ -705,6 +705,43 @@ func (a *SQLiteAdapter) GetMonthEndForecast(ctx context.Context) (*ForecastStats
 	}, nil
 }
 
+// Net Worth methods
+
+// CreateAccount creates a new account.
+func (a *SQLiteAdapter) CreateAccount(ctx context.Context, acc core.Account) (int64, error) {
+	return a.storage.CreateAccount(ctx, acc)
+}
+
+// UpdateAccount updates an existing account.
+func (a *SQLiteAdapter) UpdateAccount(ctx context.Context, acc core.Account) error {
+	return a.storage.UpdateAccount(ctx, acc)
+}
+
+// ListAccounts returns active or all accounts depending on includeInactive.
+func (a *SQLiteAdapter) ListAccounts(ctx context.Context, includeInactive bool) ([]core.Account, error) {
+	return a.storage.ListAccounts(ctx, includeInactive)
+}
+
+// GetAccount returns the account with the given ID.
+func (a *SQLiteAdapter) GetAccount(ctx context.Context, id int64) (core.Account, error) {
+	return a.storage.GetAccount(ctx, id)
+}
+
+// UpsertBalance writes the monthly balance for an account.
+func (a *SQLiteAdapter) UpsertBalance(ctx context.Context, b core.AccountBalance) error {
+	return a.storage.UpsertBalance(ctx, b)
+}
+
+// ListBalancesByMonth returns all balances for a given year/month.
+func (a *SQLiteAdapter) ListBalancesByMonth(ctx context.Context, year, month int) ([]core.AccountBalance, error) {
+	return a.storage.ListBalancesByMonth(ctx, year, month)
+}
+
+// MonthlyNetWorth returns the sum of balances for a given year/month.
+func (a *SQLiteAdapter) MonthlyNetWorth(ctx context.Context, year, month int) (core.Money, error) {
+	return a.storage.MonthlyNetWorth(ctx, year, month)
+}
+
 // GetIncomeCategoryBreakdown returns income totals by category for current month
 func (a *SQLiteAdapter) GetIncomeCategoryBreakdown(ctx context.Context) ([]CategoryTotal, error) {
 	now := time.Now()

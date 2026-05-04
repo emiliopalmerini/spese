@@ -1,0 +1,85 @@
+{{ define "networth_page" }}
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <title>Net Worth</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  </head>
+  <body class="theme-ink density-comfortable style-minimal">
+    <header class="topbar">
+      <div class="container topbar__inner">
+        <div class="brand">Spese</div>
+        <nav class="topbar__nav">
+          <a href="/" class="nav-link">Dashboard</a>
+          <a href="/spese" class="nav-link">Spese</a>
+          <a href="/recurrent" class="nav-link">Ricorrenti</a>
+          <a href="/entrate" class="nav-link">Entrate</a>
+          <a href="/networth" class="nav-link active" aria-current="page">Net Worth</a>
+        </nav>
+      </div>
+    </header>
+    <main class="container page">
+      {{ template "networth_content" . }}
+    </main>
+  </body>
+</html>
+{{ end }}
+
+{{ define "networth_content" }}
+<div class="container">
+  <section class="page__section">
+    <h1 class="page__title">Net Worth</h1>
+
+    <form class="form" hx-post="/ui/networth/accounts" hx-target="#networth-accounts" hx-swap="innerHTML">
+      <h2>Nuovo conto</h2>
+      <div class="field">
+        <label for="account-name">Nome</label>
+        <input id="account-name" type="text" name="name" maxlength="80" required />
+      </div>
+      <div class="field">
+        <label for="account-type">Tipo</label>
+        <select id="account-type" name="type" required>
+          <option value="cash">Cash & Liquidità</option>
+          <option value="rainy_day">Rainy day</option>
+          <option value="long_term">Long term</option>
+        </select>
+      </div>
+      <div class="field">
+        <label><input type="checkbox" name="active" value="true" checked /> Attivo</label>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" type="submit">Aggiungi conto</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="page__section" x-data="{ year: {{ .Year }}, month: {{ .Month }} }">
+    <h2>Saldi del mese</h2>
+    <div class="field-row">
+      <div class="field">
+        <label>Anno</label>
+        <input type="number" min="2000" max="2999" x-model.number="year"
+               @change="htmx.ajax('GET', '/ui/networth/month?year='+year+'&month='+month, '#networth-accounts')" />
+      </div>
+      <div class="field">
+        <label>Mese</label>
+        <input type="number" min="1" max="12" x-model.number="month"
+               @change="htmx.ajax('GET', '/ui/networth/month?year='+year+'&month='+month, '#networth-accounts')" />
+      </div>
+    </div>
+
+    <div id="networth-accounts"
+         hx-get="/ui/networth/accounts?year={{ .Year }}&month={{ .Month }}"
+         hx-trigger="load, networth:updated from:body"
+         hx-swap="innerHTML">
+      <div class="placeholder">Caricamento conti...</div>
+    </div>
+  </section>
+</div>
+{{ end }}

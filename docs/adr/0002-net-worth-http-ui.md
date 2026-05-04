@@ -1,7 +1,7 @@
 # ADR-0002: Net Worth HTTP UI
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 ADR-0001 introduces accounts and monthly balances. This ADR adds the HTTP/HTMX

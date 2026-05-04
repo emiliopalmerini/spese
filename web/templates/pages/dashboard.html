@@ -115,6 +115,16 @@
     </div>
   </section>
 
+  <!-- Net Worth Tile -->
+  <section class="page__section">
+    <div id="net-worth-tile"
+         hx-get="/ui/dashboard/net-worth"
+         hx-trigger="load, dashboard:refresh from:body, networth:updated from:body"
+         hx-swap="innerHTML">
+      <div class="skeleton" style="height: 80px;"></div>
+    </div>
+  </section>
+
   <!-- Categories Section -->
   <section class="page__section" x-data="{ period: 'month' }">
     <div class="categories-section">
