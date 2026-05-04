@@ -2,72 +2,10 @@ package google
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
-
-	"spese/internal/core"
-
-	gsheet "google.golang.org/api/sheets/v4"
 )
-
-// AppendIncome writes an income entry to the Google Sheets income sheet.
-// Implements sheets.IncomeWriter interface.
-func (c *Client) AppendIncome(ctx context.Context, i core.Income) (string, error) {
-	if err := i.Validate(); err != nil {
-		return "", fmt.Errorf("validation failed: %w", err)
-	}
-	if c.svc == nil {
-		return "", errors.New("sheets service not initialized")
-	}
-	if c.incomeSheet == "" {
-		return "", errors.New("income sheet not configured")
-	}
-
-	// Convert cents to decimal
-	euros := float64(i.Amount.Cents) / 100.0
-
-	// Get next row using income-specific cache
-	nextRow, err := c.getNextIncomeRow(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	// Income columns: A=Month, B=Day, C=Description, D=Amount, skip E,F, G=Category
-	// Update A:D (Month, Day, Description, Amount)
-	dataRange1 := fmt.Sprintf("%s!A%d:D%d", c.incomeSheet, nextRow, nextRow)
-	vr1 := &gsheet.ValueRange{Values: [][]any{{i.Date.Month(), i.Date.Day(), i.Description, euros}}}
-
-	_, err = c.svc.Spreadsheets.Values.Update(c.spreadsheetID, dataRange1, vr1).
-		ValueInputOption("USER_ENTERED").Context(ctx).Do()
-	if err != nil {
-		c.invalidateIncomeRowCache()
-		return "", fmt.Errorf("failed to update A:D in sheet %s: %w", c.incomeSheet, err)
-	}
-
-	// Update G (Category) - income has single category
-	dataRange2 := fmt.Sprintf("%s!G%d:G%d", c.incomeSheet, nextRow, nextRow)
-	vr2 := &gsheet.ValueRange{Values: [][]any{{i.Category}}}
-
-	_, err = c.svc.Spreadsheets.Values.Update(c.spreadsheetID, dataRange2, vr2).
-		ValueInputOption("USER_ENTERED").Context(ctx).Do()
-	if err != nil {
-		c.invalidateIncomeRowCache()
-		return "", fmt.Errorf("failed to update G in sheet %s: %w", c.incomeSheet, err)
-	}
-
-	ref := fmt.Sprintf("%s!A%d:G%d", c.incomeSheet, nextRow, nextRow)
-
-	slog.InfoContext(ctx, "Income appended to Google Sheets",
-		"sheet", c.incomeSheet,
-		"row", nextRow,
-		"description", i.Description,
-		"amount", euros,
-		"category", i.Category)
-
-	return ref, nil
-}
 
 // getNextIncomeRow returns the next available row number for the income sheet.
 // Uses a separate cache from expenses to avoid interference.

@@ -78,15 +78,10 @@ func main() {
 		logger.Info("Initialized SQLite backend", "db_path", cfg.SQLiteDBPath, "sheets_sync_enabled", sheetsClient != nil)
 
 	case "sheets":
-		var err error
-		sheetsClient, err = gsheet.NewFromEnv(context.Background())
-		if err != nil {
-			logger.Error("Failed to initialize Google Sheets client", "error", err)
-			os.Exit(1)
-		}
-		expWriter, taxReader, dashReader, expLister, expDeleter = sheetsClient, sheetsClient, sheetsClient, sheetsClient, sheetsClient
-		expListerWithID = nil // Google Sheets backend doesn't support listing with IDs yet
-		logger.Info("Initialized Google Sheets backend")
+		// Sheets-only backend was removed in ADR-0007: the sheet is a derived
+		// backup; SQLite is the source of truth. Use DATA_BACKEND=sqlite.
+		logger.Error("DATA_BACKEND=sheets is no longer supported; use DATA_BACKEND=sqlite (see ADR-0007)")
+		os.Exit(1)
 
 	default:
 		logger.Error("Unsupported data backend", "backend", cfg.DataBackend)

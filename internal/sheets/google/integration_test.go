@@ -85,8 +85,10 @@ func TestIntegration_GoogleSheetsFlow(t *testing.T) {
 			t.Skip("No categories/subcategories available for test")
 		}
 
-		// Create test expense
+		// Create test expense; integration tests must supply an ID so the
+		// upsert can locate or append the row idempotently.
 		testExpense := core.Expense{
+			ID:          time.Now().UnixNano(),
 			Date:        core.Date{Time: time.Now()},
 			Description: "Integration Test Expense",
 			Amount:      core.Money{Cents: 1234}, // €12.34
@@ -94,9 +96,9 @@ func TestIntegration_GoogleSheetsFlow(t *testing.T) {
 			Secondary:   subcategories[0],
 		}
 
-		ref, err := client.Append(ctx, testExpense)
+		ref, err := client.UpsertExpense(ctx, testExpense)
 		if err != nil {
-			t.Fatalf("Failed to append expense: %v", err)
+			t.Fatalf("Failed to upsert expense: %v", err)
 		}
 
 		t.Logf("Created expense with reference: %s", ref)
@@ -224,6 +226,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 
 		// Test with invalid expense
 		invalidExpense := core.Expense{
+			ID:          1,
 			Date:        core.Date{Time: time.Date(2025, 1, 0, 0, 0, 0, 0, time.UTC)}, // Invalid day
 			Description: "Test",
 			Amount:      core.Money{Cents: 100},
@@ -231,7 +234,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 			Secondary:   "Test",
 		}
 
-		_, err = client.Append(ctx, invalidExpense)
+		_, err = client.UpsertExpense(ctx, invalidExpense)
 		if err == nil {
 			t.Error("Expected validation error for invalid expense")
 		}

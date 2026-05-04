@@ -41,6 +41,7 @@ type Money struct {
 // It contains all the necessary information for tracking an individual expense,
 // including date, description, amount, and categorization.
 type Expense struct {
+	ID          int64  // SQLite primary key. Zero on local-insert path; populated on sync to remote.
 	Date        Date   // Date when the expense occurred
 	Description string // Human-readable description of the expense
 	Amount      Money  // Monetary amount in cents
@@ -66,6 +67,7 @@ type RecurrentExpenses struct {
 // It contains all the necessary information for tracking an individual income,
 // including date, description, amount, and category.
 type Income struct {
+	ID          int64  // SQLite primary key. Zero on local-insert path; populated on sync to remote.
 	Date        Date   // Date when the income was received
 	Description string // Human-readable description of the income
 	Amount      Money  // Monetary amount in cents

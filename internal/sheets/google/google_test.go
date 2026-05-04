@@ -64,7 +64,7 @@ func TestClient_validateExpense(t *testing.T) {
 		Secondary:   "test",
 	}
 
-	_, err := c.Append(context.Background(), invalidExp)
+	_, err := c.UpsertExpense(context.Background(), invalidExp)
 	if err == nil {
 		t.Fatal("expected validation error")
 	}
@@ -370,7 +370,7 @@ func TestExpenseValidationEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := c.Append(context.Background(), tt.expense)
+			_, err := c.UpsertExpense(context.Background(), tt.expense)
 			if err == nil {
 				t.Fatal("expected error")
 			}

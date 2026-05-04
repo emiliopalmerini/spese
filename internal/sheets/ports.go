@@ -63,6 +63,19 @@ type (
 		AppendIncome(ctx context.Context, i core.Income) (rowRef string, err error)
 	}
 
+	// RemoteExpenseWriter is the sync-target port: idempotent upsert keyed by
+	// expense ID. Distinct from ExpenseWriter (local-insert path used by
+	// handlers). Implementations require e.ID > 0; zero returns ErrMissingID
+	// from the adapter package.
+	RemoteExpenseWriter interface {
+		UpsertExpense(ctx context.Context, e core.Expense) (rowRef string, err error)
+	}
+
+	// RemoteIncomeWriter mirrors RemoteExpenseWriter for incomes.
+	RemoteIncomeWriter interface {
+		UpsertIncome(ctx context.Context, i core.Income) (rowRef string, err error)
+	}
+
 	// NetWorthWriter writes a single account balance for a given month into
 	// the Net Worth section of the dashboard sheet.
 	NetWorthWriter interface {

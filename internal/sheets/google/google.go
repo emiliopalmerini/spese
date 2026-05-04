@@ -45,12 +45,12 @@ type Client struct {
 
 // Ensure interface conformance
 var (
-	_ ports.ExpenseWriter   = (*Client)(nil)
-	_ ports.IncomeWriter    = (*Client)(nil)
-	_ ports.TaxonomyReader  = (*Client)(nil)
-	_ ports.DashboardReader = (*Client)(nil)
-	_ ports.ExpenseLister   = (*Client)(nil)
-	_ ports.ExpenseDeleter  = (*Client)(nil)
+	_ ports.RemoteExpenseWriter = (*Client)(nil)
+	_ ports.RemoteIncomeWriter  = (*Client)(nil)
+	_ ports.TaxonomyReader      = (*Client)(nil)
+	_ ports.DashboardReader     = (*Client)(nil)
+	_ ports.ExpenseLister       = (*Client)(nil)
+	_ ports.ExpenseDeleter      = (*Client)(nil)
 )
 
 // NewFromEnv creates a Sheets client using environment variables and ADC.
@@ -249,54 +249,6 @@ func (c *Client) InvalidateRowCache() {
 	defer c.mu.Unlock()
 	c.cacheExpiresAt = time.Now() // Expire cache immediately
 	slog.DebugContext(context.Background(), "Row count cache invalidated")
-}
-
-func (c *Client) Append(ctx context.Context, e core.Expense) (string, error) {
-	if err := e.Validate(); err != nil {
-		return "", fmt.Errorf("validation failed: %w", err)
-	}
-	if c.svc == nil {
-		return "", errors.New("sheets service not initialized")
-	}
-
-	// Convert cents to decimal string
-	euros := float64(e.Amount.Cents) / 100.0
-
-	// Get next row using cached row count (reduces API calls significantly)
-	nextRow, err := c.getNextRow(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	// Update only the specific columns we want, skipping E and F
-	// Update A:D (Month, Day, Description, Amount)
-	dataRange1 := fmt.Sprintf("%s!A%d:D%d", c.expensesSheet, nextRow, nextRow)
-	vr1 := &gsheet.ValueRange{Values: [][]any{{e.Date.Month(), e.Date.Day(), e.Description, euros}}}
-
-	_, err = c.svc.Spreadsheets.Values.Update(c.spreadsheetID, dataRange1, vr1).
-		ValueInputOption("USER_ENTERED").Context(ctx).Do()
-	if err != nil {
-		// Invalidate cache on write failure in case row was actually written
-		c.InvalidateRowCache()
-		return "", fmt.Errorf("failed to update A:D in sheet %s: %w", c.expensesSheet, err)
-	}
-
-	// Update G:H (Primary, Secondary categories)
-	dataRange2 := fmt.Sprintf("%s!G%d:H%d", c.expensesSheet, nextRow, nextRow)
-	vr2 := &gsheet.ValueRange{Values: [][]any{{e.Primary, e.Secondary}}}
-
-	_, err = c.svc.Spreadsheets.Values.Update(c.spreadsheetID, dataRange2, vr2).
-		ValueInputOption("USER_ENTERED").Context(ctx).Do()
-	if err != nil {
-		// Invalidate cache on write failure
-		c.InvalidateRowCache()
-		return "", fmt.Errorf("failed to update G:H in sheet %s: %w", c.expensesSheet, err)
-	}
-
-	// Return reference in the format expected by callers
-	ref := fmt.Sprintf("%s!A%d:H%d", c.expensesSheet, nextRow, nextRow)
-
-	return ref, nil
 }
 
 func (c *Client) List(ctx context.Context) ([]string, []string, error) {

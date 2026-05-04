@@ -15,7 +15,7 @@ import (
 // IncomeSyncProcessor handles SQLite-based income sync queue processing
 type IncomeSyncProcessor struct {
 	storage      *storage.SQLiteRepository
-	incomeWriter sheets.IncomeWriter
+	incomeWriter sheets.RemoteIncomeWriter
 	config       SyncProcessorConfig
 
 	// Lifecycle management
@@ -28,7 +28,7 @@ type IncomeSyncProcessor struct {
 // NewIncomeSyncProcessor creates a new income sync processor
 func NewIncomeSyncProcessor(
 	storage *storage.SQLiteRepository,
-	incomeWriter sheets.IncomeWriter,
+	incomeWriter sheets.RemoteIncomeWriter,
 	config SyncProcessorConfig,
 ) *IncomeSyncProcessor {
 	return &IncomeSyncProcessor{
@@ -183,19 +183,16 @@ func (p *IncomeSyncProcessor) processSyncItem(ctx context.Context, item storage.
 	}
 
 	coreIncome := core.Income{
+		ID:          item.IncomeID,
 		Date:        core.Date{Time: income.Date},
 		Description: income.Description,
 		Amount:      core.Money{Cents: income.AmountCents},
 		Category:    income.Category,
 	}
 
-	// Add timestamp for uniqueness (matching expense sync pattern)
-	timestampMs := time.Now().UnixMilli()
-	coreIncome.Description = fmt.Sprintf("%s [ts:%d]", income.Description, timestampMs)
-
-	ref, err := p.incomeWriter.AppendIncome(ctx, coreIncome)
+	ref, err := p.incomeWriter.UpsertIncome(ctx, coreIncome)
 	if err != nil {
-		return fmt.Errorf("append income to sheets: %w", err)
+		return fmt.Errorf("upsert income to sheets: %w", err)
 	}
 
 	if err := p.storage.MarkIncomeSynced(ctx, item.IncomeID); err != nil {

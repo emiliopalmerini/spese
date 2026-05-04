@@ -44,7 +44,7 @@ func DefaultSyncProcessorConfig() SyncProcessorConfig {
 // SyncProcessor handles SQLite-based sync queue processing
 type SyncProcessor struct {
 	storage *storage.SQLiteRepository
-	sheets  sheets.ExpenseWriter
+	sheets  sheets.RemoteExpenseWriter
 	deleter sheets.ExpenseDeleter
 	config  SyncProcessorConfig
 
@@ -58,7 +58,7 @@ type SyncProcessor struct {
 // NewSyncProcessor creates a new sync processor
 func NewSyncProcessor(
 	storage *storage.SQLiteRepository,
-	sheetsWriter sheets.ExpenseWriter,
+	sheetsWriter sheets.RemoteExpenseWriter,
 	deleter sheets.ExpenseDeleter,
 	config SyncProcessorConfig,
 ) *SyncProcessor {
@@ -218,8 +218,10 @@ func (p *SyncProcessor) processSyncItem(ctx context.Context, item storage.SyncQu
 		return fmt.Errorf("get expense %d: %w", item.ExpenseID, err)
 	}
 
-	// Convert to core.Expense
+	// Convert to core.Expense; ID is required so the remote writer can locate
+	// (and update) the same row on retries.
 	coreExpense := core.Expense{
+		ID:          item.ExpenseID,
 		Date:        core.Date{Time: expense.Date},
 		Description: expense.Description,
 		Amount:      core.Money{Cents: expense.AmountCents},
@@ -227,14 +229,10 @@ func (p *SyncProcessor) processSyncItem(ctx context.Context, item storage.SyncQu
 		Secondary:   expense.SecondaryCategory,
 	}
 
-	// Add timestamp for uniqueness (matching existing sync_worker.go logic)
-	timestampMs := time.Now().UnixMilli()
-	coreExpense.Description = fmt.Sprintf("%s [ts:%d]", expense.Description, timestampMs)
-
 	// Sync to Google Sheets
-	ref, err := p.sheets.Append(ctx, coreExpense)
+	ref, err := p.sheets.UpsertExpense(ctx, coreExpense)
 	if err != nil {
-		return fmt.Errorf("append to sheets: %w", err)
+		return fmt.Errorf("upsert to sheets: %w", err)
 	}
 
 	// Mark expense as synced in expenses table
