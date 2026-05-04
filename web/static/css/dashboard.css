@@ -53,6 +53,20 @@
 .hero-number__delta .is-negative{color:var(--negative);}
 .hero-number__delta .is-positive{color:var(--positive);}
 
+/* Monthly trend bar chart */
+.chart-wrap{margin-top:18px;color:var(--ink);overflow-x:auto;}
+.chart-stats{display:flex;justify-content:space-between;margin-top:8px;}
+
+/* Category breakdown panel */
+.cat-panel{display:flex;gap:18px;align-items:center;margin-top:16px;flex-wrap:wrap;}
+.cat-panel__chart{flex:0 0 auto;}
+.cat-panel__rows{flex:1;min-width:160px;display:flex;flex-direction:column;gap:8px;}
+.cat-row{display:grid;grid-template-columns:auto 1fr auto auto;align-items:baseline;gap:8px;}
+.cat-row__dot{width:8px;height:8px;border-radius:2px;display:inline-block;}
+.cat-row__name{font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cat-row__pct{font-size:10px;}
+.cat-row__amt{font-family:var(--font-display);font-size:16px;}
+
 /* Section label (Roman numeral + serif title + mono sub) */
 .section-label{display:flex;align-items:baseline;gap:12px;margin-bottom:var(--space-3);}
 .section-label__num{

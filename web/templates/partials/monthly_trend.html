@@ -1,0 +1,19 @@
+{{ define "monthly_trend" }}
+{{template "section_label" (dict "Num" "I" "Title" "Andamento mensile" "Sub" "Ultimi 12 mesi")}}
+<div class="chart-wrap">
+  {{ barChart (dict
+    "Data" .Series
+    "W" 336 "H" 92
+    "Color" "#1a1612"
+    "HighlightIdx" .HighlightIdx
+    "HighlightColor" "#b8451c"
+    "Labels" .Labels
+    "LabelColor" "#8a847a"
+    "ShowLabels" true) }}
+</div>
+<div class="chart-stats label-mono">
+  <span>Min {{.MinFmt}} €</span>
+  <span>Media {{.MeanFmt}} €</span>
+  <span>Max {{.MaxFmt}} €</span>
+</div>
+{{ end }}

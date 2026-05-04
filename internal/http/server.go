@@ -99,6 +99,15 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 		"not": func(v bool) bool { // Logical NOT for template conditionals
 			return !v
 		},
+		"barChart": func(opts map[string]interface{}) template.HTML {
+			return RenderBarChart(barChartOptsFromMap(opts))
+		},
+		"sparkline": func(opts map[string]interface{}) template.HTML {
+			return RenderSparkline(sparkOptsFromMap(opts))
+		},
+		"donut": func(opts map[string]interface{}) template.HTML {
+			return RenderDonut(donutOptsFromMap(opts))
+		},
 		"dict": func(values ...interface{}) map[string]interface{} { // Create map from key-value pairs for template data
 			if len(values)%2 != 0 {
 				return nil
@@ -187,6 +196,7 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	mux.HandleFunc("/ui/dashboard/net-worth", s.withSecurityHeaders(s.handleDashboardNetWorth))
 	mux.HandleFunc("/ui/dashboard/pick-months", s.withSecurityHeaders(s.handleDashboardPickMonths))
 	mux.HandleFunc("/ui/dashboard/cash-flow", s.withSecurityHeaders(s.handleDashboardCashFlow))
+	mux.HandleFunc("/ui/dashboard/monthly-trend", s.withSecurityHeaders(s.handleDashboardMonthlyTrend))
 
 	// Net Worth routes
 	mux.HandleFunc("/networth", s.withSecurityHeaders(s.handleNetWorthPage))

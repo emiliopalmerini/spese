@@ -125,6 +125,16 @@
     </div>
   </section>
 
+  <!-- Monthly Trend (Quaderno bar chart) -->
+  <section class="page__section">
+    <div id="monthly-trend"
+         hx-get="/ui/dashboard/monthly-trend"
+         hx-trigger="load, dashboard:refresh from:body"
+         hx-swap="innerHTML">
+      <div class="skeleton" style="height: 120px;"></div>
+    </div>
+  </section>
+
   <!-- Categories Section -->
   <section class="page__section" x-data="{ period: 'month' }">
     <div class="categories-section">

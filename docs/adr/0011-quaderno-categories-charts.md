@@ -1,7 +1,7 @@
 # ADR-0011: Quaderno categories panel, donut, monthly bar chart
 
 ## Status
-Proposed
+Accepted (monthly bar chart + dashboard donut panel implemented; full /ui/categories page deferred.)
 
 ## Context
 ADR-0008 (tokens) + ADR-0009 (dashboard chrome) leave the **Per categoria**

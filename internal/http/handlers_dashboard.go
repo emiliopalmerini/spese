@@ -275,37 +275,43 @@ func (s *Server) handleDashboardCategoriesList(w http.ResponseWriter, r *http.Re
 		catData = []adapters.CategoryTotal{}
 	}
 
-	// Find max for percentage calculation
-	var maxAmount int64
+	// Compute totals for share + slice colors.
+	var totalAmount int64
 	for _, c := range catData {
-		if c.AmountCents > maxAmount {
-			maxAmount = c.AmountCents
-		}
+		totalAmount += c.AmountCents
 	}
 
-	// Convert to template-friendly format
 	type catView struct {
 		Name    string
 		Amount  string
 		Percent int
+		Color   string
 	}
 	var cats []catView
+	donutData := make([]DonutSlice, 0, len(catData))
 	for _, c := range catData {
 		percent := 0
-		if maxAmount > 0 {
-			percent = int((c.AmountCents * 100) / maxAmount)
+		if totalAmount > 0 {
+			percent = int((c.AmountCents * 100) / totalAmount)
 		}
+		color := PaletteColor(c.Name)
 		cats = append(cats, catView{
 			Name:    c.Name,
 			Amount:  formatEuros(c.AmountCents),
 			Percent: percent,
+			Color:   color,
 		})
+		donutData = append(donutData, DonutSlice{Amount: c.AmountCents, Color: color})
 	}
 
 	data := struct {
 		Categories []catView
+		DonutData  []DonutSlice
+		HasData    bool
 	}{
 		Categories: cats,
+		DonutData:  donutData,
+		HasData:    totalAmount > 0,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -537,6 +543,81 @@ func (s *Server) handleFormRecurrentEdit(w http.ResponseWriter, r *http.Request)
 
 func formatDecimal(cents int64) string {
 	return strconv.FormatFloat(float64(cents)/100, 'f', 2, 64)
+}
+
+// handleDashboardMonthlyTrend returns the Quaderno monthly bar-chart partial.
+func (s *Server) handleDashboardMonthlyTrend(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 7*time.Second)
+	defer cancel()
+
+	year, month := parseYearMonth(r)
+
+	adapter, ok := s.expLister.(*adapters.SQLiteAdapter)
+	if !ok {
+		http.Error(w, "adapter not available", http.StatusInternalServerError)
+		return
+	}
+
+	rows, _, err := adapter.MonthlyExpensesByPrimary(ctx, year)
+	if err != nil {
+		slog.ErrorContext(ctx, "monthly trend query failed", "error", err)
+		http.Error(w, "trend unavailable", http.StatusInternalServerError)
+		return
+	}
+	series := [12]int64{}
+	for i, row := range rows {
+		if i < 12 {
+			series[i] = row.Total
+		}
+	}
+
+	var minV, maxV, sum int64 = -1, 0, 0
+	for _, v := range series {
+		sum += v
+		if v > maxV {
+			maxV = v
+		}
+		if minV < 0 || v < minV {
+			minV = v
+		}
+	}
+	if minV < 0 {
+		minV = 0
+	}
+	mean := sum / 12
+
+	labels := make([]string, 12)
+	for i := 0; i < 12; i++ {
+		labels[i] = italianMonthShort(i + 1)
+	}
+
+	data := struct {
+		Series       []int64
+		Labels       []string
+		HighlightIdx int
+		MinFmt       string
+		MeanFmt      string
+		MaxFmt       string
+	}{
+		Series:       series[:],
+		Labels:       labels,
+		HighlightIdx: month - 1,
+		MinFmt:       formatEurosInt(minV),
+		MeanFmt:      formatEurosInt(mean),
+		MaxFmt:       formatEurosInt(maxV),
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.templates.ExecuteTemplate(w, "monthly_trend", data); err != nil {
+		slog.ErrorContext(ctx, "monthly trend template failed", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // handleDashboardStatGrid returns the stat grid partial (daily avg, week change, velocity, ratio)
