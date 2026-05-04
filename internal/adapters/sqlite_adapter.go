@@ -17,6 +17,7 @@ import (
 type SQLiteAdapter struct {
 	storage *storage.SQLiteRepository
 	service *services.ExpenseService
+	taxes   *services.TaxAccrualService
 }
 
 func NewSQLiteAdapter(storage *storage.SQLiteRepository, service *services.ExpenseService) *SQLiteAdapter {
@@ -24,6 +25,12 @@ func NewSQLiteAdapter(storage *storage.SQLiteRepository, service *services.Expen
 		storage: storage,
 		service: service,
 	}
+}
+
+// SetTaxAccrualService wires the tax accrual hook used after income creation.
+// Optional: if nil, no accruals are computed.
+func (a *SQLiteAdapter) SetTaxAccrualService(s *services.TaxAccrualService) {
+	a.taxes = s
 }
 
 // Append implements sheets.ExpenseWriter
@@ -93,9 +100,19 @@ func (a *SQLiteAdapter) GetStorage() *storage.SQLiteRepository {
 
 // Income methods
 
-// AppendIncome creates a new income entry and enqueues it for Google Sheets sync
+// AppendIncome creates a new income entry, enqueues it for Google Sheets sync,
+// and (when configured) computes tax accruals for freelance income categories.
 func (a *SQLiteAdapter) AppendIncome(ctx context.Context, i core.Income) (string, error) {
-	return a.storage.AppendIncomeAndEnqueueSync(ctx, i)
+	ref, err := a.storage.AppendIncomeAndEnqueueSync(ctx, i)
+	if err != nil {
+		return ref, err
+	}
+	if a.taxes != nil {
+		if id, parseErr := strconv.ParseInt(ref, 10, 64); parseErr == nil {
+			a.taxes.OnIncomeCreated(ctx, id, i)
+		}
+	}
+	return ref, nil
 }
 
 // GetIncomeCategories returns all income categories

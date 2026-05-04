@@ -546,6 +546,57 @@ SET status = 'pending',
 WHERE status = 'processing'
   AND updated_at < datetime(CURRENT_TIMESTAMP, '-5 minutes');
 
+-- Tax rate queries
+
+-- name: ResolveTaxRate :one
+-- Returns the active rate for a code at a given date.
+SELECT *
+FROM tax_rates
+WHERE code = ?
+  AND valid_from <= ?
+  AND (valid_to IS NULL OR valid_to > ?)
+ORDER BY valid_from DESC
+LIMIT 1;
+
+-- name: ListTaxRateCodes :many
+-- Returns the distinct configured tax codes.
+SELECT DISTINCT code FROM tax_rates ORDER BY code ASC;
+
+-- name: ListFreelanceIncomeCategories :many
+SELECT category FROM freelance_income_categories
+WHERE active = 1
+ORDER BY category ASC;
+
+-- name: IsFreelanceIncomeCategory :one
+SELECT COUNT(*) AS hits
+FROM freelance_income_categories
+WHERE category = ? AND active = 1;
+
+-- Tax accrual queries
+
+-- name: InsertTaxAccrual :exec
+INSERT INTO tax_accruals (income_id, tax_code, rate_basis_pts, amount_cents, date)
+VALUES (?, ?, ?, ?, date(?))
+ON CONFLICT(income_id, tax_code) DO NOTHING;
+
+-- name: ListTaxAccrualsByIncome :many
+SELECT * FROM tax_accruals
+WHERE income_id = ?
+ORDER BY tax_code ASC;
+
+-- name: ListTaxAccrualsByMonth :many
+SELECT * FROM tax_accruals
+WHERE strftime('%Y', date) = printf('%04d', ?)
+  AND strftime('%m', date) = printf('%02d', ?)
+ORDER BY tax_code ASC;
+
+-- name: SumTaxAccrualsByMonth :one
+SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) AS total
+FROM tax_accruals
+WHERE tax_code = ?
+  AND strftime('%Y', date) = printf('%04d', ?)
+  AND strftime('%m', date) = printf('%02d', ?);
+
 -- name: GetNetWorthSyncQueueStats :one
 SELECT
     CAST(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS INTEGER) as pending_count,

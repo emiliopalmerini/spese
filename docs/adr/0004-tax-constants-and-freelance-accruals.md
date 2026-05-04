@@ -1,7 +1,7 @@
 # ADR-0004: Tax constants and freelance taxation accruals
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 The sheet's Cash Flow section shows two negative rows tied to freelance income:

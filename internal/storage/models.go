@@ -38,6 +38,11 @@ type Expense struct {
 	SyncStatus        sql.NullString `db:"sync_status" json:"sync_status"`
 }
 
+type FreelanceIncomeCategory struct {
+	Category string `db:"category" json:"category"`
+	Active   int64  `db:"active" json:"active"`
+}
+
 type Income struct {
 	ID          int64          `db:"id" json:"id"`
 	Date        time.Time      `db:"date" json:"date"`
@@ -137,4 +142,23 @@ type SyncQueue struct {
 	UpdatedAt          time.Time   `db:"updated_at" json:"updated_at"`
 	ProcessedAt        interface{} `db:"processed_at" json:"processed_at"`
 	NextRetryAt        interface{} `db:"next_retry_at" json:"next_retry_at"`
+}
+
+type TaxAccrual struct {
+	ID           int64     `db:"id" json:"id"`
+	IncomeID     int64     `db:"income_id" json:"income_id"`
+	TaxCode      string    `db:"tax_code" json:"tax_code"`
+	RateBasisPts int64     `db:"rate_basis_pts" json:"rate_basis_pts"`
+	AmountCents  int64     `db:"amount_cents" json:"amount_cents"`
+	Date         time.Time `db:"date" json:"date"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+}
+
+type TaxRate struct {
+	Code         string       `db:"code" json:"code"`
+	Label        string       `db:"label" json:"label"`
+	RateBasisPts int64        `db:"rate_basis_pts" json:"rate_basis_pts"`
+	ValidFrom    time.Time    `db:"valid_from" json:"valid_from"`
+	ValidTo      sql.NullTime `db:"valid_to" json:"valid_to"`
+	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
 }

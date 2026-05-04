@@ -87,11 +87,19 @@ type Querier interface {
 	IncrementNetWorthSyncAttempt(ctx context.Context, arg IncrementNetWorthSyncAttemptParams) error
 	// Increments attempt count and schedules next retry with exponential backoff.
 	IncrementSyncAttempt(ctx context.Context, arg IncrementSyncAttemptParams) error
+	// Tax accrual queries
+	InsertTaxAccrual(ctx context.Context, arg InsertTaxAccrualParams) error
+	IsFreelanceIncomeCategory(ctx context.Context, category string) (int64, error)
 	ListActiveAccounts(ctx context.Context) ([]Account, error)
 	ListAllAccounts(ctx context.Context) ([]Account, error)
 	ListBalancesForAccount(ctx context.Context, accountID int64) ([]AccountBalance, error)
 	ListBalancesForMonth(ctx context.Context, arg ListBalancesForMonthParams) ([]AccountBalance, error)
 	ListExpensesByDateRange(ctx context.Context, arg ListExpensesByDateRangeParams) ([]Expense, error)
+	ListFreelanceIncomeCategories(ctx context.Context) ([]string, error)
+	ListTaxAccrualsByIncome(ctx context.Context, incomeID int64) ([]TaxAccrual, error)
+	ListTaxAccrualsByMonth(ctx context.Context, arg ListTaxAccrualsByMonthParams) ([]TaxAccrual, error)
+	// Returns the distinct configured tax codes.
+	ListTaxRateCodes(ctx context.Context) ([]string, error)
 	MarkExpenseSyncError(ctx context.Context, id int64) error
 	MarkExpenseSynced(ctx context.Context, id int64) error
 	// Marks an income sync queue item as successfully completed.
@@ -120,11 +128,15 @@ type Querier interface {
 	ResetStaleNetWorthProcessing(ctx context.Context) error
 	// Resets items stuck in processing state (crash recovery).
 	ResetStaleProcessing(ctx context.Context) error
+	// Tax rate queries
+	// Returns the active rate for a code at a given date.
+	ResolveTaxRate(ctx context.Context, arg ResolveTaxRateParams) (TaxRate, error)
 	// Resets failed income items back to pending for manual retry.
 	RetryFailedIncomeSyncs(ctx context.Context) error
 	RetryFailedNetWorthSyncs(ctx context.Context) error
 	// Resets failed items back to pending for manual retry.
 	RetryFailedSyncs(ctx context.Context) error
+	SumTaxAccrualsByMonth(ctx context.Context, arg SumTaxAccrualsByMonthParams) (int64, error)
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) error
 	UpdateRecurrentExpense(ctx context.Context, arg UpdateRecurrentExpenseParams) error
 	UpdateRecurrentLastExecution(ctx context.Context, arg UpdateRecurrentLastExecutionParams) error

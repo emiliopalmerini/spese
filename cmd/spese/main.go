@@ -65,6 +65,7 @@ func main() {
 		// Create expense service (no longer needs AMQP - uses sync queue)
 		expenseService = services.NewExpenseService(sqliteRepo)
 		adapter := adapters.NewSQLiteAdapter(sqliteRepo, expenseService)
+		adapter.SetTaxAccrualService(services.NewTaxAccrualService(sqliteRepo))
 
 		expWriter, taxReader, dashReader, expLister, expDeleter, expListerWithID = adapter, adapter, adapter, adapter, adapter, adapter
 

@@ -1615,6 +1615,46 @@ func (q *Queries) IncrementSyncAttempt(ctx context.Context, arg IncrementSyncAtt
 	return err
 }
 
+const insertTaxAccrual = `-- name: InsertTaxAccrual :exec
+
+INSERT INTO tax_accruals (income_id, tax_code, rate_basis_pts, amount_cents, date)
+VALUES (?, ?, ?, ?, date(?))
+ON CONFLICT(income_id, tax_code) DO NOTHING
+`
+
+type InsertTaxAccrualParams struct {
+	IncomeID     int64       `db:"income_id" json:"income_id"`
+	TaxCode      string      `db:"tax_code" json:"tax_code"`
+	RateBasisPts int64       `db:"rate_basis_pts" json:"rate_basis_pts"`
+	AmountCents  int64       `db:"amount_cents" json:"amount_cents"`
+	Date         interface{} `db:"date" json:"date"`
+}
+
+// Tax accrual queries
+func (q *Queries) InsertTaxAccrual(ctx context.Context, arg InsertTaxAccrualParams) error {
+	_, err := q.db.ExecContext(ctx, insertTaxAccrual,
+		arg.IncomeID,
+		arg.TaxCode,
+		arg.RateBasisPts,
+		arg.AmountCents,
+		arg.Date,
+	)
+	return err
+}
+
+const isFreelanceIncomeCategory = `-- name: IsFreelanceIncomeCategory :one
+SELECT COUNT(*) AS hits
+FROM freelance_income_categories
+WHERE category = ? AND active = 1
+`
+
+func (q *Queries) IsFreelanceIncomeCategory(ctx context.Context, category string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, isFreelanceIncomeCategory, category)
+	var hits int64
+	err := row.Scan(&hits)
+	return hits, err
+}
+
 const listActiveAccounts = `-- name: ListActiveAccounts :many
 SELECT id, name, type, active, created_at FROM accounts
 WHERE active = 1
@@ -1794,6 +1834,143 @@ func (q *Queries) ListExpensesByDateRange(ctx context.Context, arg ListExpensesB
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFreelanceIncomeCategories = `-- name: ListFreelanceIncomeCategories :many
+SELECT category FROM freelance_income_categories
+WHERE active = 1
+ORDER BY category ASC
+`
+
+func (q *Queries) ListFreelanceIncomeCategories(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listFreelanceIncomeCategories)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var category string
+		if err := rows.Scan(&category); err != nil {
+			return nil, err
+		}
+		items = append(items, category)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTaxAccrualsByIncome = `-- name: ListTaxAccrualsByIncome :many
+SELECT id, income_id, tax_code, rate_basis_pts, amount_cents, date, created_at FROM tax_accruals
+WHERE income_id = ?
+ORDER BY tax_code ASC
+`
+
+func (q *Queries) ListTaxAccrualsByIncome(ctx context.Context, incomeID int64) ([]TaxAccrual, error) {
+	rows, err := q.db.QueryContext(ctx, listTaxAccrualsByIncome, incomeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TaxAccrual
+	for rows.Next() {
+		var i TaxAccrual
+		if err := rows.Scan(
+			&i.ID,
+			&i.IncomeID,
+			&i.TaxCode,
+			&i.RateBasisPts,
+			&i.AmountCents,
+			&i.Date,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTaxAccrualsByMonth = `-- name: ListTaxAccrualsByMonth :many
+SELECT id, income_id, tax_code, rate_basis_pts, amount_cents, date, created_at FROM tax_accruals
+WHERE strftime('%Y', date) = printf('%04d', ?)
+  AND strftime('%m', date) = printf('%02d', ?)
+ORDER BY tax_code ASC
+`
+
+type ListTaxAccrualsByMonthParams struct {
+	PRINTF   interface{} `db:"PRINTF" json:"PRINTF"`
+	PRINTF_2 interface{} `db:"PRINTF_2" json:"PRINTF_2"`
+}
+
+func (q *Queries) ListTaxAccrualsByMonth(ctx context.Context, arg ListTaxAccrualsByMonthParams) ([]TaxAccrual, error) {
+	rows, err := q.db.QueryContext(ctx, listTaxAccrualsByMonth, arg.PRINTF, arg.PRINTF_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TaxAccrual
+	for rows.Next() {
+		var i TaxAccrual
+		if err := rows.Scan(
+			&i.ID,
+			&i.IncomeID,
+			&i.TaxCode,
+			&i.RateBasisPts,
+			&i.AmountCents,
+			&i.Date,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTaxRateCodes = `-- name: ListTaxRateCodes :many
+SELECT DISTINCT code FROM tax_rates ORDER BY code ASC
+`
+
+// Returns the distinct configured tax codes.
+func (q *Queries) ListTaxRateCodes(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listTaxRateCodes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err != nil {
+			return nil, err
+		}
+		items = append(items, code)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -2041,6 +2218,39 @@ func (q *Queries) ResetStaleProcessing(ctx context.Context) error {
 	return err
 }
 
+const resolveTaxRate = `-- name: ResolveTaxRate :one
+
+SELECT code, label, rate_basis_pts, valid_from, valid_to, created_at
+FROM tax_rates
+WHERE code = ?
+  AND valid_from <= ?
+  AND (valid_to IS NULL OR valid_to > ?)
+ORDER BY valid_from DESC
+LIMIT 1
+`
+
+type ResolveTaxRateParams struct {
+	Code      string       `db:"code" json:"code"`
+	ValidFrom time.Time    `db:"valid_from" json:"valid_from"`
+	ValidTo   sql.NullTime `db:"valid_to" json:"valid_to"`
+}
+
+// Tax rate queries
+// Returns the active rate for a code at a given date.
+func (q *Queries) ResolveTaxRate(ctx context.Context, arg ResolveTaxRateParams) (TaxRate, error) {
+	row := q.db.QueryRowContext(ctx, resolveTaxRate, arg.Code, arg.ValidFrom, arg.ValidTo)
+	var i TaxRate
+	err := row.Scan(
+		&i.Code,
+		&i.Label,
+		&i.RateBasisPts,
+		&i.ValidFrom,
+		&i.ValidTo,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const retryFailedIncomeSyncs = `-- name: RetryFailedIncomeSyncs :exec
 UPDATE income_sync_queue
 SET status = 'pending',
@@ -2086,6 +2296,27 @@ WHERE status = 'failed'
 func (q *Queries) RetryFailedSyncs(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, retryFailedSyncs)
 	return err
+}
+
+const sumTaxAccrualsByMonth = `-- name: SumTaxAccrualsByMonth :one
+SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) AS total
+FROM tax_accruals
+WHERE tax_code = ?
+  AND strftime('%Y', date) = printf('%04d', ?)
+  AND strftime('%m', date) = printf('%02d', ?)
+`
+
+type SumTaxAccrualsByMonthParams struct {
+	TaxCode  string      `db:"tax_code" json:"tax_code"`
+	PRINTF   interface{} `db:"PRINTF" json:"PRINTF"`
+	PRINTF_2 interface{} `db:"PRINTF_2" json:"PRINTF_2"`
+}
+
+func (q *Queries) SumTaxAccrualsByMonth(ctx context.Context, arg SumTaxAccrualsByMonthParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, sumTaxAccrualsByMonth, arg.TaxCode, arg.PRINTF, arg.PRINTF_2)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
 }
 
 const updateAccount = `-- name: UpdateAccount :exec

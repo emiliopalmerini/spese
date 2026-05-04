@@ -180,3 +180,35 @@ CREATE TABLE nw_sync_queue (
 
 CREATE INDEX idx_nw_sync_status ON nw_sync_queue(status, next_retry_at);
 CREATE INDEX idx_nw_sync_created ON nw_sync_queue(created_at);
+
+-- Tax rates: configurable rate per code with effective date window
+CREATE TABLE tax_rates (
+    code            TEXT NOT NULL,
+    label           TEXT NOT NULL,
+    rate_basis_pts  INTEGER NOT NULL CHECK (rate_basis_pts >= 0),
+    valid_from      DATE NOT NULL,
+    valid_to        DATE,
+    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (code, valid_from)
+);
+
+CREATE INDEX idx_tax_rates_code_period ON tax_rates(code, valid_from);
+
+CREATE TABLE freelance_income_categories (
+    category TEXT PRIMARY KEY,
+    active   INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE tax_accruals (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    income_id       INTEGER NOT NULL REFERENCES incomes(id) ON DELETE CASCADE,
+    tax_code        TEXT NOT NULL,
+    rate_basis_pts  INTEGER NOT NULL,
+    amount_cents    INTEGER NOT NULL CHECK (amount_cents >= 0),
+    date            DATE NOT NULL,
+    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (income_id, tax_code)
+);
+
+CREATE INDEX idx_tax_accruals_date ON tax_accruals(date);
+CREATE INDEX idx_tax_accruals_code_date ON tax_accruals(tax_code, date);
