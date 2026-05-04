@@ -4,9 +4,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#10b981" />
+    <meta name="theme-color" content="#f5f1e8" />
     <title>Spese</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css" />
     <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
     <script src="/static/recurrent-form.js"></script>
@@ -15,7 +18,7 @@
   <body class="theme-ink density-comfortable style-minimal">
     <header class="topbar">
       <div class="container topbar__inner">
-        <div class="brand">Spese</div>
+        <div class="brand">Spese<span class="brand__sub">diario</span></div>
         <nav class="topbar__nav">
           <a href="/" class="nav-link">Spese</a>
           <a href="/recurrent" class="nav-link active" aria-current="page">Ricorrenti</a>
@@ -35,7 +38,8 @@
 <div class="container">
   {{/* Main recurrent expense form section */}}
   <section class="page__section">
-    <h1 class="page__title">Registra Spesa Ricorrente</h1>
+    <div class="label-mono">Capitolo IV</div>
+    <h1 class="page__title">Spese ricorrenti</h1>
     
     <div id="recurrent-form-container"
          hx-trigger="form:reset from:body"

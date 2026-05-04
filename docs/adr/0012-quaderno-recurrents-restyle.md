@@ -1,7 +1,7 @@
 # ADR-0012: Quaderno restyle of recurrents list and panel
 
 ## Status
-Proposed
+Accepted (CSS + recurrent page chrome restyled; day-card avatar + monthly-grouped header VM deferred — would require new handler fields.)
 
 ## Context
 ADR-0008 (tokens) + ADR-0010 (forms) leave the recurrents surfaces
