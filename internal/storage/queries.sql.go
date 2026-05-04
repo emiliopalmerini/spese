@@ -35,6 +35,33 @@ func (q *Queries) CleanupCompletedSyncs(ctx context.Context, processedAt interfa
 	return err
 }
 
+const createAccount = `-- name: CreateAccount :one
+
+INSERT INTO accounts (name, type, active)
+VALUES (?, ?, ?)
+RETURNING id, name, type, active, created_at
+`
+
+type CreateAccountParams struct {
+	Name   string `db:"name" json:"name"`
+	Type   string `db:"type" json:"type"`
+	Active int64  `db:"active" json:"active"`
+}
+
+// Net Worth queries
+func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error) {
+	row := q.db.QueryRowContext(ctx, createAccount, arg.Name, arg.Type, arg.Active)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Type,
+		&i.Active,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createExpense = `-- name: CreateExpense :one
 INSERT INTO expenses (date, description, amount_cents, primary_category, secondary_category)
 VALUES (date(?), ?, ?, ?, ?)
@@ -502,6 +529,42 @@ func (q *Queries) EnqueueSync(ctx context.Context, expenseID int64) (SyncQueue, 
 		&i.UpdatedAt,
 		&i.ProcessedAt,
 		&i.NextRetryAt,
+	)
+	return i, err
+}
+
+const getAccountByID = `-- name: GetAccountByID :one
+SELECT id, name, type, active, created_at FROM accounts
+WHERE id = ?
+`
+
+func (q *Queries) GetAccountByID(ctx context.Context, id int64) (Account, error) {
+	row := q.db.QueryRowContext(ctx, getAccountByID, id)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Type,
+		&i.Active,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getAccountByName = `-- name: GetAccountByName :one
+SELECT id, name, type, active, created_at FROM accounts
+WHERE name = ?
+`
+
+func (q *Queries) GetAccountByName(ctx context.Context, name string) (Account, error) {
+	row := q.db.QueryRowContext(ctx, getAccountByName, name)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Type,
+		&i.Active,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -1010,6 +1073,48 @@ func (q *Queries) GetIncomesByMonth(ctx context.Context, arg GetIncomesByMonthPa
 	return items, nil
 }
 
+const getLatestBalancePerAccount = `-- name: GetLatestBalancePerAccount :many
+SELECT ab.account_id, ab.year, ab.month, ab.amount_cents, ab.updated_at
+FROM account_balances ab
+JOIN (
+    SELECT account_id, MAX(year * 12 + month) AS period
+    FROM account_balances
+    GROUP BY account_id
+) latest
+  ON latest.account_id = ab.account_id
+  AND latest.period = ab.year * 12 + ab.month
+ORDER BY ab.account_id ASC
+`
+
+func (q *Queries) GetLatestBalancePerAccount(ctx context.Context) ([]AccountBalance, error) {
+	rows, err := q.db.QueryContext(ctx, getLatestBalancePerAccount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AccountBalance
+	for rows.Next() {
+		var i AccountBalance
+		if err := rows.Scan(
+			&i.AccountID,
+			&i.Year,
+			&i.Month,
+			&i.AmountCents,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getMonthTotal = `-- name: GetMonthTotal :one
 SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) as total
 FROM expenses
@@ -1024,6 +1129,24 @@ type GetMonthTotalParams struct {
 
 func (q *Queries) GetMonthTotal(ctx context.Context, arg GetMonthTotalParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getMonthTotal, arg.PRINTF, arg.PRINTF_2)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
+const getMonthlyNetWorthTotal = `-- name: GetMonthlyNetWorthTotal :one
+SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) AS total
+FROM account_balances
+WHERE year = ? AND month = ?
+`
+
+type GetMonthlyNetWorthTotalParams struct {
+	Year  int64 `db:"year" json:"year"`
+	Month int64 `db:"month" json:"month"`
+}
+
+func (q *Queries) GetMonthlyNetWorthTotal(ctx context.Context, arg GetMonthlyNetWorthTotalParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getMonthlyNetWorthTotal, arg.Year, arg.Month)
 	var total int64
 	err := row.Scan(&total)
 	return total, err
@@ -1341,6 +1464,150 @@ func (q *Queries) IncrementSyncAttempt(ctx context.Context, arg IncrementSyncAtt
 	return err
 }
 
+const listActiveAccounts = `-- name: ListActiveAccounts :many
+SELECT id, name, type, active, created_at FROM accounts
+WHERE active = 1
+ORDER BY type ASC, name ASC
+`
+
+func (q *Queries) ListActiveAccounts(ctx context.Context) ([]Account, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveAccounts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Account
+	for rows.Next() {
+		var i Account
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Type,
+			&i.Active,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllAccounts = `-- name: ListAllAccounts :many
+SELECT id, name, type, active, created_at FROM accounts
+ORDER BY type ASC, name ASC
+`
+
+func (q *Queries) ListAllAccounts(ctx context.Context) ([]Account, error) {
+	rows, err := q.db.QueryContext(ctx, listAllAccounts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Account
+	for rows.Next() {
+		var i Account
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Type,
+			&i.Active,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBalancesForAccount = `-- name: ListBalancesForAccount :many
+SELECT account_id, year, month, amount_cents, updated_at FROM account_balances
+WHERE account_id = ?
+ORDER BY year DESC, month DESC
+`
+
+func (q *Queries) ListBalancesForAccount(ctx context.Context, accountID int64) ([]AccountBalance, error) {
+	rows, err := q.db.QueryContext(ctx, listBalancesForAccount, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AccountBalance
+	for rows.Next() {
+		var i AccountBalance
+		if err := rows.Scan(
+			&i.AccountID,
+			&i.Year,
+			&i.Month,
+			&i.AmountCents,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBalancesForMonth = `-- name: ListBalancesForMonth :many
+SELECT account_id, year, month, amount_cents, updated_at FROM account_balances
+WHERE year = ? AND month = ?
+ORDER BY account_id ASC
+`
+
+type ListBalancesForMonthParams struct {
+	Year  int64 `db:"year" json:"year"`
+	Month int64 `db:"month" json:"month"`
+}
+
+func (q *Queries) ListBalancesForMonth(ctx context.Context, arg ListBalancesForMonthParams) ([]AccountBalance, error) {
+	rows, err := q.db.QueryContext(ctx, listBalancesForMonth, arg.Year, arg.Month)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AccountBalance
+	for rows.Next() {
+		var i AccountBalance
+		if err := rows.Scan(
+			&i.AccountID,
+			&i.Year,
+			&i.Month,
+			&i.AmountCents,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listExpensesByDateRange = `-- name: ListExpensesByDateRange :many
 SELECT id, date, description, amount_cents, primary_category, secondary_category, version, created_at, synced_at, sync_status FROM expenses
 WHERE date >= ? AND date <= ?
@@ -1600,6 +1867,29 @@ func (q *Queries) RetryFailedSyncs(ctx context.Context) error {
 	return err
 }
 
+const updateAccount = `-- name: UpdateAccount :exec
+UPDATE accounts
+SET name = ?, type = ?, active = ?
+WHERE id = ?
+`
+
+type UpdateAccountParams struct {
+	Name   string `db:"name" json:"name"`
+	Type   string `db:"type" json:"type"`
+	Active int64  `db:"active" json:"active"`
+	ID     int64  `db:"id" json:"id"`
+}
+
+func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) error {
+	_, err := q.db.ExecContext(ctx, updateAccount,
+		arg.Name,
+		arg.Type,
+		arg.Active,
+		arg.ID,
+	)
+	return err
+}
+
 const updateRecurrentExpense = `-- name: UpdateRecurrentExpense :exec
 UPDATE recurrent_expenses
 SET start_date = ?, 
@@ -1652,5 +1942,30 @@ type UpdateRecurrentLastExecutionParams struct {
 
 func (q *Queries) UpdateRecurrentLastExecution(ctx context.Context, arg UpdateRecurrentLastExecutionParams) error {
 	_, err := q.db.ExecContext(ctx, updateRecurrentLastExecution, arg.LastExecutionDate, arg.ID)
+	return err
+}
+
+const upsertAccountBalance = `-- name: UpsertAccountBalance :exec
+INSERT INTO account_balances (account_id, year, month, amount_cents, updated_at)
+VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT(account_id, year, month) DO UPDATE
+SET amount_cents = excluded.amount_cents,
+    updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertAccountBalanceParams struct {
+	AccountID   int64 `db:"account_id" json:"account_id"`
+	Year        int64 `db:"year" json:"year"`
+	Month       int64 `db:"month" json:"month"`
+	AmountCents int64 `db:"amount_cents" json:"amount_cents"`
+}
+
+func (q *Queries) UpsertAccountBalance(ctx context.Context, arg UpsertAccountBalanceParams) error {
+	_, err := q.db.ExecContext(ctx, upsertAccountBalance,
+		arg.AccountID,
+		arg.Year,
+		arg.Month,
+		arg.AmountCents,
+	)
 	return err
 }

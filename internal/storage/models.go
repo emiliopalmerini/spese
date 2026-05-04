@@ -9,6 +9,22 @@ import (
 	"time"
 )
 
+type Account struct {
+	ID        int64     `db:"id" json:"id"`
+	Name      string    `db:"name" json:"name"`
+	Type      string    `db:"type" json:"type"`
+	Active    int64     `db:"active" json:"active"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+type AccountBalance struct {
+	AccountID   int64     `db:"account_id" json:"account_id"`
+	Year        int64     `db:"year" json:"year"`
+	Month       int64     `db:"month" json:"month"`
+	AmountCents int64     `db:"amount_cents" json:"amount_cents"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type Expense struct {
 	ID                int64          `db:"id" json:"id"`
 	Date              time.Time      `db:"date" json:"date"`

@@ -13,6 +13,8 @@ type Querier interface {
 	CleanupCompletedIncomeSyncs(ctx context.Context, processedAt interface{}) error
 	// Removes completed items older than the specified timestamp.
 	CleanupCompletedSyncs(ctx context.Context, processedAt interface{}) error
+	// Net Worth queries
+	CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error)
 	CreateExpense(ctx context.Context, arg CreateExpenseParams) (Expense, error)
 	// Income queries
 	CreateIncome(ctx context.Context, arg CreateIncomeParams) (Income, error)
@@ -38,6 +40,8 @@ type Querier interface {
 	// Sync Queue queries
 	// Enqueues a sync operation for an expense.
 	EnqueueSync(ctx context.Context, expenseID int64) (SyncQueue, error)
+	GetAccountByID(ctx context.Context, id int64) (Account, error)
+	GetAccountByName(ctx context.Context, name string) (Account, error)
 	GetActiveRecurrentExpensesByDate(ctx context.Context, arg GetActiveRecurrentExpensesByDateParams) ([]RecurrentExpense, error)
 	GetActiveRecurrentExpensesForProcessing(ctx context.Context, arg GetActiveRecurrentExpensesForProcessingParams) ([]RecurrentExpense, error)
 	GetAllCategoriesWithSubs(ctx context.Context) ([]GetAllCategoriesWithSubsRow, error)
@@ -54,7 +58,9 @@ type Querier interface {
 	// Returns counts by status for monitoring.
 	GetIncomeSyncQueueStats(ctx context.Context) (GetIncomeSyncQueueStatsRow, error)
 	GetIncomesByMonth(ctx context.Context, arg GetIncomesByMonthParams) ([]Income, error)
+	GetLatestBalancePerAccount(ctx context.Context) ([]AccountBalance, error)
 	GetMonthTotal(ctx context.Context, arg GetMonthTotalParams) (int64, error)
+	GetMonthlyNetWorthTotal(ctx context.Context, arg GetMonthlyNetWorthTotalParams) (int64, error)
 	GetPendingSyncExpenses(ctx context.Context, limit int64) ([]GetPendingSyncExpensesRow, error)
 	// Primary Categories queries
 	GetPrimaryCategories(ctx context.Context) ([]string, error)
@@ -73,6 +79,10 @@ type Querier interface {
 	IncrementIncomeSyncAttempt(ctx context.Context, arg IncrementIncomeSyncAttemptParams) error
 	// Increments attempt count and schedules next retry with exponential backoff.
 	IncrementSyncAttempt(ctx context.Context, arg IncrementSyncAttemptParams) error
+	ListActiveAccounts(ctx context.Context) ([]Account, error)
+	ListAllAccounts(ctx context.Context) ([]Account, error)
+	ListBalancesForAccount(ctx context.Context, accountID int64) ([]AccountBalance, error)
+	ListBalancesForMonth(ctx context.Context, arg ListBalancesForMonthParams) ([]AccountBalance, error)
 	ListExpensesByDateRange(ctx context.Context, arg ListExpensesByDateRangeParams) ([]Expense, error)
 	MarkExpenseSyncError(ctx context.Context, id int64) error
 	MarkExpenseSynced(ctx context.Context, id int64) error
@@ -102,8 +112,10 @@ type Querier interface {
 	RetryFailedIncomeSyncs(ctx context.Context) error
 	// Resets failed items back to pending for manual retry.
 	RetryFailedSyncs(ctx context.Context) error
+	UpdateAccount(ctx context.Context, arg UpdateAccountParams) error
 	UpdateRecurrentExpense(ctx context.Context, arg UpdateRecurrentExpenseParams) error
 	UpdateRecurrentLastExecution(ctx context.Context, arg UpdateRecurrentLastExecutionParams) error
+	UpsertAccountBalance(ctx context.Context, arg UpsertAccountBalanceParams) error
 }
 
 var _ Querier = (*Queries)(nil)

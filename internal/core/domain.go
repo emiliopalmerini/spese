@@ -80,15 +80,44 @@ type IncomeMonthOverview struct {
 	ByCategory []CategoryAmount
 }
 
+// AccountType identifies the bucket an account belongs to in the Net Worth view.
+type AccountType string
+
+const (
+	AccountCash     AccountType = "cash"      // Cash and liquid balances
+	AccountRainyDay AccountType = "rainy_day" // Rainy-day reserves
+	AccountLongTerm AccountType = "long_term" // Long-term investments
+)
+
+// Account represents a Net Worth account whose monthly balance is tracked.
+type Account struct {
+	ID     int64
+	Name   string
+	Type   AccountType
+	Active bool
+}
+
+// AccountBalance represents the balance of an account for a given month.
+type AccountBalance struct {
+	AccountID int64
+	Year      int
+	Month     int
+	Amount    Money
+}
+
 // Domain validation errors.
 var (
-	ErrInvalidDay       = errors.New("invalid day")              // Day value is outside valid range (1-31)
-	ErrInvalidMonth     = errors.New("invalid month")            // Month value is outside valid range (1-12)
-	ErrInvalidAmount    = errors.New("invalid amount")           // Amount is zero or negative
-	ErrEmptyDescription = errors.New("empty description")        // Description field is empty or whitespace-only
-	ErrEmptyPrimary     = errors.New("empty primary category")   // Primary category is empty
-	ErrEmptySecondary   = errors.New("empty secondary category") // Secondary category is empty
-	ErrEmptyCategory    = errors.New("empty category")           // Category is empty (for income)
+	ErrInvalidDay         = errors.New("invalid day")              // Day value is outside valid range (1-31)
+	ErrInvalidMonth       = errors.New("invalid month")            // Month value is outside valid range (1-12)
+	ErrInvalidAmount      = errors.New("invalid amount")           // Amount is zero or negative
+	ErrEmptyDescription   = errors.New("empty description")        // Description field is empty or whitespace-only
+	ErrEmptyPrimary       = errors.New("empty primary category")   // Primary category is empty
+	ErrEmptySecondary     = errors.New("empty secondary category") // Secondary category is empty
+	ErrEmptyCategory      = errors.New("empty category")           // Category is empty (for income)
+	ErrEmptyAccountName   = errors.New("empty account name")       // Account name is blank
+	ErrAccountNameTooLong = errors.New("account name too long")    // Account name exceeds 80 chars
+	ErrInvalidAccountType = errors.New("invalid account type")     // Account type not in allowed set
+	ErrInvalidPeriod      = errors.New("invalid period")           // Year/month out of range
 )
 
 // Validate checks if the Date represents a valid date.
@@ -221,6 +250,39 @@ func (re RecurrentExpenses) Validate() error {
 		return ErrEmptySecondary
 	}
 
+	return nil
+}
+
+// Validate checks that the Account has a non-empty name within the length cap
+// and a recognized type.
+func (a Account) Validate() error {
+	name := strings.TrimSpace(a.Name)
+	if name == "" {
+		return ErrEmptyAccountName
+	}
+	if len(a.Name) > 80 {
+		return ErrAccountNameTooLong
+	}
+	switch a.Type {
+	case AccountCash, AccountRainyDay, AccountLongTerm:
+	default:
+		return ErrInvalidAccountType
+	}
+	return nil
+}
+
+// Validate checks the AccountBalance has an in-range year/month and a
+// non-negative amount. Zero amounts are allowed (represents a closed month).
+func (b AccountBalance) Validate() error {
+	if b.Year < 2000 {
+		return ErrInvalidPeriod
+	}
+	if b.Month < 1 || b.Month > 12 {
+		return ErrInvalidPeriod
+	}
+	if b.Amount.Cents < 0 {
+		return ErrInvalidAmount
+	}
 	return nil
 }
 

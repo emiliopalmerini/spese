@@ -1,6 +1,7 @@
 package core
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -31,6 +32,57 @@ func TestMoneyValidate(t *testing.T) {
 	}
 	if err := (Money{Cents: 0}).Validate(); err == nil {
 		t.Fatalf("expected error for zero")
+	}
+}
+
+func TestAccountValidate(t *testing.T) {
+	good := Account{Name: "Conto BCC", Type: AccountCash, Active: true}
+	if err := good.Validate(); err != nil {
+		t.Fatalf("expected ok, got %v", err)
+	}
+
+	longName := strings.Repeat("a", 81)
+
+	bads := []struct {
+		a    Account
+		want error
+	}{
+		{Account{Name: "", Type: AccountCash}, ErrEmptyAccountName},
+		{Account{Name: "   ", Type: AccountCash}, ErrEmptyAccountName},
+		{Account{Name: longName, Type: AccountCash}, ErrAccountNameTooLong},
+		{Account{Name: "x", Type: AccountType("bogus")}, ErrInvalidAccountType},
+	}
+	for i, tc := range bads {
+		if err := tc.a.Validate(); err != tc.want {
+			t.Fatalf("case %d: expected %v, got %v", i, tc.want, err)
+		}
+	}
+}
+
+func TestAccountBalanceValidate(t *testing.T) {
+	good := AccountBalance{AccountID: 1, Year: 2025, Month: 6, Amount: Money{Cents: 1000}}
+	if err := good.Validate(); err != nil {
+		t.Fatalf("expected ok, got %v", err)
+	}
+	// zero amount allowed
+	zero := AccountBalance{AccountID: 1, Year: 2025, Month: 6, Amount: Money{Cents: 0}}
+	if err := zero.Validate(); err != nil {
+		t.Fatalf("zero amount must be allowed, got %v", err)
+	}
+
+	bads := []struct {
+		b    AccountBalance
+		want error
+	}{
+		{AccountBalance{AccountID: 1, Year: 1999, Month: 1, Amount: Money{Cents: 1}}, ErrInvalidPeriod},
+		{AccountBalance{AccountID: 1, Year: 2025, Month: 0, Amount: Money{Cents: 1}}, ErrInvalidPeriod},
+		{AccountBalance{AccountID: 1, Year: 2025, Month: 13, Amount: Money{Cents: 1}}, ErrInvalidPeriod},
+		{AccountBalance{AccountID: 1, Year: 2025, Month: 6, Amount: Money{Cents: -1}}, ErrInvalidAmount},
+	}
+	for i, tc := range bads {
+		if err := tc.b.Validate(); err != tc.want {
+			t.Fatalf("case %d: expected %v, got %v", i, tc.want, err)
+		}
 	}
 }
 

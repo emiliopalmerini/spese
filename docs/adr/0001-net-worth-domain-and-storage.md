@@ -1,7 +1,7 @@
 # ADR-0001: Net Worth domain and storage
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 Port the Net Worth section of the Google Sheets dashboard into the app. The sheet

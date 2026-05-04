@@ -413,3 +413,66 @@ WHERE id = ?;
 UPDATE incomes
 SET sync_status = 'error'
 WHERE id = ?;
+
+-- Net Worth queries
+
+-- name: CreateAccount :one
+INSERT INTO accounts (name, type, active)
+VALUES (?, ?, ?)
+RETURNING *;
+
+-- name: UpdateAccount :exec
+UPDATE accounts
+SET name = ?, type = ?, active = ?
+WHERE id = ?;
+
+-- name: ListActiveAccounts :many
+SELECT * FROM accounts
+WHERE active = 1
+ORDER BY type ASC, name ASC;
+
+-- name: ListAllAccounts :many
+SELECT * FROM accounts
+ORDER BY type ASC, name ASC;
+
+-- name: GetAccountByID :one
+SELECT * FROM accounts
+WHERE id = ?;
+
+-- name: GetAccountByName :one
+SELECT * FROM accounts
+WHERE name = ?;
+
+-- name: UpsertAccountBalance :exec
+INSERT INTO account_balances (account_id, year, month, amount_cents, updated_at)
+VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT(account_id, year, month) DO UPDATE
+SET amount_cents = excluded.amount_cents,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- name: ListBalancesForMonth :many
+SELECT * FROM account_balances
+WHERE year = ? AND month = ?
+ORDER BY account_id ASC;
+
+-- name: ListBalancesForAccount :many
+SELECT * FROM account_balances
+WHERE account_id = ?
+ORDER BY year DESC, month DESC;
+
+-- name: GetLatestBalancePerAccount :many
+SELECT ab.account_id, ab.year, ab.month, ab.amount_cents, ab.updated_at
+FROM account_balances ab
+JOIN (
+    SELECT account_id, MAX(year * 12 + month) AS period
+    FROM account_balances
+    GROUP BY account_id
+) latest
+  ON latest.account_id = ab.account_id
+  AND latest.period = ab.year * 12 + ab.month
+ORDER BY ab.account_id ASC;
+
+-- name: GetMonthlyNetWorthTotal :one
+SELECT CAST(COALESCE(SUM(amount_cents), 0) AS INTEGER) AS total
+FROM account_balances
+WHERE year = ? AND month = ?;
