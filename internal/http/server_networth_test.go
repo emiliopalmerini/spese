@@ -267,7 +267,7 @@ func TestNetWorthInsightsRenders(t *testing.T) {
 		`id="networth-insights"`,
 		`net-insights__hero`,
 		`net-insights__strip`,
-		`Cash & Liquidità`,
+		`Cash &amp; Liquidità`,
 		`Long term`,
 		`net-trend__cell`,
 		`net-cat__group`,

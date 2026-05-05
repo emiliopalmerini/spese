@@ -5,12 +5,7 @@
     <span class="net-insights__suffix">€</span>
   </div>
 
-  {{ if not .HasData }}
-    <div class="empty-state">
-      <p class="empty-message">Nessun saldo registrato per questo mese.</p>
-      <p class="empty-hint">Aggiungi un conto e poi inserisci il saldo del mese.</p>
-    </div>
-  {{ else }}
+  {{ if .HasData }}
     <div class="net-insights__caption label-mono">
       {{ .ActiveCount }} conti
       {{ if not .DeltaIsZero }}
@@ -41,7 +36,9 @@
         {{ end }}
       </div>
     </div>
+  {{ end }}
 
+  {{ if .Groups }}
     <div class="net-insights__block">
       <div class="net-insights__block-title label-mono">Conti per tipo</div>
       {{ range .Groups }}
@@ -77,6 +74,11 @@
         </div>
       </details>
       {{ end }}
+    </div>
+  {{ else if not .HasData }}
+    <div class="empty-state">
+      <p class="empty-message">Nessun saldo registrato per questo mese.</p>
+      <p class="empty-hint">Aggiungi un conto e poi inserisci il saldo del mese.</p>
     </div>
   {{ end }}
 

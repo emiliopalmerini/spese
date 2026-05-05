@@ -127,55 +127,55 @@ func buildNetworthInsights(
 		vm.DeltaAbsFmt = formatEuros(absDiff)
 	}
 
-	// Groups (one per type that has any accounts).
-	if vm.HasData {
-		var maxTypeAmt int64
-		for _, t := range networthTypeOrder {
-			if typeAmount[t] > maxTypeAmt {
-				maxTypeAmt = typeAmount[t]
-			}
+	// Groups (one per type that has any accounts). Rendered whenever
+	// accounts exist so newly created accounts show up before the user
+	// has entered a balance for the current month.
+	var maxTypeAmt int64
+	for _, t := range networthTypeOrder {
+		if typeAmount[t] > maxTypeAmt {
+			maxTypeAmt = typeAmount[t]
 		}
-		for _, t := range networthTypeOrder {
-			if typeAccountCount[t] == 0 {
+	}
+	for _, t := range networthTypeOrder {
+		if typeAccountCount[t] == 0 {
+			continue
+		}
+		grp := NetworthGroupVM{
+			Type:     t,
+			Title:    netWorthSectionTitles[t],
+			TotalFmt: formatEuros(typeAmount[t]),
+		}
+		if maxTypeAmt > 0 {
+			grp.WidthPct = int((typeAmount[t] * 100) / maxTypeAmt)
+		}
+		for _, a := range accounts {
+			if a.Type != t {
 				continue
 			}
-			grp := NetworthGroupVM{
-				Type:     t,
-				Title:    netWorthSectionTitles[t],
-				TotalFmt: formatEuros(typeAmount[t]),
+			row := netWorthAccountRow{
+				ID:         a.ID,
+				Name:       a.Name,
+				Type:       a.Type,
+				Active:     a.Active,
+				IsInactive: !a.Active,
 			}
-			if maxTypeAmt > 0 {
-				grp.WidthPct = int((typeAmount[t] * 100) / maxTypeAmt)
+			if b, ok := currBalances[a.ID]; ok {
+				row.Amount = formatEuros(b.Amount.Cents)
+				row.AmountCents = b.Amount.Cents
+				row.HasBalance = true
+				row.BalanceUpdate = fmt.Sprintf("%d-%02d", b.Year, b.Month)
+			} else {
+				row.Amount = "—"
 			}
-			for _, a := range accounts {
-				if a.Type != t {
-					continue
-				}
-				row := netWorthAccountRow{
-					ID:         a.ID,
-					Name:       a.Name,
-					Type:       a.Type,
-					Active:     a.Active,
-					IsInactive: !a.Active,
-				}
-				if b, ok := currBalances[a.ID]; ok {
-					row.Amount = formatEuros(b.Amount.Cents)
-					row.AmountCents = b.Amount.Cents
-					row.HasBalance = true
-					row.BalanceUpdate = fmt.Sprintf("%d-%02d", b.Year, b.Month)
-				} else {
-					row.Amount = "—"
-				}
-				grp.Accounts = append(grp.Accounts, row)
-			}
-			sort.SliceStable(grp.Accounts, func(i, j int) bool {
-				if grp.Accounts[i].IsInactive != grp.Accounts[j].IsInactive {
-					return !grp.Accounts[i].IsInactive
-				}
-				return grp.Accounts[i].AmountCents > grp.Accounts[j].AmountCents
-			})
-			vm.Groups = append(vm.Groups, grp)
+			grp.Accounts = append(grp.Accounts, row)
 		}
+		sort.SliceStable(grp.Accounts, func(i, j int) bool {
+			if grp.Accounts[i].IsInactive != grp.Accounts[j].IsInactive {
+				return !grp.Accounts[i].IsInactive
+			}
+			return grp.Accounts[i].AmountCents > grp.Accounts[j].AmountCents
+		})
+		vm.Groups = append(vm.Groups, grp)
 	}
 
 	// 12-month trend.
