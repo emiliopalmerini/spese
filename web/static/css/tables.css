@@ -193,12 +193,6 @@
   background:var(--paper);
   z-index:1;
 }
-@media (prefers-color-scheme: dark){
-  .pick-months__row .pick-months__cell--month,
-  .cash-flow__row .cash-flow__cell--label{
-    background:var(--paper);
-  }
-}
 
 /* Hide hover affordance (rows are dense; no per-row interaction) */
 .pick-months__row:hover,

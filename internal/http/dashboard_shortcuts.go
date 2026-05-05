@@ -21,10 +21,18 @@ type ShortcutCardVM struct {
 	HasData     bool
 }
 
+type SavingsTileVM struct {
+	Label      string
+	RatePct    int
+	IsNegative bool
+	HasData    bool
+}
+
 type DashboardShortcutsVM struct {
 	Spese      ShortcutCardVM
 	Entrate    ShortcutCardVM
 	Ricorrenti ShortcutCardVM
+	Risparmio  SavingsTileVM
 }
 
 func buildDashboardShortcuts(
@@ -36,6 +44,7 @@ func buildDashboardShortcuts(
 		Spese:      ShortcutCardVM{Href: "/spese", Label: "Spese", AmountFmt: formatEuros(expCurr.Total.Cents), Count: expCount},
 		Entrate:    ShortcutCardVM{Href: "/entrate", Label: "Entrate", AmountFmt: formatEuros(incCurr.Total.Cents), Count: incCount},
 		Ricorrenti: ShortcutCardVM{Href: "/recurrent", Label: "Ricorrenti", DeltaIsZero: true},
+		Risparmio:  SavingsTileVM{Label: "Tasso Risparmio"},
 	}
 
 	vm.Spese.HasData = expCurr.Total.Cents > 0 || expCount > 0
@@ -43,6 +52,14 @@ func buildDashboardShortcuts(
 
 	applyDelta(&vm.Spese, expCurr.Total.Cents, expPrev.Total.Cents)
 	applyDelta(&vm.Entrate, incCurr.Total.Cents, incPrev.Total.Cents)
+
+	if incCurr.Total.Cents > 0 {
+		balance := incCurr.Total.Cents - expCurr.Total.Cents
+		rate := int((balance * 100) / incCurr.Total.Cents)
+		vm.Risparmio.RatePct = rate
+		vm.Risparmio.IsNegative = rate < 0
+		vm.Risparmio.HasData = true
+	}
 
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	var monthly int64

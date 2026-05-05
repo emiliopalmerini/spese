@@ -4,8 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#f5f1e8" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#1a1612" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f5f1e8" />
     <title>Spese</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -48,17 +47,6 @@
          hx-trigger="load, dashboard:refresh from:body"
          hx-swap="innerHTML">
       <div class="skeleton" style="height: 80px; width: 200px; margin: 0 auto;"></div>
-    </div>
-  </section>
-
-  <!-- Stat Pills - Expenses + Savings Rate -->
-  <section class="page__section">
-    <div class="stat-pills stat-pills--two" id="stat-pills"
-         hx-get="/ui/dashboard/stat-pills"
-         hx-trigger="load, dashboard:refresh from:body"
-         hx-swap="innerHTML">
-      <div class="stat-pill"><div class="skeleton" style="height: 50px;"></div></div>
-      <div class="stat-pill"><div class="skeleton" style="height: 50px;"></div></div>
     </div>
   </section>
 

@@ -1,7 +1,7 @@
 # ADR-0013: Quaderno-night (dark) theme tweak
 
 ## Status
-Accepted (Auto via prefers-color-scheme:dark only. Manual data-theme override + theme picker explicitly removed by user; OS preference is the single source of truth.)
+Superseded — dark variant removed; app is now light-only.
 
 ## Context
 ADR-0008 dropped the previous `prefers-color-scheme: dark` mapping because

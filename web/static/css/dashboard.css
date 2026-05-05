@@ -405,9 +405,6 @@
   transform:scale(1.05);
   box-shadow:0 8px 22px rgba(184,69,28,0.36);
 }
-@media (prefers-color-scheme: dark){
-  .fab{box-shadow:0 6px 16px rgba(215,122,79,0.35);}
-}
 .fab:active{
   transform:scale(0.95);
 }
@@ -1051,7 +1048,7 @@
 /* Domain shortcut tiles (ADR-0018) */
 .dashboard-shortcuts{
   display:grid;
-  grid-template-columns:repeat(3,1fr);
+  grid-template-columns:repeat(4,1fr);
   gap:var(--space-3);
 }
 .dashboard-shortcut{
@@ -1067,6 +1064,12 @@
 .dashboard-shortcut:hover{
   border-color:var(--ink);
 }
+.dashboard-shortcut--passive{
+  cursor:default;
+}
+.dashboard-shortcut--passive:hover{
+  border-color:var(--line);
+}
 .dashboard-shortcut__label{
   font-size:var(--text-xs);
   letter-spacing:0.12em;
@@ -1079,13 +1082,16 @@
   font-variant-numeric:tabular-nums;
   letter-spacing:-0.01em;
 }
+.dashboard-shortcut__amount--negative{
+  color:var(--negative);
+}
 .dashboard-shortcut__caption{
   font-size:var(--text-xs);
   color:var(--muted);
 }
-@media (max-width:480px){
+@media (max-width:640px){
   .dashboard-shortcuts{
-    grid-template-columns:1fr;
+    grid-template-columns:repeat(2,1fr);
   }
 }
 

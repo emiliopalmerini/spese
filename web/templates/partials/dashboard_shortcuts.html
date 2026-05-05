@@ -3,6 +3,7 @@
   {{ template "dashboard_shortcut_card" .Spese }}
   {{ template "dashboard_shortcut_card" .Entrate }}
   {{ template "dashboard_shortcut_card" .Ricorrenti }}
+  {{ template "dashboard_savings_tile" .Risparmio }}
 </div>
 {{ end }}
 
@@ -15,4 +16,14 @@
     {{ if not .DeltaIsZero }} · Δ {{ .DeltaSign }}{{ .DeltaPct }}%{{ end }}
   </div>
 </a>
+{{ end }}
+
+{{ define "dashboard_savings_tile" }}
+<div class="dashboard-shortcut dashboard-shortcut--passive">
+  <div class="dashboard-shortcut__label label-mono">{{ .Label }}</div>
+  <div class="dashboard-shortcut__amount{{ if .IsNegative }} dashboard-shortcut__amount--negative{{ end }}">
+    {{ if .HasData }}{{ .RatePct }}%{{ else }}—{{ end }}
+  </div>
+  <div class="dashboard-shortcut__caption label-mono">mese in corso</div>
+</div>
 {{ end }}

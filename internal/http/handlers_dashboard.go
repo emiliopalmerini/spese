@@ -101,53 +101,6 @@ func (s *Server) handleDashboardStatHero(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// handleDashboardStatPills returns the stat pills partial (expenses + savings rate)
-func (s *Server) handleDashboardStatPills(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.Header().Set("Allow", "GET")
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 7*time.Second)
-	defer cancel()
-
-	now := time.Now()
-	year, month := now.Year(), int(now.Month())
-
-	adapter, ok := s.expLister.(*adapters.SQLiteAdapter)
-	if !ok {
-		http.Error(w, "adapter not available", http.StatusInternalServerError)
-		return
-	}
-
-	// Get monthly totals
-	expenses, _ := adapter.GetMonthlyExpenseTotal(ctx, year, month)
-	income, _ := adapter.GetMonthlyIncomeTotal(ctx, year, month)
-
-	balance := income - expenses
-
-	// Calculate savings rate
-	savingsRate := 0
-	if income > 0 {
-		savingsRate = int((balance * 100) / income)
-	}
-
-	data := struct {
-		TotalExpenses string
-		SavingsRate   int
-	}{
-		TotalExpenses: formatEuros(expenses),
-		SavingsRate:   savingsRate,
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.templates.ExecuteTemplate(w, "stat_pills", data); err != nil {
-		slog.ErrorContext(ctx, "Stat pills template failed", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
 // handleDashboardTrend returns trend data for Chart.js
 func (s *Server) handleDashboardTrend(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

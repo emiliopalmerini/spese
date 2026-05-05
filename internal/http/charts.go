@@ -38,7 +38,7 @@ func RenderBarChart(o BarChartOpts) template.HTML {
 		o.Color = "#1a1612"
 	}
 	if o.HighlightColor == "" {
-		o.HighlightColor = o.Color
+		o.HighlightColor = "#b8451c"
 	}
 	if o.LabelColor == "" {
 		o.LabelColor = "#8a847a"
@@ -217,7 +217,13 @@ func RenderDonut(o DonutOpts) template.HTML {
 // Matches the JSX prototype shared.jsx CATEGORY_BREAKDOWN colors with the
 // terracotta accent reserved for the over-budget / negative slot.
 var QuadernoPalette = []string{
-	"#3a3a3a", "#5a5a5a", "#7a7a7a", "#9a9a9a", "#b3b3b3", "#c8c8c8", "#dcdcdc",
+	"#b8451c", // terracotta
+	"#c8954a", // ochre
+	"#6b7a3d", // olive
+	"#4a6b85", // slate blue
+	"#8c4d6e", // plum
+	"#88a37a", // sage
+	"#c98b1f", // mustard
 }
 
 // PaletteColor picks a stable color for the given key, hashing into

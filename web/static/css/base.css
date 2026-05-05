@@ -118,26 +118,6 @@
   --duration-slower: 600ms;
 }
 
-/* ==============================================================
-   Quaderno-night dark theme (ADR-0013)
-   Auto via prefers-color-scheme:dark only. No manual picker.
-============================================================== */
-@media screen and (prefers-color-scheme: dark) {
-  :root {
-    --paper:         #1a1612;
-    --paper-raised:  #221d18;
-    --ink:           #f1ece1;
-    --ink-2:         #b9b0a2;
-    --muted-ink:     #7e7768;
-    --line-ink:      rgba(241,236,225,0.14);
-    --accent-terra:  #d77a4f;
-    --accent-terra-dark: #b66440;
-    --positive:      #6fa37f;
-    --negative:      #d4796a;
-    --accent-contrast: #1a1612;
-    color-scheme: dark;
-  }
-}
 @media print {
   :root {
     --paper: #ffffff;
