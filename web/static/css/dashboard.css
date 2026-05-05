@@ -1048,7 +1048,7 @@
 /* Domain shortcut tiles (ADR-0018) */
 .dashboard-shortcuts{
   display:grid;
-  grid-template-columns:repeat(4,1fr);
+  grid-template-columns:repeat(3,1fr);
   gap:var(--space-3);
 }
 .dashboard-shortcut{

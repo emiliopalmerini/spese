@@ -12,6 +12,7 @@ func TestBuildDashboardShortcutsEmpty(t *testing.T) {
 		core.MonthOverview{}, core.MonthOverview{}, 0,
 		core.IncomeMonthOverview{}, core.IncomeMonthOverview{}, 0,
 		nil,
+		behavioralMetrics{},
 		time.Date(2026, 5, 5, 0, 0, 0, 0, time.UTC),
 	)
 
@@ -55,6 +56,7 @@ func TestBuildDashboardShortcutsDeltaSpese(t *testing.T) {
 				1,
 				core.IncomeMonthOverview{}, core.IncomeMonthOverview{}, 0,
 				nil,
+				behavioralMetrics{},
 				now,
 			)
 			if vm.Spese.DeltaIsZero != c.wantZero {
@@ -76,7 +78,7 @@ func TestBuildDashboardShortcutsDeltaEntrate(t *testing.T) {
 		core.IncomeMonthOverview{Total: core.Money{Cents: 15000}},
 		core.IncomeMonthOverview{Total: core.Money{Cents: 10000}},
 		1,
-		nil, now,
+		nil, behavioralMetrics{}, now,
 	)
 	if vm.Entrate.DeltaIsZero {
 		t.Fatalf("Entrate Δ should be set, got %+v", vm.Entrate)
@@ -95,7 +97,7 @@ func TestBuildDashboardShortcutsRicorrentiNoDelta(t *testing.T) {
 	vm := buildDashboardShortcuts(
 		core.MonthOverview{}, core.MonthOverview{}, 0,
 		core.IncomeMonthOverview{}, core.IncomeMonthOverview{}, 0,
-		recs, now,
+		recs, behavioralMetrics{}, now,
 	)
 
 	if !vm.Ricorrenti.HasData {
@@ -120,7 +122,7 @@ func TestBuildDashboardShortcutsHasDataFlags(t *testing.T) {
 	vm := buildDashboardShortcuts(
 		core.MonthOverview{Total: core.Money{Cents: 100}}, core.MonthOverview{}, 1,
 		core.IncomeMonthOverview{}, core.IncomeMonthOverview{}, 0,
-		nil, now,
+		nil, behavioralMetrics{}, now,
 	)
 	if !vm.Spese.HasData {
 		t.Fatalf("Spese HasData should be true with non-zero total")

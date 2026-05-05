@@ -186,7 +186,6 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 
 	// Dashboard UI partials
 	mux.HandleFunc("/ui/dashboard/stat-hero", s.withSecurityHeaders(s.handleDashboardStatHero))
-	mux.HandleFunc("/ui/dashboard/stat-grid", s.withSecurityHeaders(s.handleDashboardStatGrid))
 	mux.HandleFunc("/ui/dashboard/projections", s.withSecurityHeaders(s.handleDashboardProjections))
 	mux.HandleFunc("/ui/dashboard/net-worth", s.withSecurityHeaders(s.handleDashboardNetWorth))
 	mux.HandleFunc("/ui/dashboard/shortcuts", s.withSecurityHeaders(s.handleDashboardShortcuts))

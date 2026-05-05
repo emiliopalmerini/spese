@@ -4,6 +4,8 @@
   {{ template "dashboard_shortcut_card" .Entrate }}
   {{ template "dashboard_shortcut_card" .Ricorrenti }}
   {{ template "dashboard_savings_tile" .Risparmio }}
+  {{ template "dashboard_metric_tile" .MediaGiornaliera }}
+  {{ template "dashboard_metric_tile" .Settimana }}
 </div>
 {{ end }}
 
@@ -25,5 +27,13 @@
     {{ if .HasData }}{{ .RatePct }}%{{ else }}—{{ end }}
   </div>
   <div class="dashboard-shortcut__caption label-mono">mese in corso</div>
+</div>
+{{ end }}
+
+{{ define "dashboard_metric_tile" }}
+<div class="dashboard-shortcut dashboard-shortcut--passive">
+  <div class="dashboard-shortcut__label label-mono">{{ .Label }}</div>
+  <div class="dashboard-shortcut__amount">{{ .ValueFmt }}</div>
+  <div class="dashboard-shortcut__caption label-mono">{{ .Caption }}</div>
 </div>
 {{ end }}

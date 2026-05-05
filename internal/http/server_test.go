@@ -281,7 +281,6 @@ func TestIndexAndHealth(t *testing.T) {
 	mustContain := []string{
 		"Capitolo I",
 		"Diario",
-		"stat-grid",
 		"net-worth-tile",
 		"monthly-trend",
 		"dashboard-shortcuts",

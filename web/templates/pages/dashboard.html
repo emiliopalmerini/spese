@@ -50,19 +50,6 @@
     </div>
   </section>
 
-  <!-- Stat Grid - Behavioral Metrics -->
-  <section class="page__section">
-    <div class="stat-grid" id="stat-grid"
-         hx-get="/ui/dashboard/stat-grid"
-         hx-trigger="load, dashboard:refresh from:body"
-         hx-swap="innerHTML">
-      <div class="stat-box"><div class="skeleton" style="height: 48px;"></div></div>
-      <div class="stat-box"><div class="skeleton" style="height: 48px;"></div></div>
-      <div class="stat-box"><div class="skeleton" style="height: 48px;"></div></div>
-      <div class="stat-box"><div class="skeleton" style="height: 48px;"></div></div>
-    </div>
-  </section>
-
   <!-- Net Worth Tile -->
   <section class="page__section">
     <div id="net-worth-tile"
@@ -73,6 +60,16 @@
     </div>
   </section>
 
+  <!-- Domain shortcut tiles + key metrics -->
+  <section class="page__section">
+    <div id="dashboard-shortcuts"
+         hx-get="/ui/dashboard/shortcuts"
+         hx-trigger="load, dashboard:refresh from:body, expense:deleted from:body, income:deleted from:body, recurrent:created from:body, recurrent:deleted from:body, recurrent:updated from:body"
+         hx-swap="innerHTML">
+      <div class="skeleton" style="height: 200px;"></div>
+    </div>
+  </section>
+
   <!-- Monthly Trend (Quaderno bar chart) -->
   <section class="page__section">
     <div id="monthly-trend"
@@ -80,16 +77,6 @@
          hx-trigger="load, dashboard:refresh from:body"
          hx-swap="innerHTML">
       <div class="skeleton" style="height: 120px;"></div>
-    </div>
-  </section>
-
-  <!-- Domain shortcut tiles -->
-  <section class="page__section">
-    <div id="dashboard-shortcuts"
-         hx-get="/ui/dashboard/shortcuts"
-         hx-trigger="load, dashboard:refresh from:body, expense:deleted from:body, income:deleted from:body, recurrent:created from:body, recurrent:deleted from:body, recurrent:updated from:body"
-         hx-swap="innerHTML">
-      <div class="skeleton" style="height: 96px;"></div>
     </div>
   </section>
 

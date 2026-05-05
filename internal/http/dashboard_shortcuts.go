@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"spese/internal/adapters"
@@ -28,23 +29,63 @@ type SavingsTileVM struct {
 	HasData    bool
 }
 
+type MetricTileVM struct {
+	Label    string
+	ValueFmt string
+	Caption  string
+	HasData  bool
+}
+
 type DashboardShortcutsVM struct {
-	Spese      ShortcutCardVM
-	Entrate    ShortcutCardVM
-	Ricorrenti ShortcutCardVM
-	Risparmio  SavingsTileVM
+	Spese            ShortcutCardVM
+	Entrate          ShortcutCardVM
+	Ricorrenti       ShortcutCardVM
+	Risparmio        SavingsTileVM
+	MediaGiornaliera MetricTileVM
+	Settimana        MetricTileVM
+}
+
+type behavioralMetrics struct {
+	DailyAverageCents int64
+	HasDailyAvg       bool
+	WeekChangePct     int
+	WeekIsDown        bool
+	HasWeekChange     bool
 }
 
 func buildDashboardShortcuts(
 	expCurr, expPrev core.MonthOverview, expCount int,
 	incCurr, incPrev core.IncomeMonthOverview, incCount int,
-	recurrents []core.RecurrentExpenses, now time.Time,
+	recurrents []core.RecurrentExpenses, metrics behavioralMetrics, now time.Time,
 ) DashboardShortcutsVM {
 	vm := DashboardShortcutsVM{
 		Spese:      ShortcutCardVM{Href: "/spese", Label: "Spese", AmountFmt: formatEuros(expCurr.Total.Cents), Count: expCount},
 		Entrate:    ShortcutCardVM{Href: "/entrate", Label: "Entrate", AmountFmt: formatEuros(incCurr.Total.Cents), Count: incCount},
 		Ricorrenti: ShortcutCardVM{Href: "/recurrent", Label: "Ricorrenti", DeltaIsZero: true},
 		Risparmio:  SavingsTileVM{Label: "Tasso Risparmio"},
+		MediaGiornaliera: MetricTileVM{
+			Label:    "Media Giornaliera",
+			ValueFmt: "—",
+			Caption:  "mese in corso",
+		},
+		Settimana: MetricTileVM{
+			Label:    "Vs Settimana Scorsa",
+			ValueFmt: "—",
+			Caption:  "spesa settimanale",
+		},
+	}
+
+	if metrics.HasDailyAvg {
+		vm.MediaGiornaliera.ValueFmt = formatEuros(metrics.DailyAverageCents)
+		vm.MediaGiornaliera.HasData = true
+	}
+	if metrics.HasWeekChange {
+		arrow := "↑"
+		if metrics.WeekIsDown {
+			arrow = "↓"
+		}
+		vm.Settimana.ValueFmt = arrow + " " + strconv.Itoa(metrics.WeekChangePct) + "%"
+		vm.Settimana.HasData = true
 	}
 
 	vm.Spese.HasData = expCurr.Total.Cents > 0 || expCount > 0
@@ -138,6 +179,7 @@ func (s *Server) handleDashboardShortcuts(w http.ResponseWriter, r *http.Request
 		}
 	}
 
+	var metrics behavioralMetrics
 	if adapter, ok := s.expWriter.(*adapters.SQLiteAdapter); ok {
 		if ov, err := adapter.ReadIncomeMonthOverview(ctx, year, month); err == nil {
 			incCurr = ov
@@ -154,8 +196,19 @@ func (s *Server) handleDashboardShortcuts(w http.ResponseWriter, r *http.Request
 			}
 		}
 	}
+	if adapter, ok := s.expLister.(*adapters.SQLiteAdapter); ok {
+		if avg, err := adapter.GetDailyAverage(ctx); err == nil && avg != nil {
+			metrics.DailyAverageCents = avg.AverageCents
+			metrics.HasDailyAvg = true
+		}
+		if wc, err := adapter.GetWeekOverWeekChange(ctx); err == nil && wc != nil && wc.LastWeekCents > 0 {
+			metrics.WeekChangePct = int(wc.ChangePercent)
+			metrics.WeekIsDown = wc.IsDown
+			metrics.HasWeekChange = true
+		}
+	}
 
-	vm := buildDashboardShortcuts(expCurr, expPrev, expCount, incCurr, incPrev, incCount, recurrents, now)
+	vm := buildDashboardShortcuts(expCurr, expPrev, expCount, incCurr, incPrev, incCount, recurrents, metrics, now)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.templates.ExecuteTemplate(w, "dashboard_shortcuts", vm); err != nil {
