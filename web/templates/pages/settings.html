@@ -12,6 +12,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css" />
+    <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="/static/expense-form.js" defer></script>
+    <script src="/static/income-form.js" defer></script>
+    <script src="/static/recurrent-form.js" defer></script>
+    <script src="/static/dashboard.js" defer></script>
   </head>
   <body class="theme-ink density-comfortable style-minimal">
     <header class="topbar">
@@ -64,6 +70,7 @@
         <div class="label-mono" style="text-align:center;">Spese · Quaderno · {{.Version}}</div>
       </section>
     </main>
+    {{ template "fab" . }}
     {{ template "tab_bar" (dict "Tab" "impost") }}
   </body>
 </html>

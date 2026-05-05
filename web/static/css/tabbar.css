@@ -39,8 +39,20 @@
 }
 @media (max-width:767px){
   .topbar__nav{display:none;}
-  /* Hide the floating FAB; tab-bar FAB takes over. */
-  .fab-container{display:none;}
+  /* Hide floating FAB button; tab-bar FAB triggers it. Keep container so
+     speed-dial actions and backdrop still render above the tabbar. */
+  .fab{display:none;}
+  .fab-container{
+    bottom:calc(96px + var(--safe-bottom));
+    right:50%;
+    transform:translateX(50%);
+    align-items:center;
+  }
+  .fab-actions{
+    position:static;
+    align-items:center;
+    margin-bottom:var(--space-2);
+  }
   main.page{padding-bottom:calc(96px + var(--safe-bottom));}
 }
 
