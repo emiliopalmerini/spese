@@ -545,6 +545,32 @@ func formatDecimal(cents int64) string {
 	return strconv.FormatFloat(float64(cents)/100, 'f', 2, 64)
 }
 
+// handleSettings renders the Quaderno-style read-only settings page (ADR-0014).
+func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if s.templates == nil {
+		http.Error(w, "templates not loaded", http.StatusInternalServerError)
+		return
+	}
+	data := struct {
+		Backend   string
+		SheetName string
+		Version   string
+	}{
+		Backend:   "SQLite + Sheets",
+		SheetName: "—",
+		Version:   "Quaderno · v0.8",
+	}
+	if err := s.templates.ExecuteTemplate(w, "settings_page", data); err != nil {
+		slog.ErrorContext(r.Context(), "settings template failed", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 // handleDashboardMonthlyTrend returns the Quaderno monthly bar-chart partial.
 func (s *Server) handleDashboardMonthlyTrend(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

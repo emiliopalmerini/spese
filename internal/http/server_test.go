@@ -236,6 +236,30 @@ func chdirRepoRoot(t *testing.T) {
 	t.Fatalf("could not locate repo root with web/templates")
 }
 
+func TestSettingsPage(t *testing.T) {
+	chdirRepoRoot(t)
+	var ew ports.ExpenseWriter = fakeExp{}
+	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{}, nil, nil)
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/impostazioni", nil)
+	srv.Handler.ServeHTTP(rr, req)
+	if rr.Code != 200 {
+		t.Fatalf("settings status=%d", rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "Impostazioni") {
+		t.Errorf("settings page missing title")
+	}
+	if !strings.Contains(body, `aria-current="page"`) {
+		t.Errorf("settings page missing tab-bar active state")
+	}
+	if !strings.Contains(body, `data-tab="impost"`) {
+		t.Errorf("settings page missing impost tab")
+	}
+}
+
 func TestIndexAndHealth(t *testing.T) {
 	chdirRepoRoot(t)
 	var ew ports.ExpenseWriter = fakeExp{}

@@ -4,9 +4,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#10b981" />
+    <meta name="theme-color" content="#f5f1e8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1a1612" media="(prefers-color-scheme: dark)" />
+    <script>(function(){var t=null;try{t=localStorage.getItem('spese.theme');}catch(e){}if(t==='light'||t==='night'){document.documentElement.setAttribute('data-theme',t);}window.SpeseTheme={set:function(v){try{if(v==='auto')localStorage.removeItem('spese.theme');else localStorage.setItem('spese.theme',v);}catch(e){}if(v==='auto')document.documentElement.removeAttribute('data-theme');else document.documentElement.setAttribute('data-theme',v);}};})();</script>
     <title>Entrate</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css" />
     <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
     <script src="/static/income-form.js"></script>
@@ -15,7 +20,7 @@
   <body class="theme-ink density-comfortable style-minimal">
     <header class="topbar">
       <div class="container topbar__inner">
-        <div class="brand">Spese</div>
+        <div class="brand">Spese<span class="brand__sub">diario</span></div>
         <nav class="topbar__nav">
           <a href="/" class="nav-link">Spese</a>
           <a href="/recurrent" class="nav-link">Ricorrenti</a>
@@ -27,6 +32,7 @@
     <main class="container page">
       {{ template "income_content" . }}
     </main>
+    {{ template "tab_bar" (dict "Tab" "entrate") }}
   </body>
 </html>
 {{ end }}

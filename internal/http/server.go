@@ -197,6 +197,7 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	mux.HandleFunc("/ui/dashboard/pick-months", s.withSecurityHeaders(s.handleDashboardPickMonths))
 	mux.HandleFunc("/ui/dashboard/cash-flow", s.withSecurityHeaders(s.handleDashboardCashFlow))
 	mux.HandleFunc("/ui/dashboard/monthly-trend", s.withSecurityHeaders(s.handleDashboardMonthlyTrend))
+	mux.HandleFunc("/impostazioni", s.withSecurityHeaders(s.handleSettings))
 
 	// Net Worth routes
 	mux.HandleFunc("/networth", s.withSecurityHeaders(s.handleNetWorthPage))

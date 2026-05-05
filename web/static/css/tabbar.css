@@ -1,0 +1,63 @@
+/* ==============================================================
+   Quaderno bottom tab bar (ADR-0014)
+============================================================== */
+.tabbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:50;
+  background:var(--paper-raised);
+  border-top:1px solid var(--line);
+  padding:6px 0 calc(20px + var(--safe-bottom));
+  display:flex;align-items:center;
+}
+.tabbar__tab{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:10px 0;color:var(--muted);text-decoration:none;
+  background:transparent;border:none;
+}
+.tabbar__tab[aria-current="page"]{color:var(--ink);}
+.tabbar__icon{
+  font-family:var(--font-display);
+  font-size:14px;
+}
+.tabbar__tab[aria-current="page"] .tabbar__icon{font-style:italic;}
+.tabbar__label{
+  font-family:var(--font-mono);font-size:9px;letter-spacing:0.16em;
+  text-transform:uppercase;
+}
+.tabbar__fab{
+  width:56px;height:56px;border-radius:50%;
+  background:var(--accent);color:#fff;border:none;margin:0 6px;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 6px 16px rgba(184,69,28,0.3);
+  transition:transform var(--duration-fast) var(--ease-spring);
+}
+.tabbar__fab:hover{transform:scale(1.05);}
+.tabbar__fab svg{stroke:#fff;}
+
+@media (min-width:768px){
+  .tabbar{display:none;}
+}
+@media (max-width:767px){
+  .topbar__nav{display:none;}
+  /* Hide the floating FAB; tab-bar FAB takes over. */
+  .fab-container{display:none;}
+  main.page{padding-bottom:calc(96px + var(--safe-bottom));}
+}
+
+/* Settings page */
+.settings-group__title{margin-bottom:var(--space-2);}
+.field--inline{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;padding:14px 0;
+  border-bottom:1px dotted var(--line);
+}
+.field--inline:last-child{border-bottom:none;}
+.field--inline .field__label{flex:0 0 auto;}
+.field--inline .field__value{
+  font-family:var(--font-display);
+  font-size:18px;
+  color:var(--ink);
+  display:flex;align-items:center;gap:8px;
+  text-align:right;
+}
+.settings-theme{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}

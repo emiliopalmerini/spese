@@ -23,8 +23,8 @@ func TestRenderBarChartZeroes(t *testing.T) {
 
 func TestRenderBarChartHighlight(t *testing.T) {
 	out := string(RenderBarChart(BarChartOpts{
-		Data:           []int64{100, 200, 300},
-		W:              90, H: 40,
+		Data: []int64{100, 200, 300},
+		W:    90, H: 40,
 		HighlightIdx:   1,
 		Color:          "#1a1612",
 		HighlightColor: "#b8451c",

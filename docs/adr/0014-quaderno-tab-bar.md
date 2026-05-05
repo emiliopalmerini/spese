@@ -1,7 +1,7 @@
 # ADR-0014: Quaderno bottom tab bar with central FAB
 
 ## Status
-Proposed
+Accepted (read-only Settings placeholder ships theme picker hooked to ADR-0013 SpeseTheme; full settings editing deferred.)
 
 ## Context
 ADR-0008 leaves the topbar as the sole navigation. On mobile, Quaderno

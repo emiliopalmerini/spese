@@ -37,12 +37,15 @@ func TestRomanNumeral(t *testing.T) {
 }
 
 func TestSignedDeltaPct(t *testing.T) {
-	type tc struct{ curr, prev int64; want int }
+	type tc struct {
+		curr, prev int64
+		want       int
+	}
 	cases := []tc{
-		{100, 0, 0},          // prev zero → 0
-		{100, 100, 0},        // equal → 0
-		{120, 100, 20},       // +20%
-		{80, 100, -20},       // -20%
+		{100, 0, 0},    // prev zero → 0
+		{100, 100, 0},  // equal → 0
+		{120, 100, 20}, // +20%
+		{80, 100, -20}, // -20%
 		{150, 100, 50},
 		{50, 100, -50},
 		{105, 100, 5},
