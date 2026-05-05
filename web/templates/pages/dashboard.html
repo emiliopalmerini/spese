@@ -84,49 +84,31 @@
     </div>
   </section>
 
-  <!-- Pick Months Accordion -->
-  <section class="page__section">
-    <div class="accordion" id="pickMonthsAccordion">
-      <button class="accordion__trigger" type="button">
-        <h3 class="accordion__title">Pick Months</h3>
-        <svg class="accordion__icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-      <div class="accordion__content">
-        <div class="accordion__body" id="pick-months-content"
-             hx-get="/ui/dashboard/pick-months"
-             hx-trigger="load, dashboard:refresh from:body"
-             hx-swap="innerHTML">
-          <div class="skeleton" style="height: 200px;"></div>
-        </div>
-      </div>
+  <!-- Confronto Mesi (sempre visibile) -->
+  <section class="page__section" id="pickMonthsSection">
+    {{ template "section_label" (dict "Num" "VI" "Title" "Confronto Mesi" "Sub" "Spese vs Entrate") }}
+    <div id="pick-months-content"
+         hx-get="/ui/dashboard/pick-months"
+         hx-trigger="load, dashboard:refresh from:body"
+         hx-swap="innerHTML">
+      <div class="skeleton" style="height: 200px;"></div>
     </div>
   </section>
 
-  <!-- Proiezioni Accordion (Cash Flow + YTD + Forecast merged) -->
-  <section class="page__section">
-    <div class="accordion" id="projectionsAccordion">
-      <button class="accordion__trigger" type="button">
-        <h3 class="accordion__title">Proiezioni</h3>
-        <svg class="accordion__icon" viewBox="0 0 24 24">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
-      </button>
-      <div class="accordion__content">
-        <div class="accordion__body">
-          <div id="projections-content"
-               hx-get="/ui/dashboard/projections"
-               hx-trigger="load, dashboard:refresh from:body"
-               hx-swap="innerHTML">
-            <div class="skeleton" style="height: 80px;"></div>
-          </div>
-          <div id="cash-flow-content"
-               hx-get="/ui/dashboard/cash-flow"
-               hx-trigger="load, dashboard:refresh from:body"
-               hx-swap="innerHTML">
-            <div class="skeleton" style="height: 220px;"></div>
-          </div>
-        </div>
-      </div>
+  <!-- Proiezioni (sempre visibile, include flusso di cassa) -->
+  <section class="page__section" id="projectionsSection">
+    {{ template "section_label" (dict "Num" "VII" "Title" "Proiezioni" "Sub" "Anno corrente · fine mese · flusso di cassa") }}
+    <div id="projections-content"
+         hx-get="/ui/dashboard/projections"
+         hx-trigger="load, dashboard:refresh from:body"
+         hx-swap="innerHTML">
+      <div class="skeleton" style="height: 80px;"></div>
+    </div>
+    <div id="cash-flow-content"
+         hx-get="/ui/dashboard/cash-flow"
+         hx-trigger="load, dashboard:refresh from:body"
+         hx-swap="innerHTML">
+      <div class="skeleton" style="height: 220px;"></div>
     </div>
   </section>
 </div>

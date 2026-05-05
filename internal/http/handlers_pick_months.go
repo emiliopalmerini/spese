@@ -32,7 +32,7 @@ func (s *Server) handleDashboardPickMonths(w http.ResponseWriter, r *http.Reques
 
 	a, ok := s.expWriter.(*adapters.SQLiteAdapter)
 	if !ok {
-		_, _ = w.Write([]byte(`<div class="placeholder">Pick Months non disponibile</div>`))
+		_, _ = w.Write([]byte(`<div class="placeholder">Confronto Mesi non disponibile</div>`))
 		return
 	}
 
@@ -40,7 +40,7 @@ func (s *Server) handleDashboardPickMonths(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		slog.ErrorContext(r.Context(), "monthly by primary", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`<div class="error">Errore caricamento Pick Months</div>`))
+		_, _ = w.Write([]byte(`<div class="error">Errore caricamento Confronto Mesi</div>`))
 		return
 	}
 

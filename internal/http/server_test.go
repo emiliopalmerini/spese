@@ -284,8 +284,8 @@ func TestIndexAndHealth(t *testing.T) {
 		"net-worth-tile",
 		"monthly-trend",
 		"dashboard-shortcuts",
-		"pickMonthsAccordion",
-		"projectionsAccordion",
+		"pickMonthsSection",
+		"projectionsSection",
 	}
 	for _, marker := range mustContain {
 		if !strings.Contains(body, marker) {

@@ -32,7 +32,7 @@ func (s *Server) handleDashboardCashFlow(w http.ResponseWriter, r *http.Request)
 
 	a, ok := s.expWriter.(*adapters.SQLiteAdapter)
 	if !ok {
-		_, _ = w.Write([]byte(`<div class="placeholder">Cash flow non disponibile</div>`))
+		_, _ = w.Write([]byte(`<div class="placeholder">Flusso di Cassa non disponibile</div>`))
 		return
 	}
 
@@ -41,7 +41,7 @@ func (s *Server) handleDashboardCashFlow(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "cash flow build", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`<div class="error">Errore caricamento Cash Flow</div>`))
+		_, _ = w.Write([]byte(`<div class="error">Errore caricamento Flusso di Cassa</div>`))
 		return
 	}
 

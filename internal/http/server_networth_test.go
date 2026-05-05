@@ -68,7 +68,7 @@ func TestNetWorthPageRenders(t *testing.T) {
 		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "Net Worth") {
+	if !strings.Contains(body, "Patrimonio") {
 		t.Fatalf("expected page title in body")
 	}
 	if !strings.Contains(body, "/ui/networth/accounts") {
