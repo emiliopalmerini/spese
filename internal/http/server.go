@@ -199,7 +199,7 @@ func NewServer(addr string, ew sheets.ExpenseWriter, tr sheets.TaxonomyReader, d
 	mux.HandleFunc("/ui/networth/accounts", s.withSecurityHeaders(s.handleNetWorthAccounts))
 	mux.HandleFunc("/ui/networth/accounts/", s.withSecurityHeaders(s.handleNetWorthAccountUpdate))
 	mux.HandleFunc("/ui/networth/balances", s.withSecurityHeaders(s.handleNetWorthBalanceUpsert))
-	mux.HandleFunc("/ui/networth/month", s.withSecurityHeaders(s.handleNetWorthMonth))
+	mux.HandleFunc("/ui/networth/insights", s.withSecurityHeaders(s.handleNetworthInsights))
 	// Dashboard API endpoints (JSON)
 	mux.HandleFunc("/api/dashboard/trend", s.withSecurityHeaders(s.handleDashboardTrend))
 	// Form partials for bottom sheet

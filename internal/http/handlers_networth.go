@@ -15,14 +15,6 @@ import (
 	"spese/internal/storage"
 )
 
-// netWorthSection groups accounts of a given type for display.
-type netWorthSection struct {
-	Type     core.AccountType
-	Title    string
-	Accounts []netWorthAccountRow
-	Total    string
-}
-
 type netWorthAccountRow struct {
 	ID            int64
 	Name          string
@@ -75,89 +67,77 @@ func parseYearMonthDefaultsNow(r *http.Request) (year, month int, ok bool) {
 	return year, month, true
 }
 
-func buildNetWorthSections(accounts []core.Account, balances map[int64]core.AccountBalance) []netWorthSection {
-	order := []core.AccountType{core.AccountCash, core.AccountRainyDay, core.AccountLongTerm}
-	out := make([]netWorthSection, 0, len(order))
-	for _, t := range order {
-		section := netWorthSection{Type: t, Title: netWorthSectionTitles[t]}
-		var total int64
-		for _, a := range accounts {
-			if a.Type != t {
-				continue
-			}
-			row := netWorthAccountRow{
-				ID:         a.ID,
-				Name:       a.Name,
-				Type:       a.Type,
-				Active:     a.Active,
-				IsInactive: !a.Active,
-			}
-			if b, ok := balances[a.ID]; ok {
-				row.Amount = formatEuros(b.Amount.Cents)
-				row.AmountCents = b.Amount.Cents
-				row.HasBalance = true
-				row.BalanceUpdate = fmt.Sprintf("%d-%02d", b.Year, b.Month)
-				total += b.Amount.Cents
-			} else {
-				row.Amount = "—"
-			}
-			section.Accounts = append(section.Accounts, row)
-		}
-		section.Total = formatEuros(total)
-		out = append(out, section)
-	}
-	return out
-}
-
-func (s *Server) renderNetWorthAccounts(w http.ResponseWriter, r *http.Request, year, month int) {
+// renderNetworthInsights renders the /ui/networth/insights partial for
+// (year, month). Used by the page hx-get and after every account/balance
+// mutation.
+func (s *Server) renderNetworthInsights(w http.ResponseWriter, r *http.Request, year, month int) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	a, ok := nwAdapter(s)
 	if !ok {
-		_, _ = w.Write([]byte(`<div class="placeholder">Net worth non disponibile</div>`))
+		_, _ = w.Write([]byte(`<section id="networth-insights" class="net-insights"><div class="empty-state">Patrimonio non disponibile</div></section>`))
 		return
 	}
-	accounts, err := a.ListAccounts(r.Context(), true)
+	accounts, err := a.ListAccounts(r.Context(), false)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "list accounts", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`<div class="error">Errore caricamento conti</div>`))
+		_, _ = w.Write([]byte(`<section id="networth-insights" class="net-insights"><div class="error">Errore caricamento conti</div></section>`))
 		return
 	}
-	balances, err := a.ListBalancesByMonth(r.Context(), year, month)
+	currBals, err := a.ListBalancesByMonth(r.Context(), year, month)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "list balances", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`<div class="error">Errore caricamento saldi</div>`))
+		slog.ErrorContext(r.Context(), "list balances curr", "error", err)
+		currBals = nil
+	}
+	currMap := make(map[int64]core.AccountBalance, len(currBals))
+	for _, b := range currBals {
+		currMap[b.AccountID] = b
+	}
+	prevYear, prevMonth := addMonths(year, month, -1)
+	prevBals, err := a.ListBalancesByMonth(r.Context(), prevYear, prevMonth)
+	if err != nil {
+		slog.WarnContext(r.Context(), "list balances prev", "error", err)
+		prevBals = nil
+	}
+	prevMap := make(map[int64]core.AccountBalance, len(prevBals))
+	for _, b := range prevBals {
+		prevMap[b.AccountID] = b
+	}
+
+	startY, startM := trendStart(year, month)
+	var trend [12]int64
+	ty, tm := startY, startM
+	for i := 0; i < 12; i++ {
+		nw, terr := a.MonthlyNetWorth(r.Context(), ty, tm)
+		if terr != nil {
+			slog.WarnContext(r.Context(), "trend cell", "error", terr, "year", ty, "month", tm)
+		} else {
+			trend[i] = nw.Cents
+		}
+		ty, tm = addMonths(ty, tm, 1)
+	}
+
+	vm := buildNetworthInsights(year, month, accounts, currMap, prevMap, trend, startY, startM)
+
+	if err := s.templates.ExecuteTemplate(w, "networth_insights", vm); err != nil {
+		slog.ErrorContext(r.Context(), "render networth_insights", "error", err)
+		_, _ = w.Write([]byte(`<section id="networth-insights" class="net-insights"><div class="error">Errore template</div></section>`))
+	}
+}
+
+// handleNetworthInsights serves /ui/networth/insights?year=Y&month=M.
+func (s *Server) handleNetworthInsights(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	balanceByAccount := make(map[int64]core.AccountBalance, len(balances))
-	for _, b := range balances {
-		balanceByAccount[b.AccountID] = b
+	year, month, ok := parseYearMonthDefaultsNow(r)
+	if !ok {
+		http.Error(w, "invalid year/month", http.StatusBadRequest)
+		return
 	}
-	sections := buildNetWorthSections(accounts, balanceByAccount)
-
-	total, err := a.MonthlyNetWorth(r.Context(), year, month)
-	if err != nil {
-		slog.ErrorContext(r.Context(), "monthly net worth", "error", err)
-		total = core.Money{}
-	}
-
-	data := struct {
-		Year     int
-		Month    int
-		Sections []netWorthSection
-		Total    string
-	}{
-		Year:     year,
-		Month:    month,
-		Sections: sections,
-		Total:    formatEuros(total.Cents),
-	}
-
-	if err := s.templates.ExecuteTemplate(w, "networth_accounts", data); err != nil {
-		slog.ErrorContext(r.Context(), "render networth_accounts", "error", err)
-		_, _ = w.Write([]byte(`<div class="error">Errore template</div>`))
-	}
+	s.renderNetworthInsights(w, r, year, month)
 }
 
 // handleNetWorthPage renders the full /networth page.
@@ -188,21 +168,15 @@ func (s *Server) handleNetWorthPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleNetWorthAccounts dispatches /ui/networth/accounts on method:
-// GET returns the accounts partial, POST creates a new account.
+// handleNetWorthAccounts dispatches /ui/networth/accounts.
+// Only POST is wired (account create); GET is no longer used since
+// /ui/networth/insights superseded it.
 func (s *Server) handleNetWorthAccounts(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-	case http.MethodGet:
-		year, month, ok := parseYearMonthDefaultsNow(r)
-		if !ok {
-			http.Error(w, "invalid year/month", http.StatusBadRequest)
-			return
-		}
-		s.renderNetWorthAccounts(w, r, year, month)
 	case http.MethodPost:
 		s.handleNetWorthAccountCreate(w, r)
 	default:
-		w.Header().Set("Allow", "GET, POST")
+		w.Header().Set("Allow", "POST")
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
@@ -257,7 +231,7 @@ func (s *Server) handleNetWorthAccountCreate(w http.ResponseWriter, r *http.Requ
 
 	w.Header().Set("HX-Trigger", `{"networth:updated":{},"dashboard:refresh":{}}`)
 	year, month, _ := parseYearMonthDefaultsNow(r)
-	s.renderNetWorthAccounts(w, r, year, month)
+	s.renderNetworthInsights(w, r, year, month)
 }
 
 // handleNetWorthAccountUpdate updates an existing account by ID.
@@ -307,7 +281,7 @@ func (s *Server) handleNetWorthAccountUpdate(w http.ResponseWriter, r *http.Requ
 	}
 	w.Header().Set("HX-Trigger", `{"networth:updated":{},"dashboard:refresh":{}}`)
 	year, month, _ := parseYearMonthDefaultsNow(r)
-	s.renderNetWorthAccounts(w, r, year, month)
+	s.renderNetworthInsights(w, r, year, month)
 }
 
 // handleNetWorthBalanceUpsert writes the balance for one account/month.
@@ -381,22 +355,7 @@ func (s *Server) handleNetWorthBalanceUpsert(w http.ResponseWriter, r *http.Requ
 	}
 
 	w.Header().Set("HX-Trigger", `{"networth:updated":{},"dashboard:refresh":{}}`)
-	s.renderNetWorthAccounts(w, r, year, month)
-}
-
-// handleNetWorthMonth renders the accounts/balances partial for a specific month.
-func (s *Server) handleNetWorthMonth(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.Header().Set("Allow", "GET")
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	year, month, ok := parseYearMonthDefaultsNow(r)
-	if !ok {
-		http.Error(w, "invalid year/month", http.StatusBadRequest)
-		return
-	}
-	s.renderNetWorthAccounts(w, r, year, month)
+	s.renderNetworthInsights(w, r, year, month)
 }
 
 // handleDashboardNetWorth renders the dashboard tile with NW + MoM delta.

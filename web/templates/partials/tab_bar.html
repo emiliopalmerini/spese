@@ -2,12 +2,10 @@
 <nav class="tabbar" aria-label="Navigazione principale">
   <a class="tabbar__tab" href="/" data-tab="diario"
      {{if eq .Tab "diario"}}aria-current="page"{{end}}>
-    <span class="tabbar__icon">I</span>
     <span class="tabbar__label">Diario</span>
   </a>
   <a class="tabbar__tab" href="/recurrent" data-tab="ricorrenti"
      {{if eq .Tab "ricorrenti"}}aria-current="page"{{end}}>
-    <span class="tabbar__icon">IV</span>
     <span class="tabbar__label">Ricorrenti</span>
   </a>
   <button class="tabbar__fab" id="fabTab" type="button" aria-label="Aggiungi">
@@ -18,18 +16,11 @@
   </button>
   <a class="tabbar__tab" href="/entrate" data-tab="entrate"
      {{if eq .Tab "entrate"}}aria-current="page"{{end}}>
-    <span class="tabbar__icon">III</span>
     <span class="tabbar__label">Entrate</span>
   </a>
   <a class="tabbar__tab" href="/spese" data-tab="spese"
      {{if eq .Tab "spese"}}aria-current="page"{{end}}>
-    <span class="tabbar__icon">II</span>
     <span class="tabbar__label">Spese</span>
-  </a>
-  <a class="tabbar__tab" href="/networth" data-tab="networth"
-     {{if eq .Tab "networth"}}aria-current="page"{{end}}>
-    <span class="tabbar__icon">V</span>
-    <span class="tabbar__label">Patrimonio</span>
   </a>
 </nav>
 {{ end }}

@@ -39,10 +39,9 @@
     <div class="masthead">
       <div class="masthead__meta">
         <span>Anno · {{.Year}}</span>
-        <span>Edizione №{{.EditionRoman}}</span>
+        <span>Diario</span>
       </div>
       <h1 class="masthead__month">{{.MonthLong}}</h1>
-      <div class="label-mono masthead__sub">Diario · Capitolo I</div>
     </div>
   </section>
 
@@ -86,7 +85,7 @@
 
   <!-- Confronto Mesi (sempre visibile) -->
   <section class="page__section" id="pickMonthsSection">
-    {{ template "section_label" (dict "Num" "VI" "Title" "Confronto Mesi" "Sub" "Spese vs Entrate") }}
+    {{ template "section_label" (dict "Title" "Confronto Mesi" "Sub" "Spese vs Entrate") }}
     <div id="pick-months-content"
          hx-get="/ui/dashboard/pick-months"
          hx-trigger="load, dashboard:refresh from:body"
@@ -97,7 +96,7 @@
 
   <!-- Proiezioni (sempre visibile, include flusso di cassa) -->
   <section class="page__section" id="projectionsSection">
-    {{ template "section_label" (dict "Num" "VII" "Title" "Proiezioni" "Sub" "Anno corrente · fine mese · flusso di cassa") }}
+    {{ template "section_label" (dict "Title" "Proiezioni" "Sub" "Anno corrente · fine mese · flusso di cassa") }}
     <div id="projections-content"
          hx-get="/ui/dashboard/projections"
          hx-trigger="load, dashboard:refresh from:body"

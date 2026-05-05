@@ -27,13 +27,11 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	month := int(now.Month())
 	data := struct {
-		Year         int
-		EditionRoman string
-		MonthLong    string
+		Year      int
+		MonthLong string
 	}{
-		Year:         now.Year(),
-		EditionRoman: romanNumeral(month),
-		MonthLong:    italianMonthLong(month),
+		Year:      now.Year(),
+		MonthLong: italianMonthLong(month),
 	}
 
 	if err := s.templates.ExecuteTemplate(w, "dashboard_page", data); err != nil {
@@ -79,7 +77,6 @@ func (s *Server) handleDashboardStatHero(w http.ResponseWriter, r *http.Request)
 	data := struct {
 		HasData                bool
 		Year                   int
-		EditionRoman           string
 		MonthLong              string
 		PrevMonthShort         string
 		BalanceInt             string
@@ -93,7 +90,6 @@ func (s *Server) handleDashboardStatHero(w http.ResponseWriter, r *http.Request)
 	}{
 		HasData:                income > 0 || expenses > 0,
 		Year:                   year,
-		EditionRoman:           romanNumeral(month),
 		MonthLong:              italianMonthLong(month),
 		PrevMonthShort:         italianMonthShort(prevMonth),
 		BalanceInt:             formatEurosInt(balance),

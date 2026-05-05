@@ -279,7 +279,6 @@ func TestIndexAndHealth(t *testing.T) {
 
 	// ADR-0018: homepage as cross-domain overview only.
 	mustContain := []string{
-		"Capitolo I",
 		"Diario",
 		"net-worth-tile",
 		"monthly-trend",

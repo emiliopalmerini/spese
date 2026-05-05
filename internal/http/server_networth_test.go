@@ -71,8 +71,8 @@ func TestNetWorthPageRenders(t *testing.T) {
 	if !strings.Contains(body, "Patrimonio") {
 		t.Fatalf("expected page title in body")
 	}
-	if !strings.Contains(body, "/ui/networth/accounts") {
-		t.Fatalf("expected accounts htmx URL")
+	if !strings.Contains(body, "/ui/networth/insights") {
+		t.Fatalf("expected insights htmx URL")
 	}
 }
 
@@ -122,15 +122,15 @@ func TestNetWorthCreateAccountAndListBalance(t *testing.T) {
 		t.Fatalf("expected balance amount in partial, body=%s", rr.Body.String())
 	}
 
-	// Month partial returns the same balance
+	// Insights partial returns the same balance
 	rr = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodGet, "/ui/networth/month?year="+formatInt(year)+"&month="+formatInt(month), nil)
+	req = httptest.NewRequest(http.MethodGet, "/ui/networth/insights?year="+formatInt(year)+"&month="+formatInt(month), nil)
 	srv.Handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {
-		t.Fatalf("month partial expected 200, got %d", rr.Code)
+		t.Fatalf("insights partial expected 200, got %d", rr.Code)
 	}
 	if !strings.Contains(rr.Body.String(), "1234,56") {
-		t.Fatalf("month partial missing balance: %s", rr.Body.String())
+		t.Fatalf("insights partial missing balance: %s", rr.Body.String())
 	}
 }
 
@@ -225,9 +225,60 @@ func TestNetWorthInvalidYearMonth(t *testing.T) {
 	srv, _ := newNetWorthServer(t)
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/ui/networth/month?year=abc&month=1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/ui/networth/insights?year=abc&month=1", nil)
 	srv.Handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for invalid year, got %d", rr.Code)
+	}
+}
+
+func TestNetWorthInsightsRenders(t *testing.T) {
+	srv, _ := newNetWorthServer(t)
+	srvAdapter := srv.expWriter.(*adapters.SQLiteAdapter)
+	ctx := context.Background()
+
+	idCash, err := srvAdapter.CreateAccount(ctx, coreAccount("Conto BPM", "cash", true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	idLong, err := srvAdapter.CreateAccount(ctx, coreAccount("ETF World", "long_term", true))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now()
+	year, month := now.Year(), int(now.Month())
+	if err := srvAdapter.UpsertBalance(ctx, coreBalance(idCash, year, month, 250000)); err != nil {
+		t.Fatal(err)
+	}
+	if err := srvAdapter.UpsertBalance(ctx, coreBalance(idLong, year, month, 1500000)); err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/ui/networth/insights?year="+formatInt(year)+"&month="+formatInt(month), nil)
+	srv.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("insights expected 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+
+	wants := []string{
+		`id="networth-insights"`,
+		`net-insights__hero`,
+		`net-insights__strip`,
+		`Cash & Liquidità`,
+		`Long term`,
+		`net-trend__cell`,
+		`net-cat__group`,
+		`Conto BPM`,
+		`ETF World`,
+		`net-add`,
+		`Aggiungi conto`,
+	}
+	for _, w := range wants {
+		if !strings.Contains(body, w) {
+			t.Fatalf("insights body missing %q\nbody:\n%s", w, body)
+		}
 	}
 }
