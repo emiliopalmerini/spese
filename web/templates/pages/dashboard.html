@@ -20,11 +20,7 @@
     <script src="/static/dashboard.js" defer></script>
   </head>
   <body class="theme-ink density-comfortable style-minimal">
-    <header class="topbar topbar--dashboard">
-      <div class="container topbar__inner">
-        <div class="brand">Spese<span class="brand__sub">diario</span></div>
-      </div>
-    </header>
+    {{ template "topbar" (dict "Tab" "diario") }}
 
     <main class="container page">
       {{ template "dashboard_content" . }}
@@ -40,6 +36,11 @@
 
 {{ define "dashboard_content" }}
 <div class="dashboard">
+  <section class="page__section">
+    <div class="label-mono">Capitolo I</div>
+    <h1 class="page__title">Diario</h1>
+  </section>
+
   <!-- Stat Hero - Monthly Total -->
   <section class="page__section">
     <div class="stat-hero" id="stat-hero"
@@ -94,44 +95,13 @@
     </div>
   </section>
 
-  <!-- Categories Section -->
-  <section class="page__section" x-data="{ period: 'month' }">
-    <div class="categories-section">
-      <div class="section-header">
-        {{template "section_label" (dict "Num" "II" "Title" "Per categoria" "Sub" "Mese in corso")}}
-        <div class="period-chips">
-          <button class="period-chip" :class="{ 'period-chip--active': period === 'week' }"
-                  @click="period = 'week'; htmx.ajax('GET', '/ui/dashboard/categories?period=week', '#categories-list')">Sett</button>
-          <button class="period-chip" :class="{ 'period-chip--active': period === 'month' }"
-                  @click="period = 'month'; htmx.ajax('GET', '/ui/dashboard/categories?period=month', '#categories-list')">Mese</button>
-          <button class="period-chip" :class="{ 'period-chip--active': period === 'quarter' }"
-                  @click="period = 'quarter'; htmx.ajax('GET', '/ui/dashboard/categories?period=quarter', '#categories-list')">Trim</button>
-          <button class="period-chip" :class="{ 'period-chip--active': period === 'year' }"
-                  @click="period = 'year'; htmx.ajax('GET', '/ui/dashboard/categories?period=year', '#categories-list')">Anno</button>
-        </div>
-      </div>
-      <div class="categories-list" id="categories-list"
-           hx-get="/ui/dashboard/categories?period=month"
-           hx-trigger="load, dashboard:refresh from:body"
-           hx-swap="innerHTML">
-        <div class="skeleton" style="height: 24px; margin-bottom: 8px;"></div>
-        <div class="skeleton" style="height: 24px; margin-bottom: 8px;"></div>
-        <div class="skeleton" style="height: 24px;"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Recurrent Expenses Section -->
+  <!-- Domain shortcut tiles -->
   <section class="page__section">
-    <div class="categories-section">
-      {{template "section_label" (dict "Num" "IV" "Title" "Spese ricorrenti" "Sub" "Abbonamenti attivi")}}
-      <div class="recurrents-list" id="recurrents-list"
-           hx-get="/ui/dashboard/recurrents"
-           hx-trigger="load, dashboard:refresh from:body, recurrent:deleted from:body, recurrent:updated from:body"
-           hx-swap="innerHTML">
-        <div class="skeleton" style="height: 24px; margin-bottom: 8px;"></div>
-        <div class="skeleton" style="height: 24px;"></div>
-      </div>
+    <div id="dashboard-shortcuts"
+         hx-get="/ui/dashboard/shortcuts"
+         hx-trigger="load, dashboard:refresh from:body, expense:deleted from:body, income:deleted from:body, recurrent:created from:body, recurrent:deleted from:body, recurrent:updated from:body"
+         hx-swap="innerHTML">
+      <div class="skeleton" style="height: 96px;"></div>
     </div>
   </section>
 
@@ -153,25 +123,7 @@
     </div>
   </section>
 
-  <!-- Cash Flow Accordion -->
-  <section class="page__section">
-    <div class="accordion" id="cashFlowAccordion">
-      <button class="accordion__trigger" type="button">
-        <h3 class="accordion__title">Cash Flow</h3>
-        <svg class="accordion__icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-      <div class="accordion__content">
-        <div class="accordion__body" id="cash-flow-content"
-             hx-get="/ui/dashboard/cash-flow"
-             hx-trigger="load, dashboard:refresh from:body"
-             hx-swap="innerHTML">
-          <div class="skeleton" style="height: 220px;"></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Projections Accordion (YTD + Forecast) -->
+  <!-- Proiezioni Accordion (Cash Flow + YTD + Forecast merged) -->
   <section class="page__section">
     <div class="accordion" id="projectionsAccordion">
       <button class="accordion__trigger" type="button">
@@ -181,54 +133,18 @@
         </svg>
       </button>
       <div class="accordion__content">
-        <div class="accordion__body" id="projections-content"
-             hx-get="/ui/dashboard/projections"
-             hx-trigger="load, dashboard:refresh from:body"
-             hx-swap="innerHTML">
-          <div class="skeleton" style="height: 80px;"></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Income Breakdown Accordion -->
-  <section class="page__section">
-    <div class="accordion" id="incomeAccordion">
-      <button class="accordion__trigger" type="button">
-        <h3 class="accordion__title">Entrate per Categoria</h3>
-        <svg class="accordion__icon" viewBox="0 0 24 24">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
-      </button>
-      <div class="accordion__content">
-        <div class="accordion__body" id="income-breakdown-content"
-             hx-get="/ui/dashboard/income-breakdown"
-             hx-trigger="load, dashboard:refresh from:body"
-             hx-swap="innerHTML">
-          <div class="skeleton" style="height: 60px;"></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Recent Transactions (Collapsible) -->
-  <section class="page__section">
-    <div class="accordion accordion--open" id="transactionsAccordion">
-      <button class="accordion__trigger" type="button">
-        <h3 class="accordion__title">Ultime Transazioni</h3>
-        <svg class="accordion__icon" viewBox="0 0 24 24">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
-      </button>
-      <div class="accordion__content">
         <div class="accordion__body">
-          <div class="transactions-list" id="transactions-list"
-               hx-get="/ui/dashboard/transactions"
+          <div id="projections-content"
+               hx-get="/ui/dashboard/projections"
                hx-trigger="load, dashboard:refresh from:body"
                hx-swap="innerHTML">
-            <div class="skeleton" style="height: 60px; margin-bottom: 8px;"></div>
-            <div class="skeleton" style="height: 60px; margin-bottom: 8px;"></div>
-            <div class="skeleton" style="height: 60px;"></div>
+            <div class="skeleton" style="height: 80px;"></div>
+          </div>
+          <div id="cash-flow-content"
+               hx-get="/ui/dashboard/cash-flow"
+               hx-trigger="load, dashboard:refresh from:body"
+               hx-swap="innerHTML">
+            <div class="skeleton" style="height: 220px;"></div>
           </div>
         </div>
       </div>

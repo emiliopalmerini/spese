@@ -158,7 +158,7 @@ func TestHandleMonthOverviewErrors(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "Error loading overview") {
+	if !strings.Contains(body, "Errore nel caricamento overview") {
 		t.Fatalf("expected error message in body, got: %s", body)
 	}
 
@@ -252,11 +252,11 @@ func TestSettingsPage(t *testing.T) {
 	if !strings.Contains(body, "Impostazioni") {
 		t.Errorf("settings page missing title")
 	}
-	if !strings.Contains(body, `aria-current="page"`) {
-		t.Errorf("settings page missing tab-bar active state")
+	if strings.Contains(body, `data-tab="impost"`) {
+		t.Errorf("settings tab should no longer appear in tabbar")
 	}
-	if !strings.Contains(body, `data-tab="impost"`) {
-		t.Errorf("settings page missing impost tab")
+	if !strings.Contains(body, `data-tab="spese"`) {
+		t.Errorf("tabbar should contain spese tab")
 	}
 }
 
@@ -272,8 +272,41 @@ func TestIndexAndHealth(t *testing.T) {
 	if rr.Code != 200 {
 		t.Fatalf("index status=%d", rr.Code)
 	}
-	if !strings.Contains(rr.Body.String(), "stat-hero") {
+	body := rr.Body.String()
+	if !strings.Contains(body, "stat-hero") {
 		t.Fatalf("dashboard body missing stat-hero section")
+	}
+
+	// ADR-0018: homepage as cross-domain overview only.
+	mustContain := []string{
+		"Capitolo I",
+		"Diario",
+		"stat-pills",
+		"stat-grid",
+		"net-worth-tile",
+		"monthly-trend",
+		"dashboard-shortcuts",
+		"pickMonthsAccordion",
+		"projectionsAccordion",
+	}
+	for _, marker := range mustContain {
+		if !strings.Contains(body, marker) {
+			t.Errorf("dashboard body missing required marker %q", marker)
+		}
+	}
+
+	mustNotContain := []string{
+		"categories-list",
+		"recurrents-list",
+		"income-breakdown-content",
+		"transactionsAccordion",
+		"cashFlowAccordion",
+		"incomeAccordion",
+	}
+	for _, marker := range mustNotContain {
+		if strings.Contains(body, marker) {
+			t.Errorf("dashboard body still contains removed marker %q", marker)
+		}
 	}
 
 	for _, path := range []string{"/healthz", "/readyz"} {
@@ -282,6 +315,51 @@ func TestIndexAndHealth(t *testing.T) {
 		srv.Handler.ServeHTTP(rr, req)
 		if rr.Code != 200 {
 			t.Fatalf("%s status=%d", path, rr.Code)
+		}
+	}
+}
+
+// ADR-0018: shortcut endpoint renders the three domain cards with their
+// labels and links even when the SQLite adapter is unavailable.
+func TestDashboardShortcuts(t *testing.T) {
+	chdirRepoRoot(t)
+	var ew ports.ExpenseWriter = fakeExp{}
+	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{}, nil, nil)
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/ui/dashboard/shortcuts", nil)
+	srv.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("shortcuts status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	for _, want := range []string{"Spese", "Entrate", "Ricorrenti", `href="/spese"`, `href="/entrate"`, `href="/recurrent"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("shortcuts response missing %q; body=%s", want, body)
+		}
+	}
+}
+
+// ADR-0018: dashboard-only routes that have moved into insight pages must
+// no longer be registered.
+func TestRemovedDashboardRoutes(t *testing.T) {
+	chdirRepoRoot(t)
+	var ew ports.ExpenseWriter = fakeExp{}
+	var tr ports.TaxonomyReader = fakeTax{cats: []string{"A"}, subs: []string{"X"}}
+	srv := NewServer(":0", ew, tr, fakeDash{}, fakeList{}, nil, nil)
+
+	for _, path := range []string{
+		"/ui/dashboard/categories",
+		"/ui/dashboard/recurrents",
+		"/ui/dashboard/income-breakdown",
+		"/ui/dashboard/transactions",
+	} {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		srv.Handler.ServeHTTP(rr, req)
+		if rr.Code != http.StatusNotFound {
+			t.Errorf("%s expected 404, got %d", path, rr.Code)
 		}
 	}
 }

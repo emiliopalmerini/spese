@@ -273,78 +273,57 @@ func (s *Server) handleMonthOverview(w http.ResponseWriter, r *http.Request) {
 		slog.WarnContext(r.Context(), "Invalid month parameter", "year", year, "month", month, "corrected_to", int(now.Month()))
 		month = int(now.Month())
 	}
-	ov, err := s.getOverview(r.Context(), year, month)
+
+	curr, err := s.getOverview(r.Context(), year, month)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "Month overview error", "error", err, "year", year, "month", month)
-		_, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Error loading overview</div></section>`))
+		_, _ = w.Write([]byte(`<section id="month-overview" class="exp-insights"><div class="empty-state">Errore nel caricamento overview</div></section>`))
 		return
 	}
 	if s.templates == nil {
-		_, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Totale: ` + formatEuros(ov.Total.Cents) + `</div></section>`))
+		_, _ = w.Write([]byte(`<section id="month-overview" class="exp-insights"><div class="empty-state">Totale: ` + formatEuros(curr.Total.Cents) + `</div></section>`))
 		return
 	}
 
-	var maxCents int64
-	var maxName string
-	for _, r := range ov.ByCategory {
-		if r.Amount.Cents > maxCents {
-			maxCents = r.Amount.Cents
-			maxName = r.Name
-		}
+	prevYear, prevMonth := addMonths(year, month, -1)
+	prev, err := s.getOverview(r.Context(), prevYear, prevMonth)
+	if err != nil {
+		slog.WarnContext(r.Context(), "Previous month overview error", "error", err, "year", prevYear, "month", prevMonth)
+		prev = core.MonthOverview{Year: prevYear, Month: prevMonth}
 	}
-	type row struct {
-		Name, Amount string
-		Width        int
-	}
-	data := struct {
-		Year    int
-		Month   int
-		Total   string
-		MaxName string
-		Max     string
-		Rows    []row
-		Items   []struct {
-			ID   string
-			Day  int
-			Desc string
-			Amt  string
-			Cat  string
-			Sub  string
-		}
-	}{Year: ov.Year, Month: ov.Month, Total: formatEuros(ov.Total.Cents), MaxName: maxName, Max: formatEuros(maxCents)}
-	for _, r := range ov.ByCategory {
-		width := 0
-		if maxCents > 0 && r.Amount.Cents > 0 {
-			width = int((r.Amount.Cents*100 + maxCents/2) / maxCents)
-			if width > 0 && width < 2 {
-				width = 2
-			}
-			if width > 100 {
-				width = 100
-			}
-		}
-		data.Rows = append(data.Rows, row{Name: r.Name, Amount: formatEuros(r.Amount.Cents), Width: width})
-	}
+
+	var items []sheets.ExpenseWithID
 	if s.expListerWithID != nil {
-		itemsWithID, err := s.getExpensesWithID(r.Context(), year, month)
-		if err != nil {
-			slog.ErrorContext(r.Context(), "List expenses with ID error", "error", err, "year", year, "month", month)
+		itemsWithID, ierr := s.getExpensesWithID(r.Context(), year, month)
+		if ierr != nil {
+			slog.ErrorContext(r.Context(), "List expenses with ID error", "error", ierr, "year", year, "month", month)
 		} else {
-			for _, e := range itemsWithID {
-				data.Items = append(data.Items, struct {
-					ID   string
-					Day  int
-					Desc string
-					Amt  string
-					Cat  string
-					Sub  string
-				}{ID: e.ID, Day: e.Expense.Date.Day(), Desc: template.HTMLEscapeString(e.Expense.Description), Amt: formatEuros(e.Expense.Amount.Cents), Cat: e.Expense.Primary, Sub: e.Expense.Secondary})
+			for i := range itemsWithID {
+				itemsWithID[i].Expense.Description = template.HTMLEscapeString(itemsWithID[i].Expense.Description)
 			}
+			items = itemsWithID
 		}
 	}
-	if err := s.templates.ExecuteTemplate(w, "month_overview.html", data); err != nil {
-		slog.ErrorContext(r.Context(), "Template execution error", "error", err, "template", "month_overview.html", "year", year, "month", month)
-		_, _ = w.Write([]byte(`<section id="month-overview" class="month-overview"><div class="placeholder">Error rendering overview</div></section>`))
+
+	startY, startM := trendStart(year, month)
+	var trend [12]int64
+	ty, tm := startY, startM
+	for i := 0; i < 12; i++ {
+		ov, terr := s.getOverview(r.Context(), ty, tm)
+		if terr != nil {
+			slog.WarnContext(r.Context(), "Trend month error", "error", terr, "year", ty, "month", tm)
+			trend[i] = 0
+		} else {
+			trend[i] = ov.Total.Cents
+		}
+		ty, tm = addMonths(ty, tm, 1)
+	}
+
+	vm := buildExpenseInsights(curr, prev, trend, startY, startM, items)
+
+	if err := s.templates.ExecuteTemplate(w, "expense_insights", vm); err != nil {
+		slog.ErrorContext(r.Context(), "Template execution error", "error", err, "template", "expense_insights", "year", year, "month", month)
+		_, _ = w.Write([]byte(`<section id="month-overview" class="exp-insights"><div class="empty-state">Errore rendering overview</div></section>`))
 		return
 	}
 }

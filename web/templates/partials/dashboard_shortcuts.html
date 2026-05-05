@@ -1,0 +1,18 @@
+{{ define "dashboard_shortcuts" }}
+<div class="dashboard-shortcuts">
+  {{ template "dashboard_shortcut_card" .Spese }}
+  {{ template "dashboard_shortcut_card" .Entrate }}
+  {{ template "dashboard_shortcut_card" .Ricorrenti }}
+</div>
+{{ end }}
+
+{{ define "dashboard_shortcut_card" }}
+<a class="dashboard-shortcut" href="{{ .Href }}">
+  <div class="dashboard-shortcut__label label-mono">{{ .Label }}</div>
+  <div class="dashboard-shortcut__amount">{{ .AmountFmt }}</div>
+  <div class="dashboard-shortcut__caption label-mono">
+    {{ .Count }} {{ if eq .Label "Ricorrenti" }}attive{{ else }}voci{{ end }}
+    {{ if not .DeltaIsZero }} · Δ {{ .DeltaSign }}{{ .DeltaPct }}%{{ end }}
+  </div>
+</a>
+{{ end }}

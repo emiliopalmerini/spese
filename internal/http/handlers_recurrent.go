@@ -367,89 +367,26 @@ func (s *Server) handleRecurrentMonthlyOverview(w http.ResponseWriter, r *http.R
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	// Get SQLite repository for recurrent expenses
 	var repo *storage.SQLiteRepository
 	if adapter, ok := s.expWriter.(*adapters.SQLiteAdapter); ok {
 		repo = adapter.GetStorage()
 	} else {
-		_, _ = w.Write([]byte(`<div id="recurrent-monthly-overview" class="month-overview"><div class="overview-body"><div class="row placeholder">Panoramica non disponibile con questo backend</div></div></div>`))
+		_, _ = w.Write([]byte(`<section id="recurrent-monthly-overview" class="rec-insights"><div class="empty-state">Panoramica non disponibile con questo backend</div></section>`))
 		return
 	}
 
 	expenses, err := repo.GetRecurrentExpenses(r.Context())
 	if err != nil {
 		slog.ErrorContext(r.Context(), "Failed to get recurrent expenses for overview", "error", err)
-		_, _ = w.Write([]byte(`<div id="recurrent-monthly-overview" class="month-overview"><div class="overview-body"><div class="row placeholder">Errore nel caricamento della panoramica</div></div></div>`))
+		_, _ = w.Write([]byte(`<section id="recurrent-monthly-overview" class="rec-insights"><div class="empty-state">Errore nel caricamento della panoramica</div></section>`))
 		return
 	}
 
-	// Calculate monthly totals and category breakdown
-	totalCents := int64(0)
-	categoryTotals := make(map[string]int64)
+	vm := buildInsights(expenses, time.Now())
 
-	for _, expense := range expenses {
-		// Convert to monthly amount based on frequency
-		monthlyCents := int64(0)
-		switch expense.Every {
-		case "daily":
-			monthlyCents = expense.Amount.Cents * 30 // Approximate days per month
-		case "weekly":
-			monthlyCents = expense.Amount.Cents * 4 // Approximate weeks per month
-		case "monthly":
-			monthlyCents = expense.Amount.Cents
-		case "yearly":
-			monthlyCents = expense.Amount.Cents / 12
-		}
-
-		totalCents += monthlyCents
-		categoryTotals[expense.Primary] += monthlyCents
-	}
-
-	// Find max category for scale
-	maxCents := int64(0)
-	topCategory := ""
-	for category, cents := range categoryTotals {
-		if cents > maxCents {
-			maxCents = cents
-			topCategory = category
-		}
-	}
-
-	// Build category breakdown with percentages
-	type CategoryRow struct {
-		Name   string
-		Amount string
-		Width  int
-	}
-
-	var categories []CategoryRow
-	for category, cents := range categoryTotals {
-		width := 0
-		if maxCents > 0 {
-			width = int((cents * 100) / maxCents)
-		}
-		categories = append(categories, CategoryRow{
-			Name:   category,
-			Amount: formatEuros(cents),
-			Width:  width,
-		})
-	}
-
-	data := struct {
-		MonthlyTotal string
-		TopCategory  string
-		TopAmount    string
-		Categories   []CategoryRow
-	}{
-		MonthlyTotal: formatEuros(totalCents),
-		TopCategory:  topCategory,
-		TopAmount:    formatEuros(maxCents),
-		Categories:   categories,
-	}
-
-	if err := s.templates.ExecuteTemplate(w, "recurrent_monthly_overview", data); err != nil {
-		slog.ErrorContext(r.Context(), "Template execution failed", "error", err, "template", "recurrent_monthly_overview")
-		_, _ = w.Write([]byte(`<div id="recurrent-monthly-overview" class="month-overview"><div class="overview-body"><div class="row placeholder">Errore nel rendering della panoramica</div></div></div>`))
+	if err := s.templates.ExecuteTemplate(w, "recurrent_insights", vm); err != nil {
+		slog.ErrorContext(r.Context(), "Template execution failed", "error", err, "template", "recurrent_insights")
+		_, _ = w.Write([]byte(`<section id="recurrent-monthly-overview" class="rec-insights"><div class="empty-state">Errore nel rendering della panoramica</div></section>`))
 	}
 }
 

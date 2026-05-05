@@ -20,17 +20,7 @@
     <script src="/static/dashboard.js" defer></script>
   </head>
   <body class="theme-ink density-comfortable style-minimal">
-    <header class="topbar">
-      <div class="container topbar__inner">
-        <div class="brand">Spese<span class="brand__sub">diario</span></div>
-        <nav class="topbar__nav">
-          <a href="/" class="nav-link">Spese</a>
-          <a href="/recurrent" class="nav-link active" aria-current="page">Ricorrenti</a>
-          <a href="/entrate" class="nav-link">Entrate</a>
-          <a href="/networth" class="nav-link">Net Worth</a>
-        </nav>
-      </div>
-    </header>
+    {{ template "topbar" (dict "Tab" "ricorrenti") }}
     <main class="container page">
       {{ template "recurrent_content" . }}
     </main>
@@ -42,37 +32,26 @@
 
 {{ define "recurrent_content" }}
 <div class="container">
-  {{/* Main recurrent expense form section */}}
   <section class="page__section">
     <div class="label-mono">Capitolo IV</div>
     <h1 class="page__title">Spese ricorrenti</h1>
-    
-    <div id="recurrent-form-container"
-         hx-trigger="form:reset from:body"
-         hx-get="/ui/recurrent-form-reset"
-         hx-target="#recurrent-form-container"
-         hx-swap="innerHTML">
-      {{ template "recurrent_form" . }}
-    </div>
   </section>
 
-  {{/* Monthly overview for recurrent expenses */}}
   <section class="page__section">
-    <div id="recurrent-monthly-overview" 
-         hx-get="/ui/recurrent-monthly-overview" 
+    <div id="recurrent-monthly-overview"
+         hx-get="/ui/recurrent-monthly-overview"
          hx-trigger="load, recurrent:created from:body, recurrent:updated from:body, recurrent:deleted from:body"
-         hx-target="#recurrent-monthly-overview" 
+         hx-target="#recurrent-monthly-overview"
          hx-swap="outerHTML">
-      <div class="placeholder">Caricamento panoramica mensile…</div>
+      <div class="placeholder">Caricamento panoramica…</div>
     </div>
   </section>
 
-  {{/* Recurrent expenses list section that loads via HTMX */}}
   <section class="page__section">
-    <div id="recurrent-overview" 
-         hx-get="/ui/recurrent-expenses-list" 
+    <div id="recurrent-overview"
+         hx-get="/ui/recurrent-expenses-list"
          hx-trigger="load, recurrent:created from:body, recurrent:updated from:body, recurrent:deleted from:body"
-         hx-target="#recurrent-overview" 
+         hx-target="#recurrent-overview"
          hx-swap="outerHTML">
       <div class="placeholder">Caricamento spese ricorrenti…</div>
     </div>

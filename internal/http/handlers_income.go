@@ -257,80 +257,77 @@ func (s *Server) handleIncomeMonthOverview(w http.ResponseWriter, r *http.Reques
 
 	adapter, ok := s.expWriter.(*adapters.SQLiteAdapter)
 	if !ok {
-		_, _ = w.Write([]byte(`<section id="income-month-overview" class="month-overview"><div class="placeholder">Overview non disponibile</div></section>`))
+		_, _ = w.Write([]byte(`<section id="income-month-overview" class="inc-insights"><div class="empty-state">Overview non disponibile</div></section>`))
 		return
 	}
 
-	ov, err := adapter.ReadIncomeMonthOverview(r.Context(), year, month)
+	curr, err := adapter.ReadIncomeMonthOverview(r.Context(), year, month)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "Income month overview error", "error", err, "year", year, "month", month)
-		_, _ = w.Write([]byte(`<section id="income-month-overview" class="month-overview"><div class="placeholder">Errore nel caricamento overview</div></section>`))
+		_, _ = w.Write([]byte(`<section id="income-month-overview" class="inc-insights"><div class="empty-state">Errore nel caricamento overview</div></section>`))
 		return
 	}
 
-	// Compute max category for progress scaling
-	var maxCents int64
-	var maxName string
-	for _, cat := range ov.ByCategory {
-		if cat.Amount.Cents > maxCents {
-			maxCents = cat.Amount.Cents
-			maxName = cat.Name
-		}
+	prevYear, prevMonth := addMonths(year, month, -1)
+	prev, err := adapter.ReadIncomeMonthOverview(r.Context(), prevYear, prevMonth)
+	if err != nil {
+		slog.WarnContext(r.Context(), "Income previous-month overview error", "error", err, "year", prevYear, "month", prevMonth)
+		prev = core.IncomeMonthOverview{Year: prevYear, Month: prevMonth}
 	}
 
-	type row struct {
-		Name, Amount string
-		Width        int
-	}
-	data := struct {
-		Year    int
-		Month   int
-		Total   string
-		MaxName string
-		Max     string
-		Rows    []row
-		Items   []struct {
-			ID   string
-			Day  int
-			Desc string
-			Amt  string
-			Cat  string
-		}
-	}{Year: ov.Year, Month: ov.Month, Total: formatEuros(ov.Total.Cents), MaxName: maxName, Max: formatEuros(maxCents)}
-
-	for _, cat := range ov.ByCategory {
-		width := 0
-		if maxCents > 0 && cat.Amount.Cents > 0 {
-			width = int((cat.Amount.Cents*100 + maxCents/2) / maxCents)
-			if width > 0 && width < 2 {
-				width = 2
-			}
-			if width > 100 {
-				width = 100
-			}
-		}
-		data.Rows = append(data.Rows, row{Name: cat.Name, Amount: formatEuros(cat.Amount.Cents), Width: width})
-	}
-
-	// Fetch detailed items with IDs
 	itemsWithID, err := adapter.ListIncomesWithID(r.Context(), year, month)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "List incomes with ID error", "error", err, "year", year, "month", month)
-	} else {
-		for _, inc := range itemsWithID {
-			data.Items = append(data.Items, struct {
-				ID   string
-				Day  int
-				Desc string
-				Amt  string
-				Cat  string
-			}{ID: inc.ID, Day: inc.Income.Date.Day(), Desc: template.HTMLEscapeString(inc.Income.Description), Amt: formatEuros(inc.Income.Amount.Cents), Cat: inc.Income.Category})
+		itemsWithID = nil
+	}
+
+	// 12-month trend ending at current month.
+	startY, startM := trendStart(year, month)
+	var trend [12]int64
+	ty, tm := startY, startM
+	for i := 0; i < 12; i++ {
+		c, terr := adapter.GetMonthlyIncomeTotal(r.Context(), ty, tm)
+		if terr != nil {
+			slog.WarnContext(r.Context(), "Income trend month error", "error", terr, "year", ty, "month", tm)
+			c = 0
+		}
+		trend[i] = c
+		ty, tm = addMonths(ty, tm, 1)
+	}
+
+	// YTD = sum of trend cells whose year == current year and month <= current month.
+	ytd := int64(0)
+	ty, tm = startY, startM
+	for i := 0; i < 12; i++ {
+		if ty == year && tm <= month {
+			ytd += trend[i]
+		}
+		ty, tm = addMonths(ty, tm, 1)
+	}
+
+	// Freelance category set.
+	freelance := map[string]bool{}
+	if storage := adapter.GetStorage(); storage != nil {
+		fls, ferr := storage.ListFreelanceIncomeCategories(r.Context())
+		if ferr != nil {
+			slog.WarnContext(r.Context(), "Freelance income categories error", "error", ferr)
+		} else {
+			for _, c := range fls {
+				freelance[c] = true
+			}
 		}
 	}
 
-	if err := s.templates.ExecuteTemplate(w, "income_month_overview.html", data); err != nil {
-		slog.ErrorContext(r.Context(), "Template execution error", "error", err, "template", "income_month_overview.html")
-		_, _ = w.Write([]byte(`<section id="income-month-overview" class="month-overview"><div class="placeholder">Errore rendering overview</div></section>`))
+	// Sanitize item descriptions (template uses {{ .Desc }} unescaped no longer; keep safe).
+	for i := range itemsWithID {
+		itemsWithID[i].Income.Description = template.HTMLEscapeString(itemsWithID[i].Income.Description)
+	}
+
+	vm := buildIncomeInsights(curr, prev, trend, startY, startM, ytd, itemsWithID, freelance)
+
+	if err := s.templates.ExecuteTemplate(w, "income_insights", vm); err != nil {
+		slog.ErrorContext(r.Context(), "Template execution error", "error", err, "template", "income_insights")
+		_, _ = w.Write([]byte(`<section id="income-month-overview" class="inc-insights"><div class="empty-state">Errore rendering overview</div></section>`))
 	}
 }
 

@@ -1,0 +1,17 @@
+{{ define "topbar" }}
+<header class="topbar">
+  <div class="container topbar__inner">
+    <div class="brand">Spese<span class="brand__sub">diario</span></div>
+    <nav class="topbar__nav">
+      <a href="/" class="nav-link{{ if eq .Tab "diario" }} active{{ end }}"
+         {{ if eq .Tab "diario" }}aria-current="page"{{ end }}>Diario</a>
+      <a href="/recurrent" class="nav-link{{ if eq .Tab "ricorrenti" }} active{{ end }}"
+         {{ if eq .Tab "ricorrenti" }}aria-current="page"{{ end }}>Ricorrenti</a>
+      <a href="/entrate" class="nav-link{{ if eq .Tab "entrate" }} active{{ end }}"
+         {{ if eq .Tab "entrate" }}aria-current="page"{{ end }}>Entrate</a>
+      <a href="/spese" class="nav-link{{ if eq .Tab "spese" }} active{{ end }}"
+         {{ if eq .Tab "spese" }}aria-current="page"{{ end }}>Spese</a>
+    </nav>
+  </div>
+</header>
+{{ end }}
