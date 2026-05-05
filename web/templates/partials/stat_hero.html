@@ -8,21 +8,21 @@
   <div class="label-mono masthead__sub">Diario delle spese</div>
 </div>
 <div class="hero-number">
-  <div class="label-mono">Speso questo mese</div>
+  <div class="label-mono">Bilancio mese</div>
   {{if .HasData}}
-  <div class="hero-number__row">
-    <span class="hero-number__int">{{.SpentInt}}</span>
-    <span class="hero-number__dec">,{{.SpentDec}}</span>
+  <div class="hero-number__row{{if .BalanceIsNegative}} hero-number__row--negative{{end}}">
+    <span class="hero-number__int">{{.BalanceInt}}</span>
+    <span class="hero-number__dec">,{{.BalanceDec}}</span>
     <span class="hero-number__cur">€</span>
   </div>
   <div class="hero-number__delta label-mono">
-    {{if ne .DeltaPct 0}}
-      <span class="{{if .DeltaIsPositive}}is-negative{{else}}is-positive{{end}}">
-        {{if .DeltaIsPositive}}↑{{else}}↓{{end}} {{.DeltaPctAbs}}% vs. {{.PrevMonthShort}}
+    {{if ne .BalanceDeltaPct 0}}
+      <span class="{{if .BalanceDeltaIsPositive}}is-positive{{else}}is-negative{{end}}">
+        {{if .BalanceDeltaIsPositive}}↑{{else}}↓{{end}} {{.BalanceDeltaPctAbs}}% vs. {{.PrevMonthShort}}
       </span>
       <span>·</span>
     {{end}}
-    <span>{{.RunRateFmt}} € / giorno</span>
+    <span>{{.SpentFmt}} € spesi · {{.RunRateFmt}} € / giorno</span>
   </div>
   {{else}}
   <div class="hero-number__row hero-number__row--empty">
