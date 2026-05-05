@@ -16,8 +16,9 @@ function initFAB() {
   const fab = document.getElementById('fab');
   const fabActions = document.getElementById('fabActions');
   const fabBackdrop = document.getElementById('fabBackdrop');
+  const tabbarFab = document.getElementById('fabTab');
 
-  if (!fab) return;
+  if (!fabActions || !fabBackdrop) return;
 
   let isOpen = false;
   let fabHidden = false;
@@ -25,25 +26,32 @@ function initFAB() {
 
   function openFAB() {
     isOpen = true;
-    fab.classList.add('fab--open');
+    if (fab) fab.classList.add('fab--open');
+    if (tabbarFab) tabbarFab.classList.add('tabbar__fab--open');
     fabActions.classList.add('fab-actions--open');
     fabBackdrop.classList.add('fab-backdrop--open');
   }
 
   function closeFAB() {
     isOpen = false;
-    fab.classList.remove('fab--open');
+    if (fab) fab.classList.remove('fab--open');
+    if (tabbarFab) tabbarFab.classList.remove('tabbar__fab--open');
     fabActions.classList.remove('fab-actions--open');
     fabBackdrop.classList.remove('fab-backdrop--open');
   }
 
-  fab.addEventListener('click', () => {
-    if (isOpen) {
-      closeFAB();
-    } else {
-      openFAB();
-    }
-  });
+  function toggleFAB() {
+    if (isOpen) closeFAB(); else openFAB();
+  }
+
+  window.toggleFAB = toggleFAB;
+
+  if (fab) {
+    fab.addEventListener('click', toggleFAB);
+  }
+  if (tabbarFab) {
+    tabbarFab.addEventListener('click', toggleFAB);
+  }
 
   fabBackdrop.addEventListener('click', closeFAB);
 
@@ -56,21 +64,23 @@ function initFAB() {
     });
   });
 
-  // Scroll behavior - hide on scroll down, show on scroll up
-  window.addEventListener('scroll', () => {
-    const currentScrollY = window.scrollY;
+  // Scroll behavior - hide on scroll down, show on scroll up (desktop fab only)
+  if (fab) {
+    window.addEventListener('scroll', () => {
+      const currentScrollY = window.scrollY;
 
-    if (currentScrollY > lastScrollY && currentScrollY > 100 && !fabHidden) {
-      fab.classList.add('fab--hidden');
-      fabHidden = true;
-      if (isOpen) closeFAB();
-    } else if (currentScrollY < lastScrollY && fabHidden) {
-      fab.classList.remove('fab--hidden');
-      fabHidden = false;
-    }
+      if (currentScrollY > lastScrollY && currentScrollY > 100 && !fabHidden) {
+        fab.classList.add('fab--hidden');
+        fabHidden = true;
+        if (isOpen) closeFAB();
+      } else if (currentScrollY < lastScrollY && fabHidden) {
+        fab.classList.remove('fab--hidden');
+        fabHidden = false;
+      }
 
-    lastScrollY = currentScrollY;
-  }, { passive: true });
+      lastScrollY = currentScrollY;
+    }, { passive: true });
+  }
 }
 
 // ============================================================

@@ -2,7 +2,7 @@
    Quaderno bottom tab bar (ADR-0014)
 ============================================================== */
 .tabbar{
-  position:fixed;left:0;right:0;bottom:0;z-index:50;
+  position:fixed;left:0;right:0;bottom:0;z-index:95;
   background:var(--paper-raised);
   border-top:1px solid var(--line);
   padding:6px 0 calc(20px + var(--safe-bottom));
@@ -32,7 +32,8 @@
   transition:transform var(--duration-fast) var(--ease-spring);
 }
 .tabbar__fab:hover{transform:scale(1.05);}
-.tabbar__fab svg{stroke:#fff;}
+.tabbar__fab svg{stroke:#fff;transition:transform var(--duration-normal) var(--ease-out-expo);}
+.tabbar__fab--open svg{transform:rotate(45deg);}
 
 @media (min-width:768px){
   .tabbar{display:none;}
