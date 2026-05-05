@@ -213,10 +213,10 @@ func TestNetWorthDashboardTile(t *testing.T) {
 		t.Fatalf("tile expected 200, got %d body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "1500,00") {
+	if !strings.Contains(body, "1.500") || !strings.Contains(body, ",00") {
 		t.Fatalf("expected current total in tile, body=%s", body)
 	}
-	if !strings.Contains(body, "vs mese prec") {
+	if !strings.Contains(body, "vs.") {
 		t.Fatalf("expected delta indicator in tile, body=%s", body)
 	}
 }

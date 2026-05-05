@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0ea5e9" />
+    <meta name="theme-color" content="#f5f1e8" />
     <title>Net Worth</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
     <link rel="stylesheet" href="/static/style.css" />
@@ -16,6 +16,8 @@
     <main class="container page">
       {{ template "networth_content" . }}
     </main>
+    {{ template "fab" . }}
+    {{ template "tab_bar" (dict "Tab" "networth") }}
   </body>
 </html>
 {{ end }}

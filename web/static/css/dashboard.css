@@ -32,6 +32,34 @@
   border-top:1px dotted var(--line);
   border-bottom:1px dotted var(--line);
 }
+.hero-number__row--negative .hero-number__int{
+  color:var(--negative);
+}
+
+/* Twin hero: Bilancio + Net Worth side-by-side */
+.hero-pair{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:0;
+}
+@media (min-width:760px){
+  .hero-pair{
+    grid-template-columns:1fr 1fr;
+    gap:var(--space-5);
+  }
+  .hero-pair > * .hero-number{
+    border-bottom:1px dotted var(--line);
+  }
+}
+/* Avoid double dotted lines when stacked */
+.hero-pair > *:not(:last-child) .hero-number{
+  border-bottom:none;
+}
+@media (min-width:760px){
+  .hero-pair > *:not(:last-child) .hero-number{
+    border-bottom:1px dotted var(--line);
+  }
+}
 .hero-number__row{
   display:flex;align-items:baseline;gap:8px;margin-top:8px;
   animation:count-up var(--duration-slow) var(--ease-out-expo) both;

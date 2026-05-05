@@ -36,27 +36,31 @@
 {{ define "dashboard_content" }}
 <div class="dashboard">
   <section class="page__section">
-    <div class="label-mono">Capitolo I</div>
-    <h1 class="page__title">Diario</h1>
-  </section>
-
-  <!-- Stat Hero - Monthly Total -->
-  <section class="page__section">
-    <div class="stat-hero" id="stat-hero"
-         hx-get="/ui/dashboard/stat-hero"
-         hx-trigger="load, dashboard:refresh from:body"
-         hx-swap="innerHTML">
-      <div class="skeleton" style="height: 80px; width: 200px; margin: 0 auto;"></div>
+    <div class="masthead">
+      <div class="masthead__meta">
+        <span>Anno · {{.Year}}</span>
+        <span>Edizione №{{.EditionRoman}}</span>
+      </div>
+      <h1 class="masthead__month">{{.MonthLong}}</h1>
+      <div class="label-mono masthead__sub">Diario · Capitolo I</div>
     </div>
   </section>
 
-  <!-- Net Worth Tile -->
+  <!-- Hero pair: Bilancio mese + Net Worth -->
   <section class="page__section">
-    <div id="net-worth-tile"
-         hx-get="/ui/dashboard/net-worth"
-         hx-trigger="load, dashboard:refresh from:body, networth:updated from:body"
-         hx-swap="innerHTML">
-      <div class="skeleton" style="height: 80px;"></div>
+    <div class="hero-pair">
+      <div class="stat-hero" id="stat-hero"
+           hx-get="/ui/dashboard/stat-hero"
+           hx-trigger="load, dashboard:refresh from:body"
+           hx-swap="innerHTML">
+        <div class="skeleton" style="height: 120px;"></div>
+      </div>
+      <div id="net-worth-tile"
+           hx-get="/ui/dashboard/net-worth"
+           hx-trigger="load, dashboard:refresh from:body, networth:updated from:body"
+           hx-swap="innerHTML">
+        <div class="skeleton" style="height: 120px;"></div>
+      </div>
     </div>
   </section>
 

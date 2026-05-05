@@ -24,7 +24,19 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.templates.ExecuteTemplate(w, "dashboard_page", nil); err != nil {
+	now := time.Now()
+	month := int(now.Month())
+	data := struct {
+		Year         int
+		EditionRoman string
+		MonthLong    string
+	}{
+		Year:         now.Year(),
+		EditionRoman: romanNumeral(month),
+		MonthLong:    italianMonthLong(month),
+	}
+
+	if err := s.templates.ExecuteTemplate(w, "dashboard_page", data); err != nil {
 		slog.ErrorContext(r.Context(), "Dashboard template execution failed", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

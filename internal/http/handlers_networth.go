@@ -454,21 +454,27 @@ func (s *Server) handleDashboardNetWorth(w http.ResponseWriter, r *http.Request)
 	data := struct {
 		Year           int
 		Month          int
-		Total          string
+		NetInt         string
+		NetDec         string
+		IsNegative     bool
 		HasData        bool
 		ShowDelta      bool
 		DeltaAmount    string
 		DeltaPercent   string
 		DeltaDirection string
+		PrevMonthShort string
 	}{
 		Year:           year,
 		Month:          month,
-		Total:          formatEuros(current.Cents),
+		NetInt:         formatEurosInt(current.Cents),
+		NetDec:         formatEurosDec(current.Cents),
+		IsNegative:     current.Cents < 0,
 		HasData:        hasData,
 		ShowDelta:      hasPrev && hasData,
 		DeltaAmount:    formatEuros(deltaCents),
 		DeltaPercent:   fmt.Sprintf("%.1f%%", deltaPercent),
 		DeltaDirection: deltaDirection,
+		PrevMonthShort: italianMonthShort(prevMonth),
 	}
 
 	if err := s.templates.ExecuteTemplate(w, "dashboard_net_worth", data); err != nil {

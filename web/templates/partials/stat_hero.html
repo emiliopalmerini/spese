@@ -1,12 +1,4 @@
 {{ define "stat_hero" }}
-<div class="masthead">
-  <div class="masthead__meta">
-    <span>Anno · {{.Year}}</span>
-    <span>Edizione №{{.EditionRoman}}</span>
-  </div>
-  <h1 class="masthead__month">{{.MonthLong}}</h1>
-  <div class="label-mono masthead__sub">Diario delle spese</div>
-</div>
 <div class="hero-number">
   <div class="label-mono">Bilancio mese</div>
   {{if .HasData}}
