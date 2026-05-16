@@ -1,0 +1,20 @@
+{{define "title"}}Dashboard · Spese{{end}}
+{{define "content"}}
+<section class="dashboard">
+  <h1>Dashboard</h1>
+  <dl class="kpi-list">
+    {{range .Items}}
+      {{if eq .Label ""}}
+        <div class="kpi-divider"></div>
+      {{else if eq .Value ""}}
+        <dt class="kpi-section">{{.Label}}</dt>
+      {{else}}
+        <div class="kpi-row">
+          <dt>{{.Label}}</dt>
+          <dd>{{.Value}}</dd>
+        </div>
+      {{end}}
+    {{end}}
+  </dl>
+</section>
+{{end}}

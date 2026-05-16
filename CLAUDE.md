@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working with this repository.
 
 ## Build and Development Commands
 
@@ -13,70 +13,105 @@ nix build .#docker      # Build OCI image
 # Make (inside nix develop or with Go installed)
 make build              # Build main app (bin/spese)
 make run                # Run application locally
-make test               # Run tests with race detector and coverage
-make cover              # Run coverage (requires 100% for core/http packages)
-make smoke              # Run smoke tests (scripts/smoke.sh)
+make test               # Run tests with race detector
 
 # Code quality
 make fmt                # Format code (gofmt -s -w .)
 make vet                # Run go vet
 make lint               # Run golangci-lint (optional)
-
-# Database
-make sqlc-generate      # Regenerate sqlc code after modifying queries.sql or schema.sql
 ```
 
 ## Architecture
 
-### Single Application Architecture
-
-The application is a single binary (`cmd/spese`) that runs:
-- HTTP server with HTMX frontend for expense/income tracking
-- SQLite sync queue processor (syncs to Google Sheets)
-- Recurring expense processor (creates expenses from recurrent configs)
+Spese is a single binary (`cmd/spese`) that serves an HTMX UI and runs a
+background recurring-transaction processor. The Google Sheet is the single
+source of truth (see ADR-0020); SQLite has been removed.
 
 ### Data Flow
 
 ```
-User → HTTP Server → SQLite → Sync Queue Processor → Google Sheets
-                         ↓
-              Recurring Processor (creates expenses from recurrent configs)
+User → HTTP handler → sheets.Client.AppendRows → Google Sheet
+                                  ↑
+                  recurring.Processor (daily scan, append fires)
+
+User → HTTP handler → sheets.Client.ReadRange → cache → Google Sheet
 ```
 
-### Key Packages
+The sheets client has a 5-minute in-memory read cache, invalidated by tab
+on every write.
 
-- `internal/core`: Domain entities (Expense, Income, RecurrentExpenses, Money, Date) with validation
-- `internal/sheets/ports.go`: Port interfaces (ExpenseWriter, TaxonomyReader, DashboardReader, etc.)
-- `internal/sheets/google`: Google Sheets adapter implementation
-- `internal/storage`: SQLite repository, sqlc-generated queries, migrations
-- `internal/adapters`: SQLiteAdapter implementing port interfaces
-- `internal/http`: HTTP server with HTMX handlers
-- `internal/services`: ExpenseService, RecurringProcessor, SyncQueueProcessor
+### Vertical-Slice Layout
 
-### SQLite Schema
+Each feature owns its handler, business logic, sheet I/O, and types under
+`internal/features/<feature>/`. Shared low-level concerns live in
+`internal/sheets/` (Sheets API client) and `internal/kernel/` (Money, Date
+value types).
 
-Key tables: `expenses`, `incomes`, `recurrent_expenses`, `primary_categories`, `secondary_categories`, `income_categories`, `sync_queue`
+```
+cmd/spese/                main entry: config, mounts slices, starts processor
+internal/
+  kernel/                 Money + Date value types
+  sheets/                 Google Sheets client + cell-value helpers
+  render/                 HTML template loader + funcs
+  config/                 env-driven Config
+  features/
+    accounts/             chart of accounts (CRUD-light, append-only)
+    transactions/         general journal (Income / Expense / Transfer rows)
+    transfers/            two-sided transfer form (writes 2 Transfer rows)
+    snapshots/            month-end balance entry
+    recurring/            recurring config + day-of-month processor
+    reports/              read-only views from v_balance_sheet, v_income_statement,
+                          v_nw_monthly, v_investments
+    dashboard/            home page (reads `dashboard` tab from sheet)
+web/
+  templates/              shared per-feature templates (layouts/, dashboard/, etc.)
+  static/css/             single base.css
+```
 
-Expenses use cents for amounts (`amount_cents`) and track sync status (`pending`, `synced`, `error`).
+### Sheet Schema
 
-### Backend Modes
+Source tabs the app writes to:
+- `accounts`     — account, type, class, currency, active_from, active_to, note
+- `transactions` — date, kind, account, amount_eur (signed), category,
+                   subcategory, payee, note, id
+- `snapshots`    — month, account, balance_eur (liabilities negative), note
+- `recurring`    — label, kind, account, amount_eur, category, subcategory,
+                   payee, day_of_month, active, note
+- `fx`           — month, EURUSD
 
-- `DATA_BACKEND=sqlite`: Local SQLite with async Google Sheets sync (recommended)
-- `DATA_BACKEND=sheets`: Direct Google Sheets integration
+View tabs the app reads:
+- `v_balance_sheet`     — latest balance per account
+- `v_income_statement`  — monthly revenue, expenses, savings rate
+- `v_nw_monthly`        — NW total over time + breakdown by class
+- `v_investments`       — per investment account: basis, value, return
+- `dashboard`           — label/value KPIs
+
+The view tabs are computed by formulas inside the spreadsheet
+(see `/tmp/nw_v2.gs` Apps Script). The Go app does no aggregation.
+
+### Writes
+
+All sheet writes are append-only. Edit and delete happen directly in the
+spreadsheet UI. Transfers write two `kind=Transfer` rows in one append call.
+
+### Recurring Processor
+
+Scans the `recurring` tab on `RECURRING_PROCESSOR_INTERVAL` (default 6h).
+For each active row whose `day_of_month` has passed today, it appends a
+transaction tagged with `[recurring:<label>]` in the note, unless the same
+tag already exists in the current month (idempotency).
 
 ## Configuration
 
-Copy `.env.example` to `.env`. Key variables:
-- `GOOGLE_SPREADSHEET_ID`: Target spreadsheet
-- `GOOGLE_SHEET_NAME`: Base name (year prefixed automatically, e.g., "Expenses" → "2025 Expenses")
-- `DATA_BACKEND`: `sqlite` or `sheets`
-- `SQLITE_DB_PATH`: Default `./data/spese.db`
-- `SYNC_INTERVAL`: Interval for sync processor (default `30s`)
-- `RECURRING_PROCESSOR_INTERVAL`: Interval for recurring processor (default `1h`)
+Copy `.env.example` to `.env`. Required:
+- `GOOGLE_SPREADSHEET_ID` — v2 sheet ID
+- `GOOGLE_SERVICE_ACCOUNT_FILE` — path to service-account JSON
+
+Optional:
+- `SPESE_PORT` — default 8080
+- `RECURRING_PROCESSOR_INTERVAL` — default 6h
 
 ## NixOS Deployment
-
-The flake provides a NixOS module for deployment:
 
 ```nix
 {
@@ -84,10 +119,10 @@ The flake provides a NixOS module for deployment:
 
   services.spese = {
     enable = true;
-    port = 8081;
-    googleSpreadsheetId = "your-spreadsheet-id";
+    port = 8080;
+    googleSpreadsheetId = "1BgDhwk-rQOoArP2LS4eNwXO8FLHCqK8shxh0q292Aqw";
     googleServiceAccountFile = "/run/secrets/google-sa.json";
-    syncInterval = "1m";
+    recurringProcessorInterval = "6h";
   };
 }
 ```

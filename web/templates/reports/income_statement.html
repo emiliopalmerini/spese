@@ -1,0 +1,33 @@
+{{define "title"}}Conto economico · Spese{{end}}
+{{define "content"}}
+<section class="page report">
+  <header class="page-head">
+    <h1>Conto economico</h1>
+    <p class="muted">Entrate, uscite, risparmio per mese.</p>
+  </header>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Mese</th>
+        <th class="num">Entrate</th>
+        <th class="num">Uscite</th>
+        <th class="num">Risparmio</th>
+        <th class="num">Tasso</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Rows}}
+        <tr>
+          <td>{{monthIT .Month}}</td>
+          <td class="num">{{money .Revenue}}</td>
+          <td class="num">{{money .Expenses}}</td>
+          <td class="num">{{money .NetIncome}}</td>
+          <td class="num">{{pct .SavingsRate}}</td>
+        </tr>
+      {{else}}
+        <tr><td colspan="5" class="muted">Nessun dato.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</section>
+{{end}}

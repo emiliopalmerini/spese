@@ -1,5 +1,5 @@
 {
-  description = "Spese - Personal expense tracker with Google Sheets sync";
+  description = "Spese — sheets-only net worth + expense tracker (ADR-0020)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -15,19 +15,17 @@
         packages = {
           default = pkgs.buildGoModule {
             pname = "spese";
-            version = "0.1.0";
+            version = "0.2.0";
             src = ./.;
 
-            vendorHash = "sha256-r1/vu45J3m9YRz6jQifiXNTSPMV1bd3JiAEn8uvP2VI=";
+            # Recompute with `nix build` if go.mod changes.
+            vendorHash = pkgs.lib.fakeHash;
 
-            # Build flags matching Makefile
             ldflags = [ "-s" "-w" ];
-
-            # Only build the main binary
             subPackages = [ "cmd/spese" ];
 
             meta = with pkgs.lib; {
-              description = "Personal expense tracker with Google Sheets sync";
+              description = "Personal net worth + expense tracker backed by Google Sheets";
               homepage = "https://github.com/emiliopalmerini/spese";
               license = licenses.mit;
               mainProgram = "spese";
@@ -40,12 +38,8 @@
             contents = [ self.packages.${system}.default ];
             config = {
               Cmd = [ "/bin/spese" ];
-              ExposedPorts = { "8081/tcp" = { }; };
-              Env = [
-                "PORT=8081"
-                "SQLITE_DB_PATH=/data/spese.db"
-              ];
-              Volumes = { "/data" = { }; };
+              ExposedPorts = { "8080/tcp" = { }; };
+              Env = [ "SPESE_PORT=8080" ];
             };
           };
         };
@@ -55,19 +49,17 @@
             go_1_24
             gopls
             golangci-lint
-            sqlc
-            sqlite
             air
           ];
 
           shellHook = ''
-            echo "spese development shell"
+            echo "spese v2 development shell"
             echo ""
             echo "Available commands:"
-            echo "  make run    - Start the server"
-            echo "  make test   - Run tests"
-            echo "  make build  - Build binary"
-            echo "  air         - Hot reload development"
+            echo "  make run    — Start the server"
+            echo "  make test   — Run tests"
+            echo "  make build  — Build binary"
+            echo "  air         — Hot reload"
           '';
         };
       }
@@ -79,7 +71,7 @@
         in
         {
           options.services.spese = {
-            enable = mkEnableOption "spese expense tracker";
+            enable = mkEnableOption "spese net worth tracker";
 
             package = mkOption {
               type = types.package;
@@ -90,56 +82,36 @@
 
             port = mkOption {
               type = types.port;
-              default = 8081;
+              default = 8080;
               description = "Port to listen on";
             };
 
-            dataDir = mkOption {
-              type = types.path;
-              default = "/var/lib/spese";
-              description = "Directory for SQLite database";
-            };
-
             googleSpreadsheetId = mkOption {
-              type = types.nullOr types.str;
-              default = null;
-              description = "Google Spreadsheet ID for sync";
-            };
-
-            googleSheetName = mkOption {
               type = types.str;
-              default = "Expenses";
-              description = "Base name for the Google Sheet (year prefixed automatically)";
+              description = "Google Spreadsheet ID (v2 sheet).";
             };
 
             googleServiceAccountFile = mkOption {
-              type = types.nullOr types.path;
-              default = null;
-              description = "Path to Google service account JSON file";
+              type = types.path;
+              description = "Path to Google service account JSON file.";
             };
 
-            syncInterval = mkOption {
+            recurringProcessorInterval = mkOption {
               type = types.str;
-              default = "30s";
-              description = "Interval for sync processor";
-            };
-
-            recurringInterval = mkOption {
-              type = types.str;
-              default = "1h";
-              description = "Interval for recurring expense processor";
+              default = "6h";
+              description = "How often to scan the `recurring` tab.";
             };
 
             environmentFile = mkOption {
               type = types.nullOr types.path;
               default = null;
-              description = "Path to environment file with secrets";
+              description = "Path to environment file with secrets.";
             };
           };
 
           config = mkIf cfg.enable {
             systemd.services.spese = {
-              description = "Spese expense tracker";
+              description = "Spese net worth tracker";
               wantedBy = [ "multi-user.target" ];
               after = [ "network.target" ];
 
@@ -151,8 +123,6 @@
 
                 # Hardening
                 DynamicUser = true;
-                StateDirectory = "spese";
-                StateDirectoryMode = "0750";
                 ProtectSystem = "strict";
                 ProtectHome = true;
                 PrivateTmp = true;
@@ -163,23 +133,16 @@
                 RestrictNamespaces = true;
                 RestrictRealtime = true;
                 RestrictSUIDSGID = true;
-                MemoryDenyWriteExecute = true;
                 LockPersonality = true;
               } // optionalAttrs (cfg.environmentFile != null) {
                 EnvironmentFile = cfg.environmentFile;
               };
 
               environment = {
-                PORT = toString cfg.port;
-                SQLITE_DB_PATH = "${cfg.dataDir}/spese.db";
-                SYNC_INTERVAL = cfg.syncInterval;
-                RECURRING_PROCESSOR_INTERVAL = cfg.recurringInterval;
-                DATA_BACKEND = "sqlite";
-                GOOGLE_SHEET_NAME = cfg.googleSheetName;
-              } // optionalAttrs (cfg.googleSpreadsheetId != null) {
+                SPESE_PORT = toString cfg.port;
                 GOOGLE_SPREADSHEET_ID = cfg.googleSpreadsheetId;
-              } // optionalAttrs (cfg.googleServiceAccountFile != null) {
                 GOOGLE_SERVICE_ACCOUNT_FILE = toString cfg.googleServiceAccountFile;
+                RECURRING_PROCESSOR_INTERVAL = cfg.recurringProcessorInterval;
               };
             };
           };

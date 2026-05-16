@@ -1,0 +1,46 @@
+{{define "title"}}Bilanci · Spese{{end}}
+{{define "content"}}
+<section class="page snapshots">
+  <header class="page-head">
+    <h1>Bilanci di fine mese</h1>
+    <p class="muted">Inserisci il saldo per ogni conto attivo. Le passività vanno con il segno negativo.</p>
+  </header>
+
+  <form method="post" action="/snapshots" class="form-card snapshots-form" hx-post="/snapshots" hx-target="closest section">
+    <label class="full">Mese <input name="month" type="month" value="{{isodate .Month}}" required></label>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Conto</th>
+          <th>Classe</th>
+          <th class="num">Ultimo saldo</th>
+          <th class="num">Nuovo saldo (€)</th>
+          <th>Note</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Rows}}
+          <tr>
+            <td>{{.Account.Name}}</td>
+            <td class="muted">{{.Account.Class}}</td>
+            <td class="num muted">
+              {{if not .LastMonth.IsZero}}{{money .LastBalance}} <span class="hint">({{isodate .LastMonth}})</span>{{end}}
+            </td>
+            <td class="num">
+              <input name="balance[{{.Account.Name}}]" inputmode="decimal" placeholder="0,00">
+            </td>
+            <td>
+              <input name="note[{{.Account.Name}}]" placeholder="-">
+            </td>
+          </tr>
+        {{else}}
+          <tr><td colspan="5" class="muted">Nessun conto attivo per questo mese.</td></tr>
+        {{end}}
+      </tbody>
+    </table>
+
+    <button type="submit">Salva bilanci</button>
+  </form>
+</section>
+{{end}}

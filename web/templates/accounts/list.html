@@ -1,0 +1,62 @@
+{{define "title"}}Conti · Spese{{end}}
+{{define "content"}}
+<section class="page accounts">
+  <header class="page-head">
+    <h1>Conti</h1>
+    <p class="muted">Piano dei conti (asset e passività).</p>
+  </header>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Nome</th>
+        <th>Tipo</th>
+        <th>Classe</th>
+        <th>Valuta</th>
+        <th>Note</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Accounts}}
+        <tr>
+          <td>{{.Name}}</td>
+          <td>{{.Type}}</td>
+          <td>{{.Class}}</td>
+          <td>{{.Currency}}</td>
+          <td class="muted">{{.Note}}</td>
+        </tr>
+      {{else}}
+        <tr><td colspan="5" class="muted">Nessun conto.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <details class="form-card">
+    <summary>Aggiungi conto</summary>
+    <form method="post" action="/accounts" hx-post="/accounts" hx-target="closest section">
+      <label>Nome <input name="name" required></label>
+      <label>Tipo
+        <select name="type" required>
+          <option value="Asset">Asset</option>
+          <option value="Liability">Liability</option>
+        </select>
+      </label>
+      <label>Classe
+        <select name="class" required>
+          <option value="Cash">Cash</option>
+          <option value="Investment">Investment</option>
+          <option value="Property">Property</option>
+          <option value="Tax">Tax</option>
+          <option value="Credit">Credit</option>
+          <option value="Other">Other</option>
+        </select>
+      </label>
+      <label>Valuta <input name="currency" value="EUR"></label>
+      <label>Attivo da <input name="active_from" type="month"></label>
+      <label>Attivo a <input name="active_to" type="month"></label>
+      <label>Note <input name="note"></label>
+      <button type="submit">Salva</button>
+    </form>
+  </details>
+</section>
+{{end}}

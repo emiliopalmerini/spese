@@ -1,0 +1,35 @@
+{{define "title"}}Investimenti · Spese{{end}}
+{{define "content"}}
+<section class="page report">
+  <header class="page-head">
+    <h1>Investimenti</h1>
+    <p class="muted">Costo cumulato (somma dei trasferimenti) vs valore attuale (ultimo bilancio).</p>
+  </header>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Conto</th>
+        <th class="num">Costo</th>
+        <th class="num">Valore</th>
+        <th class="num">Rendimento</th>
+        <th class="num">%</th>
+        <th>Ultimo aggiornamento</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Rows}}
+        <tr>
+          <td>{{.Account}}</td>
+          <td class="num">{{money .CostBasis}}</td>
+          <td class="num">{{money .Value}}</td>
+          <td class="num">{{money .Return}}</td>
+          <td class="num">{{pct .ReturnPct}}</td>
+          <td class="muted">{{isodate .LatestMonth}}</td>
+        </tr>
+      {{else}}
+        <tr><td colspan="6" class="muted">Nessun investimento.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</section>
+{{end}}
