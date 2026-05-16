@@ -19,7 +19,7 @@
             src = ./.;
 
             # Recompute with `nix build` if go.mod changes.
-            vendorHash = pkgs.lib.fakeHash;
+            vendorHash = "sha256-/E2ltVdJibj03OciyKKRIvzuovybQBUYuJgGC7QYBZA=";
 
             ldflags = [ "-s" "-w" ];
             subPackages = [ "cmd/spese" ];
