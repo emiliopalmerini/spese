@@ -66,6 +66,12 @@ func (c *Client) ReadRange(ctx context.Context, rangeA1 string, force bool) ([][
 
 	resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rangeA1).Context(ctx).Do()
 	if err != nil {
+		if isMissingRange(err) {
+			c.mu.Lock()
+			c.cache[rangeA1] = cacheEntry{data: nil, fetched: time.Now()}
+			c.mu.Unlock()
+			return nil, nil
+		}
 		return nil, fmt.Errorf("sheets get %s: %w", rangeA1, err)
 	}
 
@@ -124,4 +130,11 @@ func (c *Client) invalidate(tabPrefix string) {
 			delete(c.cache, k)
 		}
 	}
+}
+
+// isMissingRange detects the Sheets 400 returned when a tab or A1 range
+// does not exist in the spreadsheet. Callers treat it as empty data so a
+// first-run spreadsheet renders blank pages instead of 5xx.
+func isMissingRange(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "Unable to parse range")
 }
