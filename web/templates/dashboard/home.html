@@ -1,22 +1,182 @@
 {{define "title"}}Dashboard · Spese{{end}}
 {{define "content"}}
-<section class="page dashboard">
-  <header class="page-head">
-    <h1>Dashboard</h1>
+<section class="page dashboard dashboard-charts">
+  <header class="page-head dashboard-head">
+    <div>
+      <h1>Dashboard</h1>
+      <p class="muted">Vista sintetica da stato patrimoniale, conto economico, patrimonio e investimenti.</p>
+    </div>
+    <a class="dashboard-head__link" href="/reports">Report</a>
   </header>
-  <dl class="kpi-list">
-    {{range .Items}}
-      {{if eq .Label ""}}
-        <div class="kpi-divider"></div>
-      {{else if eq .Value ""}}
-        <dt class="kpi-section">{{.Label}}</dt>
+
+  <div class="dashboard-kpis" aria-label="Indicatori principali">
+    {{range .KPIs}}
+      <article class="dashboard-kpi dashboard-kpi--{{.Tone}}">
+        <span class="dashboard-kpi__label">{{.Label}}</span>
+        <strong class="dashboard-kpi__value">{{.Value}}</strong>
+        <span class="dashboard-kpi__help">{{.Help}}</span>
+      </article>
+    {{end}}
+  </div>
+
+  <section class="dashboard-panel dashboard-panel--wide" aria-labelledby="cashflow-heading">
+    <header class="dashboard-panel__head">
+      <div>
+        <h2 id="cashflow-heading">Entrate e uscite</h2>
+        <p class="muted">Ultimi 12 mesi disponibili dal conto economico.</p>
+      </div>
+      {{if .CashFlow.MaxFmt}}<span class="dashboard-panel__metric">Picco {{.CashFlow.MaxFmt}}</span>{{end}}
+    </header>
+
+    {{if .CashFlow.Empty}}
+      <p class="dashboard-empty">Nessun dato di conto economico.</p>
+    {{else}}
+      <div class="dashboard-chart">
+        <svg class="dashboard-svg dashboard-svg--bars" viewBox="0 0 {{.CashFlow.Width}} {{.CashFlow.Height}}" role="img" aria-labelledby="cashflow-title">
+          <title id="cashflow-title">Entrate e uscite mensili degli ultimi 12 mesi</title>
+          <line class="dashboard-svg__axis" x1="{{.CashFlow.AxisStart}}" y1="{{.CashFlow.Baseline}}" x2="{{.CashFlow.AxisEnd}}" y2="{{.CashFlow.Baseline}}"></line>
+          {{range .CashFlow.Bars}}
+            <rect class="dashboard-svg__bar dashboard-svg__bar--{{.Class}}" x="{{.X}}" y="{{.Y}}" width="{{.Width}}" height="{{.Height}}" rx="3">
+              <title>{{.Label}} · {{.Kind}} {{.ValueFmt}}</title>
+            </rect>
+          {{end}}
+          {{range .CashFlow.Months}}
+            <text class="dashboard-svg__label" x="{{.X}}" y="{{.Y}}" text-anchor="middle">{{.Label}}</text>
+          {{end}}
+        </svg>
+      </div>
+      <div class="dashboard-legend" aria-label="Legenda">
+        <span><i class="dashboard-legend__swatch dashboard-legend__swatch--income"></i>Entrate</span>
+        <span><i class="dashboard-legend__swatch dashboard-legend__swatch--expense"></i>Uscite</span>
+      </div>
+    {{end}}
+  </section>
+
+  <section class="dashboard-grid">
+    <article class="dashboard-panel" aria-labelledby="networth-heading">
+      <header class="dashboard-panel__head">
+        <div>
+          <h2 id="networth-heading">Patrimonio</h2>
+          <p class="muted">Andamento mensile del patrimonio netto.</p>
+        </div>
+        {{if .NetWorth.LatestFmt}}<span class="dashboard-panel__metric">{{.NetWorth.LatestFmt}}</span>{{end}}
+      </header>
+
+      {{if .NetWorth.Empty}}
+        <p class="dashboard-empty">Nessun dato patrimoniale.</p>
       {{else}}
-        <div class="kpi-row">
-          <dt>{{.Label}}</dt>
-          <dd>{{.Value}}</dd>
+        <div class="dashboard-chart">
+          <svg class="dashboard-svg dashboard-svg--line" viewBox="0 0 {{.NetWorth.Width}} {{.NetWorth.Height}}" role="img" aria-labelledby="networth-title">
+            <title id="networth-title">Patrimonio netto negli ultimi 12 mesi</title>
+            <line class="dashboard-svg__axis" x1="{{.NetWorth.AxisStart}}" y1="{{.NetWorth.Baseline}}" x2="{{.NetWorth.AxisEnd}}" y2="{{.NetWorth.Baseline}}"></line>
+            <polyline class="dashboard-svg__line" points="{{.NetWorth.PointsAttr}}"></polyline>
+            {{range .NetWorth.Points}}
+              <circle class="dashboard-svg__point" cx="{{.X}}" cy="{{.Y}}" r="4">
+                <title>{{.Label}} · {{.ValueFmt}}</title>
+              </circle>
+            {{end}}
+            {{range .NetWorth.Labels}}
+              <text class="dashboard-svg__label" x="{{.X}}" y="{{.Y}}" text-anchor="middle">{{.Label}}</text>
+            {{end}}
+          </svg>
+        </div>
+        <div class="dashboard-range">
+          <span>Min {{.NetWorth.MinFmt}}</span>
+          <span>Max {{.NetWorth.MaxFmt}}</span>
         </div>
       {{end}}
+    </article>
+
+    <article class="dashboard-panel" aria-labelledby="allocation-heading">
+      <header class="dashboard-panel__head">
+        <div>
+          <h2 id="allocation-heading">Allocazione</h2>
+          <p class="muted">Saldo corrente per classe di conto.</p>
+        </div>
+        {{if .Allocation.TotalFmt}}<span class="dashboard-panel__metric">{{.Allocation.TotalFmt}}</span>{{end}}
+      </header>
+
+      {{if .Allocation.Empty}}
+        <p class="dashboard-empty">Nessun saldo disponibile.</p>
+      {{else}}
+        <div class="dashboard-bars">
+          {{range .Allocation.Rows}}
+            <div class="dashboard-bar">
+              <div class="dashboard-bar__meta">
+                <strong>{{.Label}}</strong>
+                <span>{{.ValueFmt}} · {{.PercentFmt}}</span>
+              </div>
+              <svg class="dashboard-bar__track" viewBox="0 0 100 8" preserveAspectRatio="none" role="img" aria-label="{{.Label}} {{.PercentFmt}}">
+                <rect class="dashboard-bar__rail" x="0" y="0" width="100" height="8" rx="4"></rect>
+                <rect class="dashboard-bar__fill dashboard-bar__fill--{{.Tone}}" x="0" y="0" width="{{.Width}}" height="8" rx="4"></rect>
+              </svg>
+            </div>
+          {{end}}
+        </div>
+      {{end}}
+    </article>
+  </section>
+
+  <section class="dashboard-panel dashboard-panel--wide" aria-labelledby="investments-heading">
+    <header class="dashboard-panel__head">
+      <div>
+        <h2 id="investments-heading">Investimenti</h2>
+        <p class="muted">Valore attuale rispetto al costo cumulato.</p>
+      </div>
+      <span class="dashboard-panel__metric">{{.Investments.TotalReturnFmt}} · {{.Investments.ReturnPctFmt}}</span>
+    </header>
+
+    {{if .Investments.Empty}}
+      <p class="dashboard-empty">Nessun investimento.</p>
+    {{else}}
+      <div class="investment-list">
+        {{range .Investments.Rows}}
+          <article class="investment-row">
+            <header class="investment-row__head">
+              <strong>{{.Account}}</strong>
+              <span class="investment-row__return investment-row__return--{{.ReturnTone}}">{{.ReturnFmt}} · {{.ReturnPctFmt}}</span>
+            </header>
+            <div class="investment-row__bars">
+              <span>Costo {{.CostFmt}}</span>
+              <svg class="investment-row__track" viewBox="0 0 100 8" preserveAspectRatio="none" role="img" aria-label="Costo {{.CostFmt}}">
+                <rect class="dashboard-bar__rail" x="0" y="0" width="100" height="8" rx="4"></rect>
+                <rect class="investment-row__fill investment-row__fill--cost" x="0" y="0" width="{{.CostWidth}}" height="8" rx="4"></rect>
+              </svg>
+              <span>Valore {{.ValueFmt}}</span>
+              <svg class="investment-row__track" viewBox="0 0 100 8" preserveAspectRatio="none" role="img" aria-label="Valore {{.ValueFmt}}">
+                <rect class="dashboard-bar__rail" x="0" y="0" width="100" height="8" rx="4"></rect>
+                <rect class="investment-row__fill investment-row__fill--value" x="0" y="0" width="{{.ValueWidth}}" height="8" rx="4"></rect>
+              </svg>
+            </div>
+          </article>
+        {{end}}
+      </div>
     {{end}}
-  </dl>
+  </section>
+
+  {{if .Items}}
+    <section class="dashboard-panel dashboard-panel--wide" aria-labelledby="manual-heading">
+      <header class="dashboard-panel__head">
+        <div>
+          <h2 id="manual-heading">Note dashboard</h2>
+          <p class="muted">Righe manuali dal tab dashboard.</p>
+        </div>
+      </header>
+      <dl class="kpi-list dashboard-notes">
+        {{range .Items}}
+          {{if eq .Label ""}}
+            <div class="kpi-divider"></div>
+          {{else if eq .Value ""}}
+            <dt class="kpi-section">{{.Label}}</dt>
+          {{else}}
+            <div class="kpi-row">
+              <dt>{{.Label}}</dt>
+              <dd>{{.Value}}</dd>
+            </div>
+          {{end}}
+        {{end}}
+      </dl>
+    </section>
+  {{end}}
 </section>
 {{end}}

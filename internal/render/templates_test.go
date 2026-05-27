@@ -40,6 +40,51 @@ func TestTemplatesRender(t *testing.T) {
 			Accounts: accountList,
 		},
 		"dashboard/home": dashboard.View{
+			KPIs: []dashboard.KPI{
+				{Label: "Patrimonio netto", Value: "42.000,00 €", Help: "Ultimo mese disponibile", Tone: "positive"},
+				{Label: "Risparmio mese", Value: "2.100,00 €", Help: "Entrate meno uscite", Tone: "positive"},
+			},
+			CashFlow: dashboard.CashFlowChart{
+				Width: 720, Height: 230, AxisStart: 32, AxisEnd: 702, Baseline: 184,
+				MaxFmt: "3.500,00 €",
+				Months: []dashboard.MonthTick{
+					{X: 160, Y: 214, Label: "Mag", Detail: "2026-05"},
+				},
+				Bars: []dashboard.CashFlowBar{
+					{X: 140, Y: 40, Width: 16, Height: 144, Class: "income", Label: "Mag", Kind: "Entrate", ValueFmt: "3.500,00 €"},
+					{X: 162, Y: 126, Width: 16, Height: 58, Class: "expense", Label: "Mag", Kind: "Uscite", ValueFmt: "1.400,00 €"},
+				},
+			},
+			NetWorth: dashboard.LineChart{
+				Width: 720, Height: 220, AxisStart: 32, AxisEnd: 702, Baseline: 176,
+				PointsAttr: "32,160 702,40",
+				LatestFmt:  "42.000,00 €",
+				MinFmt:     "40.000,00 €",
+				MaxFmt:     "42.000,00 €",
+				Points: []dashboard.LinePoint{
+					{X: 32, Y: 160, Label: "Apr", ValueFmt: "40.000,00 €"},
+					{X: 702, Y: 40, Label: "Mag", ValueFmt: "42.000,00 €"},
+				},
+				Labels: []dashboard.MonthTick{
+					{X: 32, Y: 204, Label: "Apr", Detail: "2026-04"},
+					{X: 702, Y: 204, Label: "Mag", Detail: "2026-05"},
+				},
+			},
+			Allocation: dashboard.AllocationChart{
+				TotalFmt: "42.000,00 €",
+				Rows: []dashboard.AllocationRow{
+					{Label: "Cash", ValueFmt: "12.000,00 €", PercentFmt: "29%", Width: 29, Tone: "positive"},
+					{Label: "Investments", ValueFmt: "30.000,00 €", PercentFmt: "71%", Width: 71, Tone: "positive"},
+				},
+			},
+			Investments: dashboard.InvestmentChart{
+				TotalValueFmt:  "30.000,00 €",
+				TotalReturnFmt: "3.000,00 €",
+				ReturnPctFmt:   "11.1%",
+				Rows: []dashboard.InvestmentChartRow{
+					{Account: "Broker", CostFmt: "27.000,00 €", ValueFmt: "30.000,00 €", ReturnFmt: "3.000,00 €", ReturnPctFmt: "11.1%", CostWidth: 90, ValueWidth: 100, ReturnTone: "positive"},
+				},
+			},
 			Items: []dashboard.Item{
 				{Label: "Liquidita", Value: "12.345,67 EUR"},
 				{Label: "", Value: ""},
@@ -160,6 +205,64 @@ func TestTemplateFragmentsRender(t *testing.T) {
 				t.Fatalf("fragment %s did not render an action form", name)
 			}
 		})
+	}
+}
+
+func TestDashboardTemplateEscapesChartLabels(t *testing.T) {
+	templates, err := render.Load(web.TemplatesFS)
+	if err != nil {
+		t.Fatalf("load templates: %v", err)
+	}
+
+	malicious := `"><script>alert(1)</script><img src=x onerror="alert(1)">`
+	view := dashboard.View{
+		KPIs: []dashboard.KPI{
+			{Label: malicious, Value: "1,00 €", Help: malicious, Tone: "positive"},
+		},
+		CashFlow: dashboard.CashFlowChart{
+			Width: 720, Height: 230, AxisStart: 32, AxisEnd: 702, Baseline: 184,
+			Months: []dashboard.MonthTick{{X: 120, Y: 214, Label: malicious}},
+			Bars: []dashboard.CashFlowBar{
+				{X: 100, Y: 120, Width: 16, Height: 64, Class: "income", Label: malicious, Kind: malicious, ValueFmt: "1,00 €"},
+			},
+		},
+		NetWorth: dashboard.LineChart{
+			Width: 720, Height: 220, AxisStart: 32, AxisEnd: 702, Baseline: 176,
+			PointsAttr: "32,160",
+			Points:     []dashboard.LinePoint{{X: 32, Y: 160, Label: malicious, ValueFmt: "1,00 €"}},
+			Labels:     []dashboard.MonthTick{{X: 32, Y: 204, Label: malicious}},
+		},
+		Allocation: dashboard.AllocationChart{
+			TotalFmt: "1,00 €",
+			Rows: []dashboard.AllocationRow{
+				{Label: malicious, ValueFmt: "1,00 €", PercentFmt: "100%", Width: 100, Tone: "positive"},
+			},
+		},
+		Investments: dashboard.InvestmentChart{
+			TotalValueFmt: "1,00 €", TotalReturnFmt: "0,00 €", ReturnPctFmt: "0.0%",
+			Rows: []dashboard.InvestmentChartRow{
+				{Account: malicious, CostFmt: "1,00 €", ValueFmt: "1,00 €", ReturnFmt: "0,00 €", ReturnPctFmt: "0.0%", CostWidth: 100, ValueWidth: 100, ReturnTone: "neutral"},
+			},
+		},
+		Items: []dashboard.Item{{Label: malicious, Value: malicious}},
+	}
+
+	w := httptest.NewRecorder()
+	if err := templates.Render(w, "dashboard/home", view); err != nil {
+		t.Fatalf("render dashboard/home: %v", err)
+	}
+	body := w.Body.String()
+	if strings.Contains(body, `"><script>alert(1)</script>`) || strings.Contains(body, "<img src=x") || strings.Contains(body, `onerror="alert`) {
+		t.Fatalf("dashboard rendered unsafe markup:\n%s", body)
+	}
+	if strings.Contains(body, "ZgotmplZ") {
+		t.Fatalf("dashboard rendered a sanitized placeholder:\n%s", body)
+	}
+	if !strings.Contains(body, "&lt;script&gt;alert") {
+		t.Fatalf("dashboard did not preserve escaped malicious label:\n%s", body)
+	}
+	if !strings.Contains(body, "dashboard-svg--bars") || !strings.Contains(body, "dashboard-svg--line") {
+		t.Fatalf("dashboard did not render chart SVGs:\n%s", body)
 	}
 }
 
