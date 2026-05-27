@@ -111,15 +111,11 @@ button {
 }
 
 .topbar__inner {
-  position: relative;
   width: min(100%, 1120px);
-  min-height: 64px;
   margin: 0 auto;
   padding: calc(env(safe-area-inset-top) + var(--space-2)) var(--page-pad) var(--space-2);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
 }
 
 .brand {
@@ -150,72 +146,33 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-.nav-menu {
-  position: static;
-  flex: 0 0 auto;
-}
-
-.nav-menu summary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 0 var(--space-4);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--ink);
-  font-weight: 650;
-  list-style: none;
-  box-shadow: var(--shadow-soft);
-  user-select: none;
-}
-
-.nav-menu summary::-webkit-details-marker {
-  display: none;
-}
-
-.nav-menu summary::after {
-  content: "+";
-  margin-left: var(--space-2);
-  color: var(--muted);
-  font-weight: 700;
-}
-
-.nav-menu[open] summary::after {
-  content: "-";
-}
-
 .nav {
-  display: none;
+  display: flex;
+  gap: var(--space-2);
+  margin-inline: calc(var(--page-pad) * -1);
+  padding: 0 var(--page-pad) var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 
-.nav-menu[open] .nav {
-  position: fixed;
-  top: calc(env(safe-area-inset-top) + 64px);
-  left: var(--page-pad);
-  right: var(--page-pad);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-2);
-  width: auto;
-  padding: var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  z-index: 30;
+.nav::-webkit-scrollbar {
+  display: none;
 }
 
 .nav a {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  min-height: 44px;
+  min-height: 40px;
   padding: 0 var(--space-3);
+  border: 1px solid var(--line);
   border-radius: 6px;
+  background: var(--surface);
   color: var(--ink);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 600;
+  box-shadow: var(--shadow-soft);
 }
 
 .nav a:hover {
@@ -618,10 +575,6 @@ details.form-card form {
 }
 
 @media (max-width: 420px) {
-  .nav-menu[open] .nav {
-    grid-template-columns: 1fr;
-  }
-
   .kpi-row {
     grid-template-columns: 1fr;
     gap: var(--space-1);
@@ -655,31 +608,27 @@ details.form-card form {
 
 @media (min-width: 760px) {
   .topbar__inner {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
     min-height: 72px;
     padding-top: var(--space-3);
     padding-bottom: var(--space-3);
   }
 
-  .nav-menu summary {
-    display: none;
-  }
-
-  .nav,
-  .nav-menu[open] .nav {
-    position: static;
-    display: flex;
-    grid-template-columns: none;
+  .nav {
+    justify-content: flex-end;
     gap: var(--space-1);
+    margin-inline: 0;
     padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
+    overflow: visible;
   }
 
   .nav a {
     padding: 0 var(--space-2);
+    border-color: transparent;
+    background: transparent;
     font-size: 0.9rem;
+    box-shadow: none;
   }
 
   .container {
