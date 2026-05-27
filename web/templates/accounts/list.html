@@ -19,11 +19,11 @@
     <tbody>
       {{range .Accounts}}
         <tr>
-          <td>{{.Name}}</td>
-          <td>{{.Type}}</td>
-          <td>{{.Class}}</td>
-          <td>{{.Currency}}</td>
-          <td class="muted">{{.Note}}</td>
+          <td data-label="Nome">{{.Name}}</td>
+          <td data-label="Tipo">{{.Type}}</td>
+          <td data-label="Classe">{{.Class}}</td>
+          <td data-label="Valuta">{{.Currency}}</td>
+          <td class="muted" data-label="Note">{{.Note}}</td>
         </tr>
       {{else}}
         <tr><td colspan="5" class="muted">Nessun conto.</td></tr>

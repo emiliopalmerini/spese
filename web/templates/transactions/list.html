@@ -44,12 +44,12 @@
     <tbody>
       {{range .Transactions}}
         <tr class="kind-{{.Kind}}">
-          <td>{{isodate .Date}}</td>
-          <td>{{.Kind}}</td>
-          <td>{{.Account}}</td>
-          <td class="num">{{money .Amount}}</td>
-          <td>{{.Category}}{{if .Subcategory}} <span class="muted">/ {{.Subcategory}}</span>{{end}}</td>
-          <td>{{.Payee}}</td>
+          <td data-label="Data">{{isodate .Date}}</td>
+          <td data-label="Tipo">{{if eq .Kind "Income"}}Entrata{{else if eq .Kind "Expense"}}Uscita{{else}}{{.Kind}}{{end}}</td>
+          <td data-label="Conto">{{.Account}}</td>
+          <td class="num" data-label="Importo">{{money .Amount}}</td>
+          <td data-label="Categoria">{{.Category}}{{if .Subcategory}} <span class="muted">/ {{.Subcategory}}</span>{{end}}</td>
+          <td data-label="Descrizione">{{.Payee}}</td>
         </tr>
       {{else}}
         <tr><td colspan="6" class="muted">Nessun movimento.</td></tr>

@@ -18,11 +18,11 @@
     <tbody>
       {{range .Rows}}
         <tr>
-          <td>{{monthIT .Month}}</td>
-          <td class="num">{{money .Revenue}}</td>
-          <td class="num">{{money .Expenses}}</td>
-          <td class="num">{{money .NetIncome}}</td>
-          <td class="num">{{pct .SavingsRate}}</td>
+          <td data-label="Mese">{{monthIT .Month}}</td>
+          <td class="num" data-label="Entrate">{{money .Revenue}}</td>
+          <td class="num" data-label="Uscite">{{money .Expenses}}</td>
+          <td class="num" data-label="Risparmio">{{money .NetIncome}}</td>
+          <td class="num" data-label="Tasso">{{pct .SavingsRate}}</td>
         </tr>
       {{else}}
         <tr><td colspan="5" class="muted">Nessun dato.</td></tr>

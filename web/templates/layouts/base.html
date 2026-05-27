@@ -4,20 +4,28 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{block "title" .}}Spese{{end}}</title>
-  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/style.css">
   <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/">Spese</a>
-    <nav class="nav">
-      <a href="/transactions">Movimenti</a>
-      <a href="/transfers">Trasferimenti</a>
-      <a href="/snapshots">Bilanci</a>
-      <a href="/accounts">Conti</a>
-      <a href="/recurring">Ricorrenti</a>
-      <a href="/reports">Report</a>
-    </nav>
+    <div class="topbar__inner">
+      <a class="brand" href="/" aria-label="Spese dashboard">
+        <span class="brand__mark">S</span>
+        <span>Spese</span>
+      </a>
+      <details class="nav-menu">
+        <summary>Menu</summary>
+        <nav class="nav" aria-label="Principale">
+          <a href="/transactions">Movimenti</a>
+          <a href="/transfers">Trasferimenti</a>
+          <a href="/snapshots">Bilanci</a>
+          <a href="/accounts">Conti</a>
+          <a href="/recurring">Ricorrenti</a>
+          <a href="/reports">Report</a>
+        </nav>
+      </details>
+    </div>
   </header>
   <main class="container">
     {{block "content" .}}{{end}}

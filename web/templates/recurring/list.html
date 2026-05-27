@@ -21,13 +21,13 @@
     <tbody>
       {{range .Recurrings}}
         <tr>
-          <td>{{.Label}}</td>
-          <td>{{.Kind}}</td>
-          <td>{{.Account}}</td>
-          <td class="num">{{money .Amount}}</td>
-          <td>{{.Category}}{{if .Subcategory}} / {{.Subcategory}}{{end}}</td>
-          <td>{{.DayOfMonth}}</td>
-          <td>{{if .Active}}sì{{else}}no{{end}}</td>
+          <td data-label="Etichetta">{{.Label}}</td>
+          <td data-label="Tipo">{{if eq .Kind "Income"}}Entrata{{else if eq .Kind "Expense"}}Uscita{{else}}{{.Kind}}{{end}}</td>
+          <td data-label="Conto">{{.Account}}</td>
+          <td class="num" data-label="Importo">{{money .Amount}}</td>
+          <td data-label="Categoria">{{.Category}}{{if .Subcategory}} / {{.Subcategory}}{{end}}</td>
+          <td data-label="Giorno">{{.DayOfMonth}}</td>
+          <td data-label="Attivo">{{if .Active}}sì{{else}}no{{end}}</td>
         </tr>
       {{else}}
         <tr><td colspan="7" class="muted">Nessun ricorrente.</td></tr>

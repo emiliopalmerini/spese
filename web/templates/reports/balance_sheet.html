@@ -18,11 +18,11 @@
     <tbody>
       {{range .Rows}}
         <tr>
-          <td>{{.Account}}</td>
-          <td>{{.Type}}</td>
-          <td>{{.Class}}</td>
-          <td class="num">{{money .Balance}}</td>
-          <td class="muted">{{isodate .LatestMonth}}</td>
+          <td data-label="Conto">{{.Account}}</td>
+          <td data-label="Tipo">{{.Type}}</td>
+          <td data-label="Classe">{{.Class}}</td>
+          <td class="num" data-label="Saldo">{{money .Balance}}</td>
+          <td class="muted" data-label="Ultimo aggiornamento">{{isodate .LatestMonth}}</td>
         </tr>
       {{else}}
         <tr><td colspan="5" class="muted">Nessuna voce.</td></tr>

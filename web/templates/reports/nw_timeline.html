@@ -15,8 +15,8 @@
     <tbody>
       {{range .Rows}}
         <tr>
-          <td>{{monthIT .Month}}</td>
-          <td class="num">{{money .NetWorth}}</td>
+          <td data-label="Mese">{{monthIT .Month}}</td>
+          <td class="num" data-label="Patrimonio">{{money .NetWorth}}</td>
         </tr>
       {{else}}
         <tr><td colspan="2" class="muted">Nessun dato.</td></tr>

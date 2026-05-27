@@ -1,15 +1,2 @@
-/* Main CSS entry point - imports component styles */
+/* Canonical app stylesheet. Keep imports explicit so legacy component CSS does not leak into the live UI. */
 @import 'css/base.css';
-@import 'css/topbar.css';
-@import 'css/forms.css';
-@import 'css/buttons.css';
-@import 'css/feedback.css';
-@import 'css/tables.css';
-@import 'css/cards.css';
-@import 'css/recurrent.css';
-@import 'css/income.css';
-@import 'css/expense.css';
-@import 'css/networth.css';
-@import 'css/dashboard.css';
-@import 'css/utilities.css';
-@import 'css/tabbar.css';

@@ -1,7 +1,9 @@
 {{define "title"}}Dashboard · Spese{{end}}
 {{define "content"}}
-<section class="dashboard">
-  <h1>Dashboard</h1>
+<section class="page dashboard">
+  <header class="page-head">
+    <h1>Dashboard</h1>
+  </header>
   <dl class="kpi-list">
     {{range .Items}}
       {{if eq .Label ""}}
