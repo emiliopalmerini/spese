@@ -1,0 +1,132 @@
+{{define "action_form_transaction"}}
+<form method="post" action="/transactions" class="form-card global-action-form" data-global-action-form hx-post="/transactions" hx-target="main.container" hx-select="main.container" hx-swap="outerHTML" hx-push-url="/transactions">
+  <label>Tipo
+    <select name="kind" required>
+      <option value="Expense">Uscita</option>
+      <option value="Income">Entrata</option>
+    </select>
+  </label>
+  <label>Data <input name="date" type="date" value="{{isodate .Today}}" required></label>
+  <label>Conto
+    <select name="account" required>
+      {{range .Accounts}}<option>{{.Name}}</option>{{end}}
+    </select>
+  </label>
+  <label>Importo <input name="amount" inputmode="decimal" required></label>
+  <label>Descrizione <input name="payee" required></label>
+  <label>Categoria <input name="category"></label>
+  <label>Sottocategoria <input name="subcategory"></label>
+  <label class="full">Note <input name="note"></label>
+  <button type="submit">Salva</button>
+</form>
+{{end}}
+
+{{define "action_form_transfer"}}
+<form method="post" action="/transfers" class="form-card global-action-form" data-global-action-form hx-post="/transfers" hx-target="main.container" hx-select="main.container" hx-swap="outerHTML" hx-push-url="/transfers">
+  <label>Data <input name="date" type="date" value="{{isodate .Today}}" required></label>
+  <label>Da
+    <select name="source" required>
+      {{range .Accounts}}<option>{{.Name}}</option>{{end}}
+    </select>
+  </label>
+  <label>A
+    <select name="destination" required>
+      {{range .Accounts}}<option>{{.Name}}</option>{{end}}
+    </select>
+  </label>
+  <label>Importo <input name="amount" inputmode="decimal" required></label>
+  <label class="full">Note <input name="note"></label>
+  <button type="submit">Registra</button>
+</form>
+{{end}}
+
+{{define "action_form_snapshot"}}
+<form method="post" action="/snapshots" class="form-card snapshots-form global-action-form" data-global-action-form hx-post="/snapshots" hx-target="main.container" hx-select="main.container" hx-swap="outerHTML" hx-push-url="/snapshots">
+  <label class="full">Mese <input name="month" type="month" value="{{.Month.Month}}" required></label>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Conto</th>
+        <th>Classe</th>
+        <th class="num">Ultimo saldo</th>
+        <th class="num">Nuovo saldo (€)</th>
+        <th>Note</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Rows}}
+        <tr>
+          <td data-label="Conto">{{.Account.Name}}</td>
+          <td class="muted" data-label="Classe">{{.Account.Class}}</td>
+          <td class="num muted" data-label="Ultimo saldo">
+            {{if not .LastMonth.IsZero}}{{money .LastBalance}} <span class="hint">({{isodate .LastMonth}})</span>{{end}}
+          </td>
+          <td class="num" data-label="Nuovo saldo (€)">
+            <input name="balance[{{.Account.Name}}]" inputmode="decimal" placeholder="0,00">
+          </td>
+          <td data-label="Note">
+            <input name="note[{{.Account.Name}}]" placeholder="-">
+          </td>
+        </tr>
+      {{else}}
+        <tr><td colspan="5" class="muted">Nessun conto attivo per questo mese.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <button type="submit">Salva bilanci</button>
+</form>
+{{end}}
+
+{{define "action_form_account"}}
+<form method="post" action="/accounts" class="form-card global-action-form" data-global-action-form hx-post="/accounts" hx-target="main.container" hx-select="main.container" hx-swap="outerHTML" hx-push-url="/accounts">
+  <label>Nome <input name="name" required></label>
+  <label>Tipo
+    <select name="type" required>
+      <option value="Asset">Asset</option>
+      <option value="Liability">Liability</option>
+    </select>
+  </label>
+  <label>Classe
+    <select name="class" required>
+      <option value="Cash">Cash</option>
+      <option value="Investment">Investment</option>
+      <option value="Property">Property</option>
+      <option value="Tax">Tax</option>
+      <option value="Credit">Credit</option>
+      <option value="Other">Other</option>
+    </select>
+  </label>
+  <label>Valuta <input name="currency" value="EUR"></label>
+  <label>Attivo da <input name="active_from" type="month"></label>
+  <label>Attivo a <input name="active_to" type="month"></label>
+  <label>Note <input name="note"></label>
+  <button type="submit">Salva</button>
+</form>
+{{end}}
+
+{{define "action_form_recurring"}}
+<form method="post" action="/recurring" class="form-card global-action-form" data-global-action-form hx-post="/recurring" hx-target="main.container" hx-select="main.container" hx-swap="outerHTML" hx-push-url="/recurring">
+  <label>Etichetta <input name="label" required></label>
+  <label>Tipo
+    <select name="kind" required>
+      <option value="Expense">Uscita</option>
+      <option value="Income">Entrata</option>
+    </select>
+  </label>
+  <label>Conto
+    <select name="account" required>
+      {{range .Accounts}}<option>{{.Name}}</option>{{end}}
+    </select>
+  </label>
+  <label>Importo <input name="amount" inputmode="decimal" required></label>
+  <label>Giorno del mese <input name="day_of_month" type="number" min="1" max="31" required></label>
+  <label>Categoria <input name="category"></label>
+  <label>Sottocategoria <input name="subcategory"></label>
+  <label>Descrizione <input name="payee"></label>
+  <label class="checkbox"><input name="active" type="checkbox" checked> Attivo</label>
+  <label class="full">Note <input name="note"></label>
+  <button type="submit">Salva</button>
+</form>
+{{end}}

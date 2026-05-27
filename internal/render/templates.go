@@ -21,7 +21,8 @@ import (
 // Templates holds one parsed *template.Template per page, each cloned from
 // the shared layout set.
 type Templates struct {
-	pages map[string]*template.Template
+	pages      map[string]*template.Template
+	components *template.Template
 }
 
 // Load parses templates from the given filesystem rooted at "templates/".
@@ -29,6 +30,11 @@ func Load(tfs fs.FS) (*Templates, error) {
 	layoutSet, err := template.New("").Funcs(funcs).ParseFS(tfs, "templates/layouts/*.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse layouts: %w", err)
+	}
+	if hasDir(tfs, "templates/components") {
+		if _, err := layoutSet.ParseFS(tfs, "templates/components/*.html"); err != nil {
+			return nil, fmt.Errorf("parse components: %w", err)
+		}
 	}
 
 	pages := make(map[string]*template.Template)
@@ -52,19 +58,13 @@ func Load(tfs fs.FS) (*Templates, error) {
 		if err != nil {
 			return fmt.Errorf("parse %s: %w", path, err)
 		}
-		// Pull in shared components, if any.
-		if hasDir(tfs, "templates/components") {
-			if _, err := t.ParseFS(tfs, "templates/components/*.html"); err != nil {
-				return fmt.Errorf("parse components: %w", err)
-			}
-		}
 		pages[name] = t
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &Templates{pages: pages}, nil
+	return &Templates{pages: pages, components: layoutSet}, nil
 }
 
 // Render writes the named page using the base layout.
@@ -75,6 +75,15 @@ func (t *Templates) Render(w http.ResponseWriter, name string, data any) error {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	return tmpl.ExecuteTemplate(w, "base", data)
+}
+
+// RenderFragment writes a named component template without the base layout.
+func (t *Templates) RenderFragment(w http.ResponseWriter, name string, data any) error {
+	if t.components.Lookup(name) == nil {
+		return fmt.Errorf("unknown template fragment %q", name)
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	return t.components.ExecuteTemplate(w, name, data)
 }
 
 func hasDir(tfs fs.FS, path string) bool {

@@ -6,30 +6,6 @@
     <p class="muted">Ultime 100 voci di entrata o uscita.</p>
   </header>
 
-  <details class="form-card" open>
-    <summary>Nuovo movimento</summary>
-    <form method="post" action="/transactions" hx-post="/transactions" hx-target="closest section">
-      <label>Tipo
-        <select name="kind" required>
-          <option value="Expense">Uscita</option>
-          <option value="Income">Entrata</option>
-        </select>
-      </label>
-      <label>Data <input name="date" type="date" required></label>
-      <label>Conto
-        <select name="account" required>
-          {{range .Accounts}}<option>{{.Name}}</option>{{end}}
-        </select>
-      </label>
-      <label>Importo <input name="amount" inputmode="decimal" required></label>
-      <label>Descrizione <input name="payee" required></label>
-      <label>Categoria <input name="category"></label>
-      <label>Sottocategoria <input name="subcategory"></label>
-      <label class="full">Note <input name="note"></label>
-      <button type="submit">Salva</button>
-    </form>
-  </details>
-
   <table class="data-table">
     <thead>
       <tr>

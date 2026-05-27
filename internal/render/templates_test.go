@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"spese/internal/features/accounts"
+	"spese/internal/features/actions"
 	"spese/internal/features/dashboard"
 	"spese/internal/features/recurring"
 	"spese/internal/features/reports"
@@ -108,6 +109,55 @@ func TestTemplatesRender(t *testing.T) {
 			body := w.Body.String()
 			if !strings.Contains(body, "<main class=\"container\">") {
 				t.Fatalf("render %s did not include the base layout", name)
+			}
+			if !strings.Contains(body, "data-global-action-toggle") {
+				t.Fatalf("render %s did not include global actions", name)
+			}
+		})
+	}
+}
+
+func TestTemplateFragmentsRender(t *testing.T) {
+	templates, err := render.Load(web.TemplatesFS)
+	if err != nil {
+		t.Fatalf("load templates: %v", err)
+	}
+
+	day := mustDate(t, "2026-05-15")
+	month := mustDate(t, "2026-05")
+	account := accounts.Account{
+		Name:     "Conto corrente principale",
+		Type:     accounts.Asset,
+		Class:    accounts.Cash,
+		Currency: "EUR",
+	}
+	accountPicker := actions.AccountPickerView{
+		Accounts: []accounts.Account{account},
+		Today:    day,
+	}
+
+	cases := map[string]any{
+		"action_form_account":     nil,
+		"action_form_recurring":   accountPicker,
+		"action_form_transaction": accountPicker,
+		"action_form_transfer":    accountPicker,
+		"action_form_snapshot": snapshots.FormView{
+			Month: month,
+			Rows: []snapshots.Row{
+				{Account: account, LastBalance: kernel.Money(1200000), LastMonth: month},
+			},
+		},
+	}
+
+	for name, data := range cases {
+		t.Run(name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			if err := templates.RenderFragment(w, name, data); err != nil {
+				t.Fatalf("render fragment %s: %v", name, err)
+			}
+			body := w.Body.String()
+			if !strings.Contains(body, "data-global-action-form") {
+				t.Fatalf("fragment %s did not render an action form", name)
 			}
 		})
 	}

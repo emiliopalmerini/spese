@@ -1,0 +1,199 @@
+/* Global create action menu and bottom drawer. */
+.container {
+  padding-bottom: calc(var(--space-8) + 5.5rem + env(safe-area-inset-bottom));
+}
+
+.global-actions {
+  position: fixed;
+  right: var(--page-pad);
+  bottom: calc(var(--space-5) + env(safe-area-inset-bottom));
+  z-index: 90;
+  display: grid;
+  justify-items: end;
+}
+
+.global-action-fab {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: var(--shadow);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.global-action-fab:hover {
+  background: var(--accent-strong);
+}
+
+.global-action-fab[aria-expanded="true"] .global-action-fab__icon {
+  transform: rotate(45deg);
+}
+
+.global-action-fab__icon {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 2.5;
+}
+
+.global-action-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + var(--space-3));
+  display: grid;
+  width: min(15rem, calc(100vw - (var(--page-pad) * 2)));
+  gap: var(--space-2);
+}
+
+.global-action-menu[hidden],
+.global-action-backdrop[hidden],
+.global-action-drawer[hidden] {
+  display: none;
+}
+
+.global-action-menu__item {
+  min-height: 46px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 var(--space-4);
+  text-align: left;
+  font-weight: 750;
+  box-shadow: var(--shadow-soft);
+}
+
+.global-action-menu__item:hover {
+  background: var(--surface-muted);
+  color: var(--accent-strong);
+}
+
+.global-action-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  border: 0;
+  background: rgba(31, 36, 33, 0.34);
+  padding: 0;
+}
+
+.global-action-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  align-items: end;
+  pointer-events: none;
+}
+
+.global-action-drawer.is-open {
+  pointer-events: auto;
+}
+
+.global-action-drawer__panel {
+  width: min(100%, 1040px);
+  max-height: calc(100vh - var(--space-7) - env(safe-area-inset-top));
+  margin: 0 auto;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--surface);
+  box-shadow: 0 -16px 42px rgba(31, 36, 33, 0.22);
+  transform: translateY(100%);
+}
+
+.global-action-drawer.is-open .global-action-drawer__panel {
+  transform: translateY(0);
+}
+
+.global-action-drawer__handle {
+  width: 44px;
+  height: 4px;
+  margin: var(--space-3) auto var(--space-2);
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+
+.global-action-drawer__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  padding: 0 var(--space-4);
+}
+
+.global-action-drawer__head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.global-action-drawer__close {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--ink);
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.global-action-drawer__close:hover {
+  background: var(--surface-muted);
+}
+
+.global-action-drawer__content {
+  padding: var(--space-4);
+}
+
+.global-action-drawer__content.is-loading {
+  min-height: 180px;
+}
+
+.global-action-drawer .form-card {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.global-action-drawer .snapshots-form .data-table {
+  margin: 0;
+}
+
+@media (min-width: 760px) {
+  .global-action-drawer__panel {
+    max-height: min(86vh, 780px);
+  }
+
+  .global-action-drawer__content {
+    padding: var(--space-5);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .global-action-fab,
+  .global-action-fab__icon,
+  .global-action-menu__item,
+  .global-action-drawer__panel {
+    transition: background-color 140ms ease, color 140ms ease, transform 180ms ease, box-shadow 140ms ease;
+  }
+}

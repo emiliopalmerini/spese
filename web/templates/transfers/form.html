@@ -6,21 +6,5 @@
     <p class="muted">Sposta denaro tra conti propri. Non cambia il patrimonio netto.</p>
   </header>
 
-  <form method="post" action="/transfers" class="form-card" hx-post="/transfers" hx-target="closest section">
-    <label>Data <input name="date" type="date" value="{{isodate .Today}}" required></label>
-    <label>Da
-      <select name="source" required>
-        {{range .Accounts}}<option>{{.Name}}</option>{{end}}
-      </select>
-    </label>
-    <label>A
-      <select name="destination" required>
-        {{range .Accounts}}<option>{{.Name}}</option>{{end}}
-      </select>
-    </label>
-    <label>Importo <input name="amount" inputmode="decimal" required></label>
-    <label class="full">Note <input name="note"></label>
-    <button type="submit">Registra</button>
-  </form>
 </section>
 {{end}}

@@ -14,6 +14,7 @@ import (
 
 	"spese/internal/config"
 	"spese/internal/features/accounts"
+	"spese/internal/features/actions"
 	"spese/internal/features/dashboard"
 	"spese/internal/features/recurring"
 	"spese/internal/features/reports"
@@ -55,6 +56,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	(&dashboard.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/")
+	(&actions.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/actions")
 	(&accounts.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/accounts")
 	(&transactions.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/transactions")
 	(&transfers.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/transfers")

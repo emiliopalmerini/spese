@@ -1,0 +1,30 @@
+{{define "global_actions"}}
+<div class="global-actions" data-global-actions>
+  <div class="global-action-menu" role="menu" aria-label="Azioni rapide" data-global-action-menu hidden>
+    <button type="button" role="menuitem" class="global-action-menu__item" data-global-action-choice data-drawer-title="Nuovo movimento" hx-get="/actions/new/transaction" hx-target="#global-action-drawer-content" hx-swap="innerHTML">Movimento</button>
+    <button type="button" role="menuitem" class="global-action-menu__item" data-global-action-choice data-drawer-title="Nuovo trasferimento" hx-get="/actions/new/transfer" hx-target="#global-action-drawer-content" hx-swap="innerHTML">Trasferimento</button>
+    <button type="button" role="menuitem" class="global-action-menu__item" data-global-action-choice data-drawer-title="Nuovo bilancio" hx-get="/actions/new/snapshot" hx-target="#global-action-drawer-content" hx-swap="innerHTML">Bilancio</button>
+    <button type="button" role="menuitem" class="global-action-menu__item" data-global-action-choice data-drawer-title="Nuovo conto" hx-get="/actions/new/account" hx-target="#global-action-drawer-content" hx-swap="innerHTML">Conto</button>
+    <button type="button" role="menuitem" class="global-action-menu__item" data-global-action-choice data-drawer-title="Nuovo ricorrente" hx-get="/actions/new/recurring" hx-target="#global-action-drawer-content" hx-swap="innerHTML">Ricorrente</button>
+  </div>
+
+  <button type="button" class="global-action-fab" aria-label="Apri azioni rapide" aria-haspopup="menu" aria-expanded="false" data-global-action-toggle>
+    <svg aria-hidden="true" viewBox="0 0 24 24" class="global-action-fab__icon">
+      <path d="M12 5v14M5 12h14"></path>
+    </svg>
+  </button>
+</div>
+
+<button type="button" class="global-action-backdrop" aria-label="Chiudi" data-global-action-backdrop hidden></button>
+
+<aside class="global-action-drawer" id="global-action-drawer" role="dialog" aria-modal="true" aria-labelledby="global-action-drawer-title" data-global-action-drawer hidden>
+  <div class="global-action-drawer__panel">
+    <div class="global-action-drawer__handle" aria-hidden="true"></div>
+    <header class="global-action-drawer__head">
+      <h2 id="global-action-drawer-title">Nuova voce</h2>
+      <button type="button" class="global-action-drawer__close" aria-label="Chiudi" data-global-action-close>&times;</button>
+    </header>
+    <div id="global-action-drawer-content" class="global-action-drawer__content"></div>
+  </div>
+</aside>
+{{end}}

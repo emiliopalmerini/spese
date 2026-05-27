@@ -1,6 +1,7 @@
 package snapshots
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -47,32 +48,13 @@ type FormView struct {
 }
 
 func (h *Handler) form(w http.ResponseWriter, r *http.Request) {
-	accs, err := accounts.List(r.Context(), h.Client, false)
+	view, err := BuildFormView(r.Context(), h.Client, r.URL.Query().Get("month"), false)
 	if err != nil {
-		h.Logger.Error("list accounts", "err", err)
-		http.Error(w, "failed to load accounts", http.StatusBadGateway)
+		h.Logger.Error("build snapshots form", "err", err)
+		http.Error(w, "failed to load snapshots form", http.StatusBadGateway)
 		return
 	}
-	latest, err := LatestPerAccount(r.Context(), h.Client, false)
-	if err != nil {
-		h.Logger.Error("latest snapshots", "err", err)
-		http.Error(w, "failed to load snapshots", http.StatusBadGateway)
-		return
-	}
-	month := defaultMonth(r.URL.Query().Get("month"))
-	rows := make([]Row, 0, len(accs))
-	for _, a := range accs {
-		if !a.IsActive(month) {
-			continue
-		}
-		row := Row{Account: a}
-		if last, ok := latest[a.Name]; ok {
-			row.LastBalance = last.Balance
-			row.LastMonth = last.Month
-		}
-		rows = append(rows, row)
-	}
-	if err := h.Render.Render(w, "snapshots/form", FormView{Month: month, Rows: rows}); err != nil {
+	if err := h.Render.Render(w, "snapshots/form", view); err != nil {
 		h.Logger.Error("render snapshots form", "err", err)
 	}
 }
@@ -92,23 +74,9 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to write snapshots", http.StatusBadGateway)
 		return
 	}
-	// Render the form again with refreshed lastBalance values.
-	accs, _ := accounts.List(r.Context(), h.Client, false)
-	latest, _ := LatestPerAccount(r.Context(), h.Client, true)
-	month := defaultMonth(r.FormValue("month"))
-	rows := make([]Row, 0, len(accs))
-	for _, a := range accs {
-		if !a.IsActive(month) {
-			continue
-		}
-		row := Row{Account: a}
-		if last, ok := latest[a.Name]; ok {
-			row.LastBalance = last.Balance
-			row.LastMonth = last.Month
-		}
-		rows = append(rows, row)
-	}
-	_ = h.Render.Render(w, "snapshots/form", FormView{Month: month, Rows: rows})
+	// Render the page again with refreshed lastBalance values.
+	view, _ := BuildFormView(r.Context(), h.Client, r.FormValue("month"), true)
+	_ = h.Render.Render(w, "snapshots/form", view)
 }
 
 // parseForm reads one balance input per submitted account. Inputs are named
@@ -157,4 +125,31 @@ func defaultMonth(s string) kernel.Date {
 	}
 	now := time.Now()
 	return kernel.Date{Time: time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)}
+}
+
+// BuildFormView prepares the month entry model shared by the page and the
+// global action drawer.
+func BuildFormView(ctx context.Context, client *sheets.Client, monthParam string, force bool) (FormView, error) {
+	accs, err := accounts.List(ctx, client, false)
+	if err != nil {
+		return FormView{}, err
+	}
+	latest, err := LatestPerAccount(ctx, client, force)
+	if err != nil {
+		return FormView{}, err
+	}
+	month := defaultMonth(monthParam)
+	rows := make([]Row, 0, len(accs))
+	for _, a := range accs {
+		if !a.IsActive(month) {
+			continue
+		}
+		row := Row{Account: a}
+		if last, ok := latest[a.Name]; ok {
+			row.LastBalance = last.Balance
+			row.LastMonth = last.Month
+		}
+		rows = append(rows, row)
+	}
+	return FormView{Month: month, Rows: rows}, nil
 }
