@@ -20,6 +20,7 @@ func ParseMoney(s string) (Money, error) {
 	if s == "" {
 		return 0, errors.New("empty money string")
 	}
+	s = strings.NewReplacer("€", "", "$", "", " ", "", " ", "").Replace(s)
 	// Normalise: drop thousand separators by detecting which of '.' or ','
 	// appears last (that's the decimal separator).
 	lastDot := strings.LastIndex(s, ".")
@@ -29,15 +30,14 @@ func ParseMoney(s string) (Money, error) {
 	case lastDot < 0 && lastComma < 0:
 		dec = -1
 	case lastDot > lastComma:
-		dec = lastDot
 		s = strings.ReplaceAll(s, ",", "")
+		dec = strings.LastIndex(s, ".")
 	default:
-		dec = lastComma
 		s = strings.ReplaceAll(s, ".", "")
-		// translate the decimal comma to a dot so ParseFloat sees it
+		dec = strings.LastIndex(s, ",")
+		// translate the decimal comma to a dot so the string becomes digits-only
+		// after the fractional part is normalized below.
 		s = s[:dec] + "." + s[dec+1:]
-		// dec was index in original string; after removing dots dec position
-		// may have shifted, but we already replaced. Recompute.
 		dec = strings.LastIndex(s, ".")
 	}
 	if dec >= 0 {
