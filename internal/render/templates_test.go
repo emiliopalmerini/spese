@@ -12,7 +12,6 @@ import (
 	"spese/internal/features/reports"
 	"spese/internal/features/snapshots"
 	"spese/internal/features/transactions"
-	"spese/internal/features/transfers"
 	"spese/internal/kernel"
 	"spese/internal/render"
 	"spese/web"
@@ -138,10 +137,6 @@ func TestTemplatesRender(t *testing.T) {
 				{Date: day, Kind: transactions.Expense, Account: account.Name, Amount: kernel.Money(-4230), Category: "Cibo", Subcategory: "Pranzo", Payee: "Bar"},
 			},
 			Accounts: accountList,
-		},
-		"transfers/form": transfers.FormView{
-			Accounts: accountList,
-			Today:    day,
 		},
 	}
 

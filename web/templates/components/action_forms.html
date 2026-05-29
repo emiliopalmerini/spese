@@ -22,7 +22,7 @@
 {{end}}
 
 {{define "action_form_transfer"}}
-<form method="post" action="/transfers" class="form-card global-action-form" data-global-action-form hx-post="/transfers" hx-target="main.container" hx-select="main.container" hx-swap="outerHTML" hx-push-url="/transfers">
+<form method="post" action="/transfers" class="form-card global-action-form" data-global-action-form hx-post="/transfers" hx-target="main.container" hx-select="main.container" hx-swap="outerHTML">
   <label>Data <input name="date" type="date" value="{{isodate .Today}}" required></label>
   <label>Da
     <select name="source" required>

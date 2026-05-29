@@ -10,47 +10,26 @@ import (
 	"net/http"
 	"strings"
 
-	"spese/internal/features/accounts"
 	"spese/internal/features/transactions"
 	"spese/internal/kernel"
 	"spese/internal/sheets"
 )
 
-// Renderer is the minimal template interface this slice needs.
-type Renderer interface {
-	Render(w http.ResponseWriter, name string, data any) error
-}
-
-// Handler renders the transfer form and handles submissions.
+// Handler records transfers and redirects stale page requests to movements.
 type Handler struct {
 	Client *sheets.Client
 	Logger *slog.Logger
-	Render Renderer
 }
 
-// Mount wires GET (form) and POST (create).
+// Mount wires the compatibility GET redirect and POST create endpoint.
 func (h *Handler) Mount(mux *http.ServeMux, prefix string) {
 	prefix = strings.TrimRight(prefix, "/")
-	mux.HandleFunc("GET "+prefix, h.form)
+	mux.HandleFunc("GET "+prefix, h.redirectToTransactions)
 	mux.HandleFunc("POST "+prefix, h.create)
 }
 
-// FormView is the payload for the transfer form page.
-type FormView struct {
-	Accounts []accounts.Account
-	Today    kernel.Date
-}
-
-func (h *Handler) form(w http.ResponseWriter, r *http.Request) {
-	accs, err := accounts.List(r.Context(), h.Client, false)
-	if err != nil {
-		h.Logger.Error("list accounts", "err", err)
-		http.Error(w, "failed to load accounts", http.StatusBadGateway)
-		return
-	}
-	if err := h.Render.Render(w, "transfers/form", FormView{Accounts: accs, Today: kernel.Today()}); err != nil {
-		h.Logger.Error("render transfer form", "err", err)
-	}
+func (h *Handler) redirectToTransactions(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/transactions", http.StatusSeeOther)
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
@@ -68,9 +47,16 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to record transfer", http.StatusBadGateway)
 		return
 	}
-	// Refresh the form (clears inputs, updates account list if changed).
-	accs, _ := accounts.List(r.Context(), h.Client, false)
-	_ = h.Render.Render(w, "transfers/form", FormView{Accounts: accs, Today: kernel.Today()})
+	redirectAfterCreate(w, r)
+}
+
+func redirectAfterCreate(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Redirect", "/transactions")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, "/transactions", http.StatusSeeOther)
 }
 
 // parseTransfer builds the two Transfer legs from a single submitted form.
