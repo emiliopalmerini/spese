@@ -186,6 +186,10 @@ func TestTemplateFragmentsRender(t *testing.T) {
 	accountPicker := actions.AccountPickerView{
 		Accounts: []accounts.Account{account},
 		Today:    day,
+		CategorySuggestions: actions.CategorySuggestions{
+			Categories:    []string{"Casa"},
+			Subcategories: []string{"Generale"},
+		},
 	}
 
 	cases := map[string]any{
@@ -210,6 +214,23 @@ func TestTemplateFragmentsRender(t *testing.T) {
 			body := w.Body.String()
 			if !strings.Contains(body, "data-global-action-form") {
 				t.Fatalf("fragment %s did not render an action form", name)
+			}
+			switch name {
+			case "action_form_transaction", "action_form_recurring":
+				if !strings.Contains(body, `type="number" step="0.01" inputmode="decimal"`) {
+					t.Fatalf("fragment %s did not render a typed decimal amount input", name)
+				}
+				if !strings.Contains(body, `list="`) || !strings.Contains(body, `<option value="Casa">`) {
+					t.Fatalf("fragment %s did not render category suggestions", name)
+				}
+			case "action_form_transfer":
+				if !strings.Contains(body, `type="number" step="0.01" inputmode="decimal"`) {
+					t.Fatalf("fragment %s did not render a typed decimal amount input", name)
+				}
+			case "action_form_snapshot":
+				if !strings.Contains(body, `type="number" step="0.01" inputmode="decimal"`) {
+					t.Fatalf("fragment %s did not render typed decimal balance inputs", name)
+				}
 			}
 		})
 	}

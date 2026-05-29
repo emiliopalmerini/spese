@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	"spese/internal/features/accounts"
+	"spese/internal/features/recurring"
 	"spese/internal/features/snapshots"
+	"spese/internal/features/transactions"
 	"spese/internal/kernel"
 	"spese/internal/sheets"
 )
@@ -35,8 +37,9 @@ func (h *Handler) Mount(mux *http.ServeMux, prefix string) {
 
 // AccountPickerView is shared by forms that choose one or more accounts.
 type AccountPickerView struct {
-	Accounts []accounts.Account
-	Today    kernel.Date
+	Accounts            []accounts.Account
+	Today               kernel.Date
+	CategorySuggestions CategorySuggestions
 }
 
 func (h *Handler) transactionForm(w http.ResponseWriter, r *http.Request) {
@@ -88,7 +91,29 @@ func (h *Handler) accountPickerView(r *http.Request) (AccountPickerView, error) 
 	if err != nil {
 		return AccountPickerView{}, err
 	}
-	return AccountPickerView{Accounts: accs, Today: kernel.Today()}, nil
+	return AccountPickerView{
+		Accounts:            accs,
+		Today:               kernel.Today(),
+		CategorySuggestions: h.categorySuggestions(r),
+	}, nil
+}
+
+func (h *Handler) categorySuggestions(r *http.Request) CategorySuggestions {
+	txns, err := transactions.List(r.Context(), h.Client, transactions.Filter{}, false)
+	if err != nil {
+		if h.Logger != nil {
+			h.Logger.Warn("load transaction category suggestions", "err", err)
+		}
+	}
+
+	recs, recErr := recurring.List(r.Context(), h.Client, false)
+	if recErr != nil {
+		if h.Logger != nil {
+			h.Logger.Warn("load recurring category suggestions", "err", recErr)
+		}
+	}
+
+	return buildCategorySuggestions(txns, recs)
 }
 
 func (h *Handler) renderFragment(w http.ResponseWriter, name string, data any) {
