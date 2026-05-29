@@ -33,8 +33,6 @@ jobs:
       - name: Build all binaries
         run: |
           go build -o bin/spese ./cmd/spese
-          go build -o bin/spese-worker ./cmd/spese-worker
-          go build -o bin/recurring-worker ./cmd/recurring-worker
 
       - name: Run tests
         run: go test -race ./...
