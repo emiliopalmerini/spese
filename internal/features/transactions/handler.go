@@ -37,7 +37,7 @@ type ListView struct {
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	txns, err := List(r.Context(), h.Client, Filter{Last: 100}, false)
+	txns, err := List(r.Context(), h.Client, Filter{}, false)
 	if err != nil {
 		h.Logger.Error("list transactions", "err", err)
 		http.Error(w, "failed to load transactions", http.StatusBadGateway)
@@ -49,7 +49,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load accounts", http.StatusBadGateway)
 		return
 	}
-	if err := h.Render.Render(w, "transactions/list", ListView{Transactions: txns, Accounts: accs}); err != nil {
+	if err := h.Render.Render(w, "transactions/list", ListView{Transactions: BuildListViewRows(txns, transactionListLimit), Accounts: accs}); err != nil {
 		h.Logger.Error("render transactions list", "err", err)
 	}
 }
@@ -70,9 +70,9 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Refresh and re-render so HTMX can swap.
-	txns, _ := List(r.Context(), h.Client, Filter{Last: 100}, true)
+	txns, _ := List(r.Context(), h.Client, Filter{}, true)
 	accs, _ := accounts.List(r.Context(), h.Client, false)
-	_ = h.Render.Render(w, "transactions/list", ListView{Transactions: txns, Accounts: accs})
+	_ = h.Render.Render(w, "transactions/list", ListView{Transactions: BuildListViewRows(txns, transactionListLimit), Accounts: accs})
 }
 
 // parseForm builds a single-row Transaction from form values. Sign is set
