@@ -1,6 +1,6 @@
 // Package sheets is the shared low-level Google Sheets adapter.
-// It exposes ReadRange / ReadTable / AppendRows with a 5-minute in-memory
-// read cache that is invalidated whenever a tab is written.
+// It exposes ReadRange / ReadTable / AppendRows with an ETag-validated read
+// cache that is invalidated whenever a tab is written.
 //
 // Feature slices wrap this with their own typed parsers (parse a row into
 // a Transaction, an Account, etc.).
@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
 )
@@ -22,15 +22,14 @@ import (
 type Client struct {
 	svc           *sheets.Service
 	spreadsheetID string
-	cacheTTL      time.Duration
 
 	mu    sync.RWMutex
 	cache map[string]cacheEntry
 }
 
 type cacheEntry struct {
-	data    [][]any
-	fetched time.Time
+	data [][]any
+	etag string
 }
 
 // New builds a client authenticated with a service-account JSON file.
@@ -42,7 +41,6 @@ func New(ctx context.Context, credentialsPath, spreadsheetID string) (*Client, e
 	return &Client{
 		svc:           svc,
 		spreadsheetID: spreadsheetID,
-		cacheTTL:      5 * time.Minute,
 		cache:         make(map[string]cacheEntry),
 	}, nil
 }
@@ -52,23 +50,33 @@ func New(ctx context.Context, credentialsPath, spreadsheetID string) (*Client, e
 func (c *Client) SpreadsheetID() string { return c.spreadsheetID }
 
 // ReadRange returns raw cell values for an A1 range like "transactions!A2:I"
-// or a bare tab name like "accounts". Results are cached for the client's TTL
-// unless force is true.
+// or a bare tab name like "accounts". Cached results are revalidated with the
+// range ETag on every read unless force is true.
 func (c *Client) ReadRange(ctx context.Context, rangeA1 string, force bool) ([][]any, error) {
+	var cached cacheEntry
 	if !force {
 		c.mu.RLock()
-		entry, ok := c.cache[rangeA1]
+		var ok bool
+		cached, ok = c.cache[rangeA1]
 		c.mu.RUnlock()
-		if ok && time.Since(entry.fetched) < c.cacheTTL {
-			return entry.data, nil
+		if !ok {
+			cached = cacheEntry{}
 		}
 	}
 
-	resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rangeA1).Context(ctx).Do()
+	call := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, rangeA1).Context(ctx)
+	if cached.etag != "" {
+		call = call.IfNoneMatch(cached.etag)
+	}
+
+	resp, err := call.Do()
 	if err != nil {
+		if googleapi.IsNotModified(err) {
+			return cached.data, nil
+		}
 		if isMissingRange(err) {
 			c.mu.Lock()
-			c.cache[rangeA1] = cacheEntry{data: nil, fetched: time.Now()}
+			c.cache[rangeA1] = cacheEntry{}
 			c.mu.Unlock()
 			return nil, nil
 		}
@@ -76,7 +84,10 @@ func (c *Client) ReadRange(ctx context.Context, rangeA1 string, force bool) ([][
 	}
 
 	c.mu.Lock()
-	c.cache[rangeA1] = cacheEntry{data: resp.Values, fetched: time.Now()}
+	c.cache[rangeA1] = cacheEntry{
+		data: resp.Values,
+		etag: resp.ServerResponse.Header.Get("ETag"),
+	}
 	c.mu.Unlock()
 
 	return resp.Values, nil

@@ -49,8 +49,8 @@ Positive:
 
 Negative:
 - The app is now dependent on Google Sheets API availability and rate limits.
-  We mitigate with an in-memory read cache (5-minute TTL, invalidated on
-  write).
+  We mitigate with an in-memory read cache validated by Sheets ETags on every
+  read, invalidated on write.
 - Edit and delete require opening the sheet. Acceptable trade-off for
   append-only simplicity in the app.
 
