@@ -126,12 +126,6 @@ func TestTemplatesRender(t *testing.T) {
 				{Month: month, NetWorth: kernel.Money(4200000)},
 			},
 		},
-		"snapshots/form": snapshots.FormView{
-			Month: month,
-			Rows: []snapshots.Row{
-				{Account: account, LastBalance: kernel.Money(1200000), LastMonth: month},
-			},
-		},
 		"transactions/list": transactions.ListView{
 			Transactions: []transactions.Transaction{
 				{Date: day, Kind: transactions.Expense, Account: account.Name, Amount: kernel.Money(-4230), Category: "Cibo", Subcategory: "Pranzo", Payee: "Bar"},

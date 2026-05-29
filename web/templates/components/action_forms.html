@@ -41,7 +41,7 @@
 {{end}}
 
 {{define "action_form_snapshot"}}
-<form method="post" action="/snapshots" class="form-card snapshots-form global-action-form" data-global-action-form hx-post="/snapshots" hx-target="main.container" hx-select="main.container" hx-swap="outerHTML" hx-push-url="/snapshots">
+<form method="post" action="/snapshots" class="form-card snapshots-form global-action-form" data-global-action-form hx-post="/snapshots" hx-target="main.container" hx-select="main.container" hx-swap="outerHTML">
   <label class="full">Mese <input name="month" type="month" value="{{.Month.Month}}" required></label>
 
   <table class="data-table">

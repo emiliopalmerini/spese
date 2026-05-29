@@ -60,7 +60,7 @@ func main() {
 	(&accounts.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/accounts")
 	(&transactions.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/transactions")
 	(&transfers.Handler{Client: client, Logger: logger}).Mount(mux, "/transfers")
-	(&snapshots.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/snapshots")
+	(&snapshots.Handler{Client: client, Logger: logger}).Mount(mux, "/snapshots")
 	(&recurring.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/recurring")
 	(&reports.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/reports")
 

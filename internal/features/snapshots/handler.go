@@ -13,23 +13,16 @@ import (
 	"spese/internal/sheets"
 )
 
-// Renderer is the minimal template interface this slice needs.
-type Renderer interface {
-	Render(w http.ResponseWriter, name string, data any) error
-}
-
-// Handler renders the per-account balance entry form and accepts batch
-// submissions.
+// Handler records per-account balance snapshots.
 type Handler struct {
 	Client *sheets.Client
 	Logger *slog.Logger
-	Render Renderer
 }
 
-// Mount registers GET (form) and POST (submit).
+// Mount registers the compatibility GET redirect and POST submit endpoint.
 func (h *Handler) Mount(mux *http.ServeMux, prefix string) {
 	prefix = strings.TrimRight(prefix, "/")
-	mux.HandleFunc("GET "+prefix, h.form)
+	mux.HandleFunc("GET "+prefix, h.redirectToBalanceSheet)
 	mux.HandleFunc("POST "+prefix, h.create)
 }
 
@@ -47,16 +40,8 @@ type FormView struct {
 	Rows  []Row
 }
 
-func (h *Handler) form(w http.ResponseWriter, r *http.Request) {
-	view, err := BuildFormView(r.Context(), h.Client, r.URL.Query().Get("month"), false)
-	if err != nil {
-		h.Logger.Error("build snapshots form", "err", err)
-		http.Error(w, "failed to load snapshots form", http.StatusBadGateway)
-		return
-	}
-	if err := h.Render.Render(w, "snapshots/form", view); err != nil {
-		h.Logger.Error("render snapshots form", "err", err)
-	}
+func (h *Handler) redirectToBalanceSheet(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/reports/balance-sheet", http.StatusSeeOther)
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
@@ -74,9 +59,16 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to write snapshots", http.StatusBadGateway)
 		return
 	}
-	// Render the page again with refreshed lastBalance values.
-	view, _ := BuildFormView(r.Context(), h.Client, r.FormValue("month"), true)
-	_ = h.Render.Render(w, "snapshots/form", view)
+	redirectAfterCreate(w, r)
+}
+
+func redirectAfterCreate(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Redirect", "/reports/balance-sheet")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, "/reports/balance-sheet", http.StatusSeeOther)
 }
 
 // parseForm reads one balance input per submitted account. Inputs are named
