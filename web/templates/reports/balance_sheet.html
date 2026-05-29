@@ -5,7 +5,7 @@
     <h1>Stato patrimoniale</h1>
     <p class="muted">Saldo corrente per ogni conto.</p>
   </header>
-  <table class="data-table">
+  <table class="data-table list-table list-table--ledger">
     <thead>
       <tr>
         <th>Conto</th>
@@ -18,11 +18,11 @@
     <tbody>
       {{range .Rows}}
         <tr>
-          <td data-label="Conto">{{.Account}}</td>
-          <td data-label="Tipo">{{.Type}}</td>
-          <td data-label="Classe">{{.Class}}</td>
-          <td class="num" data-label="Saldo">{{money .Balance}}</td>
-          <td class="muted" data-label="Ultimo aggiornamento">{{isodate .LatestMonth}}</td>
+          <td class="list-cell list-cell--primary" data-label="Conto">{{.Account}}</td>
+          <td class="list-cell list-cell--status" data-label="Tipo">{{.Type}}</td>
+          <td class="list-cell list-cell--secondary" data-label="Classe">{{.Class}}</td>
+          <td class="list-cell list-cell--amount num" data-label="Saldo">{{money .Balance}}</td>
+          <td class="list-cell list-cell--detail muted" data-label="Ultimo aggiornamento"><span class="list-cell__prefix">Aggiornato </span>{{isodate .LatestMonth}}</td>
         </tr>
       {{else}}
         <tr><td colspan="5" class="muted">Nessuna voce.</td></tr>

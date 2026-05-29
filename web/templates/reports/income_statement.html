@@ -5,7 +5,7 @@
     <h1>Conto economico</h1>
     <p class="muted">Entrate, uscite, risparmio per mese.</p>
   </header>
-  <table class="data-table">
+  <table class="data-table list-table list-table--ledger">
     <thead>
       <tr>
         <th>Mese</th>
@@ -18,11 +18,11 @@
     <tbody>
       {{range .Rows}}
         <tr>
-          <td data-label="Mese">{{monthIT .Month}}</td>
-          <td class="num" data-label="Entrate">{{money .Revenue}}</td>
-          <td class="num" data-label="Uscite">{{money .Expenses}}</td>
-          <td class="num" data-label="Risparmio">{{money .NetIncome}}</td>
-          <td class="num" data-label="Tasso">{{pct .SavingsRate}}</td>
+          <td class="list-cell list-cell--primary" data-label="Mese">{{monthIT .Month}}</td>
+          <td class="list-cell list-cell--secondary num" data-label="Entrate"><span class="list-cell__prefix">Entrate </span>{{money .Revenue}}</td>
+          <td class="list-cell list-cell--meta num" data-label="Uscite"><span class="list-cell__prefix">Uscite </span>{{money .Expenses}}</td>
+          <td class="list-cell list-cell--amount num" data-label="Risparmio">{{money .NetIncome}}</td>
+          <td class="list-cell list-cell--detail num" data-label="Tasso"><span class="list-cell__prefix">Tasso </span>{{pct .SavingsRate}}</td>
         </tr>
       {{else}}
         <tr><td colspan="5" class="muted">Nessun dato.</td></tr>

@@ -6,7 +6,7 @@
     <p class="muted">Movimenti che si ripetono ogni mese in un giorno fisso.</p>
   </header>
 
-  <table class="data-table">
+  <table class="data-table list-table list-table--ledger">
     <thead>
       <tr>
         <th>Etichetta</th>
@@ -21,13 +21,13 @@
     <tbody>
       {{range .Recurrings}}
         <tr>
-          <td data-label="Etichetta">{{.Label}}</td>
-          <td data-label="Tipo">{{if eq .Kind "Income"}}Entrata{{else if eq .Kind "Expense"}}Uscita{{else}}{{.Kind}}{{end}}</td>
-          <td data-label="Conto">{{.Account}}</td>
-          <td class="num" data-label="Importo">{{money .Amount}}</td>
-          <td data-label="Categoria">{{.Category}}{{if .Subcategory}} / {{.Subcategory}}{{end}}</td>
-          <td data-label="Giorno">{{.DayOfMonth}}</td>
-          <td data-label="Attivo">{{if .Active}}sì{{else}}no{{end}}</td>
+          <td class="list-cell list-cell--primary" data-label="Etichetta">{{.Label}}</td>
+          <td class="list-cell list-cell--status" data-label="Tipo">{{if eq .Kind "Income"}}Entrata{{else if eq .Kind "Expense"}}Uscita{{else}}{{.Kind}}{{end}}</td>
+          <td class="list-cell list-cell--meta" data-label="Conto">{{.Account}}</td>
+          <td class="list-cell list-cell--amount num" data-label="Importo">{{money .Amount}}</td>
+          <td class="list-cell list-cell--secondary" data-label="Categoria">{{.Category}}{{if .Subcategory}} / {{.Subcategory}}{{end}}</td>
+          <td class="list-cell list-cell--detail" data-label="Giorno"><span class="list-cell__prefix">Giorno </span>{{.DayOfMonth}}</td>
+          <td class="list-cell list-cell--extra" data-label="Attivo"><span class="list-cell__prefix">Attivo </span>{{if .Active}}sì{{else}}no{{end}}</td>
         </tr>
       {{else}}
         <tr><td colspan="7" class="muted">Nessun ricorrente.</td></tr>

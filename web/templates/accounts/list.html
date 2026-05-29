@@ -6,7 +6,7 @@
     <p class="muted">Piano dei conti (asset e passività).</p>
   </header>
 
-  <table class="data-table">
+  <table class="data-table list-table list-table--simple">
     <thead>
       <tr>
         <th>Nome</th>
@@ -19,11 +19,11 @@
     <tbody>
       {{range .Accounts}}
         <tr>
-          <td data-label="Nome">{{.Name}}</td>
-          <td data-label="Tipo">{{.Type}}</td>
-          <td data-label="Classe">{{.Class}}</td>
-          <td data-label="Valuta">{{.Currency}}</td>
-          <td class="muted" data-label="Note">{{.Note}}</td>
+          <td class="list-cell list-cell--primary" data-label="Nome">{{.Name}}</td>
+          <td class="list-cell list-cell--status" data-label="Tipo">{{.Type}}</td>
+          <td class="list-cell list-cell--secondary" data-label="Classe">{{.Class}}</td>
+          <td class="list-cell list-cell--meta" data-label="Valuta">{{.Currency}}</td>
+          <td class="list-cell list-cell--detail muted" data-label="Note">{{.Note}}</td>
         </tr>
       {{else}}
         <tr><td colspan="5" class="muted">Nessun conto.</td></tr>

@@ -413,6 +413,10 @@ details.form-card form {
   color: var(--expense);
 }
 
+.list-cell__prefix {
+  display: none;
+}
+
 .kpi-list {
   display: grid;
   gap: 0;
@@ -855,37 +859,54 @@ details.form-card form {
     content: none;
   }
 
-  .transactions .data-table tr {
+  .list-table.list-table--ledger tr {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(7.5rem, auto);
     grid-template-areas:
-      "description amount"
-      "category amount"
-      "account kind"
-      "date date";
+      "primary amount"
+      "secondary amount"
+      "meta status"
+      "detail detail"
+      "extra extra";
     gap: var(--space-2) var(--space-3);
     align-items: start;
   }
 
-  .transactions .data-table td[data-label] {
+  .list-table.list-table--simple tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(6rem, auto);
+    grid-template-areas:
+      "primary status"
+      "secondary meta"
+      "detail detail"
+      "extra extra";
+    gap: var(--space-2) var(--space-3);
+    align-items: start;
+  }
+
+  .list-table td[data-label] {
     display: block;
     min-width: 0;
     padding: 0;
   }
 
-  .transactions .data-table td[data-label]::before {
+  .list-table td[data-label]::before {
     content: none;
   }
 
-  .transactions .transaction-cell--description {
-    grid-area: description;
+  .list-table td[colspan] {
+    grid-column: 1 / -1;
+  }
+
+  .list-table .list-cell--primary {
+    grid-area: primary;
     color: var(--ink);
     font-size: 1rem;
     font-weight: 750;
     line-height: 1.25;
   }
 
-  .transactions .transaction-cell--amount {
+  .list-table .list-cell--amount {
     grid-area: amount;
     align-self: center;
     font-size: 1.05rem;
@@ -895,34 +916,45 @@ details.form-card form {
     white-space: nowrap;
   }
 
-  .transactions .transaction-cell--category {
-    grid-area: category;
+  .list-table .list-cell--secondary {
+    grid-area: secondary;
     color: var(--muted);
     font-size: 0.86rem;
     line-height: 1.25;
   }
 
-  .transactions .transaction-cell--account {
-    grid-area: account;
-  }
-
-  .transactions .transaction-cell--kind {
-    grid-area: kind;
-    justify-self: end;
-    text-align: right;
-  }
-
-  .transactions .transaction-cell--date {
-    grid-area: date;
-  }
-
-  .transactions .transaction-cell--account,
-  .transactions .transaction-cell--kind,
-  .transactions .transaction-cell--date {
+  .list-table .list-cell--meta,
+  .list-table .list-cell--status,
+  .list-table .list-cell--detail,
+  .list-table .list-cell--extra {
     color: var(--muted);
     font-size: 0.78rem;
     font-weight: 650;
     line-height: 1.2;
+  }
+
+  .list-table .list-cell--meta {
+    grid-area: meta;
+  }
+
+  .list-table .list-cell--status {
+    grid-area: status;
+    justify-self: end;
+    text-align: right;
+  }
+
+  .list-table .list-cell--detail {
+    grid-area: detail;
+  }
+
+  .list-table .list-cell--extra {
+    grid-area: extra;
+  }
+
+  .list-table .list-cell__prefix {
+    display: inline;
+    color: var(--muted);
+    font-weight: 650;
   }
 }
 
@@ -942,16 +974,18 @@ details.form-card form {
     gap: var(--space-1);
   }
 
-  .transactions .data-table tr {
+  .list-table.list-table--ledger tr {
     grid-template-columns: minmax(0, 1fr) minmax(6.75rem, auto);
     grid-template-areas:
-      "description amount"
-      "category amount"
-      "account kind"
-      "date date";
+      "primary amount"
+      "secondary amount"
+      "meta status"
+      "detail detail"
+      "extra extra";
   }
 
-  .transactions .transaction-cell--amount {
+  .list-table td.list-cell--amount,
+  .list-table td.list-cell--status {
     text-align: right;
   }
 }

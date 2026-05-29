@@ -5,7 +5,7 @@
     <h1>Patrimonio nel tempo</h1>
     <p class="muted">Patrimonio netto totale, mese per mese.</p>
   </header>
-  <table class="data-table">
+  <table class="data-table list-table list-table--ledger">
     <thead>
       <tr>
         <th>Mese</th>
@@ -15,8 +15,8 @@
     <tbody>
       {{range .Rows}}
         <tr>
-          <td data-label="Mese">{{monthIT .Month}}</td>
-          <td class="num" data-label="Patrimonio">{{money .NetWorth}}</td>
+          <td class="list-cell list-cell--primary" data-label="Mese">{{monthIT .Month}}</td>
+          <td class="list-cell list-cell--amount num" data-label="Patrimonio">{{money .NetWorth}}</td>
         </tr>
       {{else}}
         <tr><td colspan="2" class="muted">Nessun dato.</td></tr>
