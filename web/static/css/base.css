@@ -854,6 +854,76 @@ details.form-card form {
   .data-table td[colspan]::before {
     content: none;
   }
+
+  .transactions .data-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(7.5rem, auto);
+    grid-template-areas:
+      "description amount"
+      "category amount"
+      "account kind"
+      "date date";
+    gap: var(--space-2) var(--space-3);
+    align-items: start;
+  }
+
+  .transactions .data-table td[data-label] {
+    display: block;
+    min-width: 0;
+    padding: 0;
+  }
+
+  .transactions .data-table td[data-label]::before {
+    content: none;
+  }
+
+  .transactions .transaction-cell--description {
+    grid-area: description;
+    color: var(--ink);
+    font-size: 1rem;
+    font-weight: 750;
+    line-height: 1.25;
+  }
+
+  .transactions .transaction-cell--amount {
+    grid-area: amount;
+    align-self: center;
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1.2;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .transactions .transaction-cell--category {
+    grid-area: category;
+    color: var(--muted);
+    font-size: 0.86rem;
+    line-height: 1.25;
+  }
+
+  .transactions .transaction-cell--account {
+    grid-area: account;
+  }
+
+  .transactions .transaction-cell--kind {
+    grid-area: kind;
+    justify-self: end;
+    text-align: right;
+  }
+
+  .transactions .transaction-cell--date {
+    grid-area: date;
+  }
+
+  .transactions .transaction-cell--account,
+  .transactions .transaction-cell--kind,
+  .transactions .transaction-cell--date {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 650;
+    line-height: 1.2;
+  }
 }
 
 @media (max-width: 420px) {
@@ -870,6 +940,19 @@ details.form-card form {
   .data-table td[data-label] {
     grid-template-columns: 1fr;
     gap: var(--space-1);
+  }
+
+  .transactions .data-table tr {
+    grid-template-columns: minmax(0, 1fr) minmax(6.75rem, auto);
+    grid-template-areas:
+      "description amount"
+      "category amount"
+      "account kind"
+      "date date";
+  }
+
+  .transactions .transaction-cell--amount {
+    text-align: right;
   }
 }
 

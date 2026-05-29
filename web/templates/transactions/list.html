@@ -20,12 +20,12 @@
     <tbody>
       {{range .Transactions}}
         <tr class="kind-{{.Kind}}">
-          <td data-label="Data">{{isodate .Date}}</td>
-          <td data-label="Tipo">{{if eq .Kind "Income"}}Entrata{{else if eq .Kind "Expense"}}Uscita{{else}}{{.Kind}}{{end}}</td>
-          <td data-label="Conto">{{.Account}}</td>
-          <td class="num" data-label="Importo">{{money .Amount}}</td>
-          <td data-label="Categoria">{{.Category}}{{if .Subcategory}} <span class="muted">/ {{.Subcategory}}</span>{{end}}</td>
-          <td data-label="Descrizione">{{.Payee}}</td>
+          <td class="transaction-cell transaction-cell--date" data-label="Data">{{isodate .Date}}</td>
+          <td class="transaction-cell transaction-cell--kind" data-label="Tipo">{{if eq .Kind "Income"}}Entrata{{else if eq .Kind "Expense"}}Uscita{{else}}{{.Kind}}{{end}}</td>
+          <td class="transaction-cell transaction-cell--account" data-label="Conto">{{.Account}}</td>
+          <td class="transaction-cell transaction-cell--amount num" data-label="Importo">{{money .Amount}}</td>
+          <td class="transaction-cell transaction-cell--category" data-label="Categoria">{{.Category}}{{if .Subcategory}} <span class="muted">/ {{.Subcategory}}</span>{{end}}</td>
+          <td class="transaction-cell transaction-cell--description" data-label="Descrizione">{{.Payee}}</td>
         </tr>
       {{else}}
         <tr><td colspan="6" class="muted">Nessun movimento.</td></tr>
