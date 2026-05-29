@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"spese/internal/features/reports"
+	"spese/internal/features/transactions"
 	"spese/internal/kernel"
 )
 
@@ -29,7 +30,13 @@ func TestBuildViewSummarizesLatestReportRows(t *testing.T) {
 		[]reports.InvestmentRow{
 			{Account: "Broker", CostBasis: kernel.Money(3000000), Value: kernel.Money(3300000), Return: kernel.Money(300000), ReturnPct: 0.10},
 		},
-		[]Item{{Label: "Nota", Value: "Manuale"}},
+		[]transactions.Transaction{
+			{Date: may, Kind: transactions.Expense, Amount: kernel.Money(-90000), Category: "Casa"},
+			{Date: may, Kind: transactions.Expense, Amount: kernel.Money(-50000), Category: "Cibo"},
+			{Date: may, Kind: transactions.Income, Amount: kernel.Money(300000), Category: "Stipendio"},
+			{Date: may, Kind: transactions.Income, Amount: kernel.Money(50000), Category: "Extra"},
+		},
+		may,
 	)
 
 	assertKPI(t, view.KPIs, "Patrimonio netto", "45.000,00 €")
@@ -52,8 +59,17 @@ func TestBuildViewSummarizesLatestReportRows(t *testing.T) {
 	if len(view.Investments.Rows) != 1 {
 		t.Fatalf("investment rows = %d, want 1", len(view.Investments.Rows))
 	}
-	if len(view.Items) != 1 {
-		t.Fatalf("manual dashboard items = %d, want 1", len(view.Items))
+	if len(view.ExpenseBreakdown.Rows) != 2 {
+		t.Fatalf("expense category rows = %d, want 2", len(view.ExpenseBreakdown.Rows))
+	}
+	if view.ExpenseBreakdown.TotalFmt != "1.400,00 €" {
+		t.Fatalf("expense total = %q, want 1.400,00 €", view.ExpenseBreakdown.TotalFmt)
+	}
+	if len(view.IncomeComposition.Rows) != 2 {
+		t.Fatalf("income category rows = %d, want 2", len(view.IncomeComposition.Rows))
+	}
+	if view.IncomeComposition.TotalFmt != "3.500,00 €" {
+		t.Fatalf("income total = %q, want 3.500,00 €", view.IncomeComposition.TotalFmt)
 	}
 }
 
@@ -91,7 +107,7 @@ func TestBuildCashFlowChartKeepsLatestTwelveMonths(t *testing.T) {
 }
 
 func TestBuildViewEmptyRowsUseEmptyStates(t *testing.T) {
-	view := buildView(nil, nil, nil, nil, nil)
+	view := buildView(nil, nil, nil, nil, nil, mustDate(t, "2026-05"))
 
 	assertKPI(t, view.KPIs, "Patrimonio netto", "0,00 €")
 	assertKPI(t, view.KPIs, "Risparmio mese", "0,00 €")
@@ -108,6 +124,41 @@ func TestBuildViewEmptyRowsUseEmptyStates(t *testing.T) {
 	}
 	if !view.Investments.Empty {
 		t.Fatal("investment chart should be empty")
+	}
+	if !view.ExpenseBreakdown.Empty {
+		t.Fatal("expense breakdown should be empty")
+	}
+	if !view.IncomeComposition.Empty {
+		t.Fatal("income composition should be empty")
+	}
+}
+
+func TestBuildCategoryChartGroupsAndSortsTransactions(t *testing.T) {
+	chart := buildCategoryChart([]transactions.Transaction{
+		{Kind: transactions.Expense, Amount: kernel.Money(-2000), Category: "Cibo"},
+		{Kind: transactions.Expense, Amount: kernel.Money(-9000), Category: "Casa"},
+		{Kind: transactions.Expense, Amount: kernel.Money(-1000), Category: "Cibo"},
+		{Kind: transactions.Income, Amount: kernel.Money(500000), Category: "Stipendio"},
+		{Kind: transactions.Expense, Amount: kernel.Money(-500), Category: ""},
+	}, transactions.Expense, mustDate(t, "2026-05"))
+
+	if chart.Empty {
+		t.Fatal("category chart unexpectedly empty")
+	}
+	if chart.TotalFmt != "125,00 €" {
+		t.Fatalf("total = %q, want 125,00 €", chart.TotalFmt)
+	}
+	if got := chart.Rows[0].Label; got != "Casa" {
+		t.Fatalf("first row = %q, want Casa", got)
+	}
+	if got := chart.Rows[1].Label; got != "Cibo" {
+		t.Fatalf("second row = %q, want Cibo", got)
+	}
+	if got := chart.Rows[2].Label; got != "Senza categoria" {
+		t.Fatalf("third row = %q, want Senza categoria", got)
+	}
+	if len(chart.Segments) != len(chart.Rows) {
+		t.Fatalf("segments = %d, rows = %d", len(chart.Segments), len(chart.Rows))
 	}
 }
 

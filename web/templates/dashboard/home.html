@@ -53,6 +53,40 @@
   </section>
 
   <section class="dashboard-grid">
+    <article class="dashboard-panel" aria-labelledby="expense-breakdown-heading">
+      <header class="dashboard-panel__head">
+        <div>
+          <h2 id="expense-breakdown-heading">Spese per categoria</h2>
+          <p class="muted">Mese {{.ExpenseBreakdown.Period}} dai movimenti.</p>
+        </div>
+        {{if .ExpenseBreakdown.TotalFmt}}<span class="dashboard-panel__metric">{{.ExpenseBreakdown.TotalFmt}}</span>{{end}}
+      </header>
+
+      {{if .ExpenseBreakdown.Empty}}
+        <p class="dashboard-empty">Nessuna uscita nel mese.</p>
+      {{else}}
+        {{template "dashboard_category_chart" .ExpenseBreakdown}}
+      {{end}}
+    </article>
+
+    <article class="dashboard-panel" aria-labelledby="income-composition-heading">
+      <header class="dashboard-panel__head">
+        <div>
+          <h2 id="income-composition-heading">Composizione entrate</h2>
+          <p class="muted">Mese {{.IncomeComposition.Period}} per categoria.</p>
+        </div>
+        {{if .IncomeComposition.TotalFmt}}<span class="dashboard-panel__metric">{{.IncomeComposition.TotalFmt}}</span>{{end}}
+      </header>
+
+      {{if .IncomeComposition.Empty}}
+        <p class="dashboard-empty">Nessuna entrata nel mese.</p>
+      {{else}}
+        {{template "dashboard_category_chart" .IncomeComposition}}
+      {{end}}
+    </article>
+  </section>
+
+  <section class="dashboard-grid">
     <article class="dashboard-panel" aria-labelledby="networth-heading">
       <header class="dashboard-panel__head">
         <div>
@@ -153,30 +187,34 @@
       </div>
     {{end}}
   </section>
-
-  {{if .Items}}
-    <section class="dashboard-panel dashboard-panel--wide" aria-labelledby="manual-heading">
-      <header class="dashboard-panel__head">
-        <div>
-          <h2 id="manual-heading">Note dashboard</h2>
-          <p class="muted">Righe manuali dal tab dashboard.</p>
-        </div>
-      </header>
-      <dl class="kpi-list dashboard-notes">
-        {{range .Items}}
-          {{if eq .Label ""}}
-            <div class="kpi-divider"></div>
-          {{else if eq .Value ""}}
-            <dt class="kpi-section">{{.Label}}</dt>
-          {{else}}
-            <div class="kpi-row">
-              <dt>{{.Label}}</dt>
-              <dd>{{.Value}}</dd>
-            </div>
-          {{end}}
-        {{end}}
-      </dl>
-    </section>
-  {{end}}
 </section>
+{{end}}
+
+{{define "dashboard_category_chart"}}
+  <div class="dashboard-category">
+    <svg class="dashboard-category__track" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="Composizione categorie">
+      <rect class="dashboard-category__rail" x="0" y="0" width="100" height="10" rx="5"></rect>
+      {{range .Segments}}
+        <rect class="dashboard-category__segment dashboard-category__segment--{{.Palette}}" x="{{.X}}" y="0" width="{{.Width}}" height="10">
+          <title>{{.Label}} · {{.ValueFmt}} · {{.PercentFmt}}</title>
+        </rect>
+      {{end}}
+    </svg>
+
+    <div class="dashboard-category__rows">
+      {{range .Rows}}
+        <div class="dashboard-category__row">
+          <div class="dashboard-category__meta">
+            <span class="dashboard-category__dot dashboard-category__dot--{{.Palette}}" aria-hidden="true"></span>
+            <strong>{{.Label}}</strong>
+            <span>{{.ValueFmt}} · {{.PercentFmt}}</span>
+          </div>
+          <svg class="dashboard-category__bar" viewBox="0 0 100 6" preserveAspectRatio="none" role="img" aria-label="{{.Label}} {{.PercentFmt}}">
+            <rect class="dashboard-category__bar-rail" x="0" y="0" width="100" height="6" rx="3"></rect>
+            <rect class="dashboard-category__bar-fill dashboard-category__bar-fill--{{.Palette}}" x="0" y="0" width="{{.Width}}" height="6" rx="3"></rect>
+          </svg>
+        </div>
+      {{end}}
+    </div>
+  </div>
 {{end}}

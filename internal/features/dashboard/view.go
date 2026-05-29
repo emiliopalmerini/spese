@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"spese/internal/features/reports"
+	"spese/internal/features/transactions"
 	"spese/internal/kernel"
 )
 
@@ -19,12 +20,13 @@ const (
 
 // View is the template payload for the charted dashboard.
 type View struct {
-	KPIs        []KPI
-	CashFlow    CashFlowChart
-	NetWorth    LineChart
-	Allocation  AllocationChart
-	Investments InvestmentChart
-	Items       []Item
+	KPIs              []KPI
+	CashFlow          CashFlowChart
+	ExpenseBreakdown  CategoryChart
+	IncomeComposition CategoryChart
+	NetWorth          LineChart
+	Allocation        AllocationChart
+	Investments       InvestmentChart
 }
 
 // KPI is one headline metric in the dashboard summary strip.
@@ -66,6 +68,34 @@ type MonthTick struct {
 	Y      int
 	Label  string
 	Detail string
+}
+
+// CategoryChart shows a category composition as a stacked bar plus rows.
+type CategoryChart struct {
+	Empty    bool
+	Period   string
+	TotalFmt string
+	Segments []CategorySegment
+	Rows     []CategoryRow
+}
+
+// CategorySegment is one slice of a composition bar.
+type CategorySegment struct {
+	Label      string
+	ValueFmt   string
+	PercentFmt string
+	X          int
+	Width      int
+	Palette    int
+}
+
+// CategoryRow is one category row under a composition chart.
+type CategoryRow struct {
+	Label      string
+	ValueFmt   string
+	PercentFmt string
+	Width      int
+	Palette    int
 }
 
 // LineChart is the net-worth trend chart.
@@ -129,10 +159,13 @@ type InvestmentChartRow struct {
 	ReturnTone   string
 }
 
-func buildView(income []reports.IncomeRow, nw []reports.NwRow, balances []reports.BalanceRow, investments []reports.InvestmentRow, items []Item) View {
+func buildView(income []reports.IncomeRow, nw []reports.NwRow, balances []reports.BalanceRow, investments []reports.InvestmentRow, txns []transactions.Transaction, period kernel.Date) View {
 	latestIncome, hasIncome := latestIncomeRow(income)
 	latestNW, hasNW := latestNWRow(nw)
 	investmentChart := buildInvestmentChart(investments)
+	if period.IsZero() {
+		period = dashboardPeriod(income)
+	}
 
 	kpis := []KPI{
 		{
@@ -162,12 +195,13 @@ func buildView(income []reports.IncomeRow, nw []reports.NwRow, balances []report
 	}
 
 	return View{
-		KPIs:        kpis,
-		CashFlow:    buildCashFlowChart(income),
-		NetWorth:    buildNetWorthChart(nw),
-		Allocation:  buildAllocationChart(balances),
-		Investments: investmentChart,
-		Items:       items,
+		KPIs:              kpis,
+		CashFlow:          buildCashFlowChart(income),
+		ExpenseBreakdown:  buildCategoryChart(txns, transactions.Expense, period),
+		IncomeComposition: buildCategoryChart(txns, transactions.Income, period),
+		NetWorth:          buildNetWorthChart(nw),
+		Allocation:        buildAllocationChart(balances),
+		Investments:       investmentChart,
 	}
 }
 
@@ -242,6 +276,107 @@ func buildCashFlowChart(rows []reports.IncomeRow) CashFlowChart {
 		)
 	}
 	return chart
+}
+
+func buildCategoryChart(txns []transactions.Transaction, kind transactions.Kind, period kernel.Date) CategoryChart {
+	type group struct {
+		label string
+		value kernel.Money
+	}
+
+	groups := make(map[string]kernel.Money)
+	for _, txn := range txns {
+		if txn.Kind != kind {
+			continue
+		}
+		amount := categoryAmount(txn, kind)
+		if amount <= 0 {
+			continue
+		}
+		label := strings.TrimSpace(txn.Category)
+		if label == "" {
+			label = "Senza categoria"
+		}
+		groups[label] += amount
+	}
+
+	chart := CategoryChart{
+		Period:   period.Month(),
+		TotalFmt: moneyFmt(0),
+		Empty:    len(groups) == 0,
+	}
+	if len(groups) == 0 {
+		return chart
+	}
+
+	grouped := make([]group, 0, len(groups))
+	total := kernel.Money(0)
+	for label, value := range groups {
+		if value <= 0 {
+			continue
+		}
+		grouped = append(grouped, group{label: label, value: value})
+		total += value
+	}
+	if total <= 0 || len(grouped) == 0 {
+		chart.Empty = true
+		return chart
+	}
+	sort.Slice(grouped, func(i, j int) bool {
+		if grouped[i].value == grouped[j].value {
+			return grouped[i].label < grouped[j].label
+		}
+		return grouped[i].value > grouped[j].value
+	})
+
+	chart.Empty = false
+	chart.TotalFmt = moneyFmt(total)
+	x := 0
+	for i, group := range grouped {
+		pct := float64(group.value) / float64(total)
+		width := clampPercent(roundFloat(pct * 100))
+		if width == 0 {
+			width = 1
+		}
+		if i == len(grouped)-1 {
+			width = 100 - x
+		} else if x+width > 100 {
+			width = 100 - x
+		}
+		if width < 0 {
+			width = 0
+		}
+		palette := i%8 + 1
+		percentFmt := fmt.Sprintf("%.0f%%", pct*100)
+		chart.Segments = append(chart.Segments, CategorySegment{
+			Label:      group.label,
+			ValueFmt:   moneyFmt(group.value),
+			PercentFmt: percentFmt,
+			X:          x,
+			Width:      width,
+			Palette:    palette,
+		})
+		chart.Rows = append(chart.Rows, CategoryRow{
+			Label:      group.label,
+			ValueFmt:   moneyFmt(group.value),
+			PercentFmt: percentFmt,
+			Width:      width,
+			Palette:    palette,
+		})
+		x += width
+	}
+	return chart
+}
+
+func categoryAmount(txn transactions.Transaction, kind transactions.Kind) kernel.Money {
+	switch kind {
+	case transactions.Expense:
+		return absMoney(txn.Amount)
+	case transactions.Income:
+		return txn.Amount
+	default:
+		return absMoney(txn.Amount)
+	}
 }
 
 func buildNetWorthChart(rows []reports.NwRow) LineChart {
@@ -428,6 +563,21 @@ func latestNWRow(rows []reports.NwRow) (reports.NwRow, bool) {
 		return reports.NwRow{}, false
 	}
 	return rows[0], true
+}
+
+func dashboardPeriod(rows []reports.IncomeRow) kernel.Date {
+	if latest, ok := latestIncomeRow(rows); ok {
+		return latest.Month.FirstOfMonth()
+	}
+	return kernel.Today().FirstOfMonth()
+}
+
+func nextMonth(d kernel.Date) kernel.Date {
+	if d.IsZero() {
+		d = kernel.Today()
+	}
+	from := d.FirstOfMonth()
+	return kernel.Date{Time: from.Time.AddDate(0, 1, 0)}
 }
 
 func latestIncomeRows(rows []reports.IncomeRow, limit int) []reports.IncomeRow {

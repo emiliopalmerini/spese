@@ -54,6 +54,30 @@ func TestTemplatesRender(t *testing.T) {
 					{X: 162, Y: 126, Width: 16, Height: 58, Class: "expense", Label: "Mag", Kind: "Uscite", ValueFmt: "1.400,00 €"},
 				},
 			},
+			ExpenseBreakdown: dashboard.CategoryChart{
+				Period:   "2026-05",
+				TotalFmt: "1.400,00 €",
+				Segments: []dashboard.CategorySegment{
+					{Label: "Casa", ValueFmt: "900,00 €", PercentFmt: "64%", X: 0, Width: 64, Palette: 1},
+					{Label: "Cibo", ValueFmt: "500,00 €", PercentFmt: "36%", X: 64, Width: 36, Palette: 2},
+				},
+				Rows: []dashboard.CategoryRow{
+					{Label: "Casa", ValueFmt: "900,00 €", PercentFmt: "64%", Width: 64, Palette: 1},
+					{Label: "Cibo", ValueFmt: "500,00 €", PercentFmt: "36%", Width: 36, Palette: 2},
+				},
+			},
+			IncomeComposition: dashboard.CategoryChart{
+				Period:   "2026-05",
+				TotalFmt: "3.500,00 €",
+				Segments: []dashboard.CategorySegment{
+					{Label: "Stipendio", ValueFmt: "3.000,00 €", PercentFmt: "86%", X: 0, Width: 86, Palette: 1},
+					{Label: "Extra", ValueFmt: "500,00 €", PercentFmt: "14%", X: 86, Width: 14, Palette: 2},
+				},
+				Rows: []dashboard.CategoryRow{
+					{Label: "Stipendio", ValueFmt: "3.000,00 €", PercentFmt: "86%", Width: 86, Palette: 1},
+					{Label: "Extra", ValueFmt: "500,00 €", PercentFmt: "14%", Width: 14, Palette: 2},
+				},
+			},
 			NetWorth: dashboard.LineChart{
 				Width: 720, Height: 220, AxisStart: 32, AxisEnd: 702, Baseline: 176,
 				PointsAttr: "32,160 702,40",
@@ -83,12 +107,6 @@ func TestTemplatesRender(t *testing.T) {
 				Rows: []dashboard.InvestmentChartRow{
 					{Account: "Broker", CostFmt: "27.000,00 €", ValueFmt: "30.000,00 €", ReturnFmt: "3.000,00 €", ReturnPctFmt: "11.1%", CostWidth: 90, ValueWidth: 100, ReturnTone: "positive"},
 				},
-			},
-			Items: []dashboard.Item{
-				{Label: "Liquidita", Value: "12.345,67 EUR"},
-				{Label: "", Value: ""},
-				{Label: "Mese corrente"},
-				{Label: "Uscite", Value: "1.234,00 EUR"},
 			},
 		},
 		"recurring/list": recurring.ListView{
@@ -215,6 +233,26 @@ func TestDashboardTemplateEscapesChartLabels(t *testing.T) {
 				{X: 100, Y: 120, Width: 16, Height: 64, Class: "income", Label: malicious, Kind: malicious, ValueFmt: "1,00 €"},
 			},
 		},
+		ExpenseBreakdown: dashboard.CategoryChart{
+			Period:   "2026-05",
+			TotalFmt: "1,00 €",
+			Segments: []dashboard.CategorySegment{
+				{Label: malicious, ValueFmt: "1,00 €", PercentFmt: "100%", X: 0, Width: 100, Palette: 1},
+			},
+			Rows: []dashboard.CategoryRow{
+				{Label: malicious, ValueFmt: "1,00 €", PercentFmt: "100%", Width: 100, Palette: 1},
+			},
+		},
+		IncomeComposition: dashboard.CategoryChart{
+			Period:   "2026-05",
+			TotalFmt: "1,00 €",
+			Segments: []dashboard.CategorySegment{
+				{Label: malicious, ValueFmt: "1,00 €", PercentFmt: "100%", X: 0, Width: 100, Palette: 1},
+			},
+			Rows: []dashboard.CategoryRow{
+				{Label: malicious, ValueFmt: "1,00 €", PercentFmt: "100%", Width: 100, Palette: 1},
+			},
+		},
 		NetWorth: dashboard.LineChart{
 			Width: 720, Height: 220, AxisStart: 32, AxisEnd: 702, Baseline: 176,
 			PointsAttr: "32,160",
@@ -233,7 +271,6 @@ func TestDashboardTemplateEscapesChartLabels(t *testing.T) {
 				{Account: malicious, CostFmt: "1,00 €", ValueFmt: "1,00 €", ReturnFmt: "0,00 €", ReturnPctFmt: "0.0%", CostWidth: 100, ValueWidth: 100, ReturnTone: "neutral"},
 			},
 		},
-		Items: []dashboard.Item{{Label: malicious, Value: malicious}},
 	}
 
 	w := httptest.NewRecorder()
