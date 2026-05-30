@@ -201,19 +201,19 @@ func TestTemplateFragmentsRender(t *testing.T) {
 			}
 			switch name {
 			case "action_form_transaction":
-				if !strings.Contains(body, `type="number" step="0.01" inputmode="decimal"`) {
-					t.Fatalf("fragment %s did not render a typed decimal amount input", name)
+				if !strings.Contains(body, `type="text" inputmode="decimal" placeholder="0,00"`) {
+					t.Fatalf("fragment %s did not render a comma-friendly decimal amount input", name)
 				}
 				if !strings.Contains(body, `list="`) || !strings.Contains(body, `<option value="Casa">`) {
 					t.Fatalf("fragment %s did not render category suggestions", name)
 				}
 			case "action_form_transfer":
-				if !strings.Contains(body, `type="number" step="0.01" inputmode="decimal"`) {
-					t.Fatalf("fragment %s did not render a typed decimal amount input", name)
+				if !strings.Contains(body, `type="text" inputmode="decimal" placeholder="0,00"`) {
+					t.Fatalf("fragment %s did not render a comma-friendly decimal amount input", name)
 				}
 			case "action_form_snapshot":
-				if !strings.Contains(body, `type="number" step="0.01" inputmode="decimal"`) {
-					t.Fatalf("fragment %s did not render typed decimal balance inputs", name)
+				if !strings.Contains(body, `type="text" inputmode="decimal" placeholder="0,00"`) {
+					t.Fatalf("fragment %s did not render comma-friendly decimal balance inputs", name)
 				}
 			}
 		})
