@@ -8,7 +8,6 @@ import (
 	"spese/internal/features/accounts"
 	"spese/internal/features/actions"
 	"spese/internal/features/dashboard"
-	"spese/internal/features/recurring"
 	"spese/internal/features/reports"
 	"spese/internal/features/snapshots"
 	"spese/internal/features/transactions"
@@ -109,20 +108,6 @@ func TestTemplatesRender(t *testing.T) {
 				},
 			},
 		},
-		"recurring/list": recurring.ListView{
-			Recurrings: []recurring.Recurring{
-				{
-					Label:      "Affitto",
-					Kind:       transactions.Expense,
-					Account:    account.Name,
-					Amount:     kernel.Money(95000),
-					Category:   "Casa",
-					DayOfMonth: 5,
-					Active:     true,
-				},
-			},
-			Accounts: accountList,
-		},
 		"reports/balance_sheet": reports.BalanceSheetView{
 			Rows: []reports.BalanceRow{
 				{Account: account.Name, Type: "Asset", Class: "Cash", Balance: kernel.Money(1234567), LatestMonth: month},
@@ -194,7 +179,6 @@ func TestTemplateFragmentsRender(t *testing.T) {
 
 	cases := map[string]any{
 		"action_form_account":     nil,
-		"action_form_recurring":   accountPicker,
 		"action_form_transaction": accountPicker,
 		"action_form_transfer":    accountPicker,
 		"action_form_snapshot": snapshots.FormView{
@@ -216,7 +200,7 @@ func TestTemplateFragmentsRender(t *testing.T) {
 				t.Fatalf("fragment %s did not render an action form", name)
 			}
 			switch name {
-			case "action_form_transaction", "action_form_recurring":
+			case "action_form_transaction":
 				if !strings.Contains(body, `type="number" step="0.01" inputmode="decimal"`) {
 					t.Fatalf("fragment %s did not render a typed decimal amount input", name)
 				}

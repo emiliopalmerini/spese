@@ -5,65 +5,92 @@ import (
 	"fmt"
 
 	"spese/internal/kernel"
-	"spese/internal/sheets"
+	"spese/internal/storage"
 )
 
-// Tab is the sheet tab name for this slice.
+// Tab is the sheet tab name this slice mirrors to.
 const Tab = "accounts"
 
-// List reads every account row from the sheet.
-func List(ctx context.Context, client *sheets.Client, forceRefresh bool) ([]Account, error) {
-	_, rows, err := client.ReadTable(ctx, Tab, forceRefresh)
+// List reads every account row from the local database.
+func List(ctx context.Context, store *storage.Store, _ bool) ([]Account, error) {
+	rows, err := store.DB().QueryContext(ctx, `
+		SELECT name, type, class, currency, active_from, active_to, note
+		FROM accounts
+		ORDER BY name
+	`)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", Tab, err)
 	}
-	out := make([]Account, 0, len(rows))
-	for _, r := range rows {
-		a := parseRow(r)
-		if a.Name == "" {
-			continue // skip blank rows
+	defer rows.Close()
+
+	var out []Account
+	for rows.Next() {
+		var a Account
+		var activeFrom, activeTo string
+		if err := rows.Scan(&a.Name, &a.Type, &a.Class, &a.Currency, &activeFrom, &activeTo, &a.Note); err != nil {
+			return nil, fmt.Errorf("scan %s: %w", Tab, err)
+		}
+		if activeFrom != "" {
+			d, err := kernel.ParseDate(activeFrom)
+			if err != nil {
+				return nil, fmt.Errorf("parse active_from: %w", err)
+			}
+			a.ActiveFrom = d
+		}
+		if activeTo != "" {
+			d, err := kernel.ParseDate(activeTo)
+			if err != nil {
+				return nil, fmt.Errorf("parse active_to: %w", err)
+			}
+			a.ActiveTo = d
 		}
 		out = append(out, a)
 	}
-	return out, nil
+	return out, rows.Err()
 }
 
-// Append writes a new account row to the end of the sheet.
-func Append(ctx context.Context, client *sheets.Client, a Account) error {
-	row := []any{
-		a.Name,
-		string(a.Type),
-		string(a.Class),
-		a.Currency,
-		dateOrEmpty(a.ActiveFrom),
-		dateOrEmpty(a.ActiveTo),
-		a.Note,
+// Append writes a new account locally and enqueues a sheet mirror refresh.
+func Append(ctx context.Context, store *storage.Store, a Account) error {
+	tx, err := store.Begin(ctx)
+	if err != nil {
+		return err
 	}
-	return client.AppendRows(ctx, Tab, [][]any{row})
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`
+		INSERT INTO accounts (name, type, class, currency, active_from, active_to, note)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, a.Name, string(a.Type), string(a.Class), a.Currency, dateOrEmpty(a.ActiveFrom), dateOrEmpty(a.ActiveTo), a.Note); err != nil {
+		return fmt.Errorf("insert %s: %w", Tab, err)
+	}
+	if err := store.EnqueueSheetSync(tx, Tab); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit %s: %w", Tab, err)
+	}
+	return nil
 }
 
-// parseRow turns one sheet row into an Account, tolerating short rows.
-func parseRow(r []any) Account {
-	get := func(i int) any {
-		if i >= len(r) {
-			return nil
+// SheetRows returns the source-tab rows for the Google Sheets mirror.
+func SheetRows(ctx context.Context, store *storage.Store) ([][]any, error) {
+	accs, err := List(ctx, store, false)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([][]any, len(accs))
+	for i, a := range accs {
+		rows[i] = []any{
+			a.Name,
+			string(a.Type),
+			string(a.Class),
+			a.Currency,
+			dateOrEmpty(a.ActiveFrom),
+			dateOrEmpty(a.ActiveTo),
+			a.Note,
 		}
-		return r[i]
 	}
-	a := Account{
-		Name:     sheets.CellString(get(0)),
-		Type:     Type(sheets.CellString(get(1))),
-		Class:    Class(sheets.CellString(get(2))),
-		Currency: sheets.CellString(get(3)),
-		Note:     sheets.CellString(get(6)),
-	}
-	if d, ok := sheets.CellDate(get(4)); ok {
-		a.ActiveFrom = d
-	}
-	if d, ok := sheets.CellDate(get(5)); ok {
-		a.ActiveTo = d
-	}
-	return a
+	return rows, nil
 }
 
 func dateOrEmpty(d kernel.Date) any {

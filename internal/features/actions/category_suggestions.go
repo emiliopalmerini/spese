@@ -4,7 +4,6 @@ import (
 	"sort"
 	"strings"
 
-	"spese/internal/features/recurring"
 	"spese/internal/features/transactions"
 )
 
@@ -14,7 +13,7 @@ type CategorySuggestions struct {
 	Subcategories []string
 }
 
-func buildCategorySuggestions(txns []transactions.Transaction, recs []recurring.Recurring) CategorySuggestions {
+func buildCategorySuggestions(txns []transactions.Transaction) CategorySuggestions {
 	categories := map[string]string{}
 	subcategories := map[string]string{}
 
@@ -24,14 +23,6 @@ func buildCategorySuggestions(txns []transactions.Transaction, recs []recurring.
 		}
 		addSuggestion(categories, txn.Category)
 		addSuggestion(subcategories, txn.Subcategory)
-	}
-
-	for _, rec := range recs {
-		if !suggestCategoryForKind(rec.Kind) {
-			continue
-		}
-		addSuggestion(categories, rec.Category)
-		addSuggestion(subcategories, rec.Subcategory)
 	}
 
 	return CategorySuggestions{

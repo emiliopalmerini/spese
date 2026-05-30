@@ -10,12 +10,12 @@ import (
 
 	"spese/internal/features/accounts"
 	"spese/internal/kernel"
-	"spese/internal/sheets"
+	"spese/internal/storage"
 )
 
 // Handler records per-account balance snapshots.
 type Handler struct {
-	Client *sheets.Client
+	Store  *storage.Store
 	Logger *slog.Logger
 }
 
@@ -54,7 +54,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := Append(r.Context(), h.Client, snaps); err != nil {
+	if err := Append(r.Context(), h.Store, snaps); err != nil {
 		h.Logger.Error("append snapshots", "err", err)
 		http.Error(w, "failed to write snapshots", http.StatusBadGateway)
 		return
@@ -121,12 +121,12 @@ func defaultMonth(s string) kernel.Date {
 
 // BuildFormView prepares the month entry model shared by the page and the
 // global action drawer.
-func BuildFormView(ctx context.Context, client *sheets.Client, monthParam string, force bool) (FormView, error) {
-	accs, err := accounts.List(ctx, client, false)
+func BuildFormView(ctx context.Context, store *storage.Store, monthParam string, force bool) (FormView, error) {
+	accs, err := accounts.List(ctx, store, false)
 	if err != nil {
 		return FormView{}, err
 	}
-	latest, err := LatestPerAccount(ctx, client, force)
+	latest, err := LatestPerAccount(ctx, store, force)
 	if err != nil {
 		return FormView{}, err
 	}

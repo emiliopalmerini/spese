@@ -12,12 +12,12 @@ import (
 
 	"spese/internal/features/transactions"
 	"spese/internal/kernel"
-	"spese/internal/sheets"
+	"spese/internal/storage"
 )
 
 // Handler records transfers and redirects stale page requests to movements.
 type Handler struct {
-	Client *sheets.Client
+	Store  *storage.Store
 	Logger *slog.Logger
 }
 
@@ -42,7 +42,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := transactions.Append(r.Context(), h.Client, legs); err != nil {
+	if err := transactions.Append(r.Context(), h.Store, legs); err != nil {
 		h.Logger.Error("append transfer", "err", err)
 		http.Error(w, "failed to record transfer", http.StatusBadGateway)
 		return

@@ -329,77 +329,6 @@
   to{transform:scaleX(1);}
 }
 
-/* Recurrent Expenses List (Quaderno, ADR-0012) */
-.recurrents-list{
-  display:flex;
-  flex-direction:column;
-  gap:0;
-}
-.recurrent-row{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:var(--space-3);
-  padding:14px 0;
-  border-bottom:1px dotted var(--line);
-  transition:background var(--duration-fast) var(--ease-out-quart);
-}
-.recurrent-row:last-child{
-  border-bottom:none;
-}
-.recurrent-row:hover{
-  background:transparent;
-}
-.recurrent-row__info{
-  display:flex;
-  flex-direction:column;
-  gap:2px;
-  min-width:0;
-}
-.recurrent-row__name{
-  font-family:var(--font-display);
-  font-size:18px;
-  font-weight:400;
-  color:var(--ink);
-  letter-spacing:-0.01em;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-.recurrent-row__freq{
-  font-family:var(--font-mono);
-  font-size:var(--text-xs);
-  color:var(--muted);
-  text-transform:uppercase;
-  letter-spacing:0.12em;
-}
-.recurrent-row__amount{
-  font-family:var(--font-display);
-  font-size:18px;
-  font-weight:400;
-  color:var(--ink);
-  font-variant-numeric:tabular-nums;
-  flex-shrink:0;
-}
-.recurrent-row__actions{
-  display:flex;
-  gap:var(--space-1);
-  opacity:0;
-  transition:opacity var(--duration-fast) var(--ease-out-quart);
-}
-.recurrent-row:hover .recurrent-row__actions{
-  opacity:1;
-}
-.recurrent-row__actions .action-icon{
-  width:24px;
-  height:24px;
-  padding:4px;
-}
-.recurrent-row__actions .action-icon svg{
-  width:16px;
-  height:16px;
-}
-
 /* ==============================================================
    Dashboard - FAB Speed Dial
 ============================================================== */
@@ -1003,30 +932,6 @@
   font-weight:700;
   margin-right:var(--space-2);
   border:1px solid var(--black);
-}
-
-/* Recurrents summary (Quaderno) */
-.recurrents-summary{
-  display:flex;
-  justify-content:space-between;
-  align-items:baseline;
-  padding-bottom:var(--space-3);
-  margin-bottom:var(--space-3);
-  border-bottom:1px dotted var(--line);
-}
-.recurrents-summary__label{
-  font-family:var(--font-mono);
-  font-size:var(--text-xs);
-  color:var(--muted);
-  text-transform:uppercase;
-  letter-spacing:0.16em;
-}
-.recurrents-summary__value{
-  font-family:var(--font-display);
-  font-size:var(--text-2xl);
-  font-weight:400;
-  color:var(--ink);
-  letter-spacing:-0.02em;
 }
 
 /* Projections */

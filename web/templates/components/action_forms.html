@@ -111,34 +111,3 @@
   <button type="submit">Salva</button>
 </form>
 {{end}}
-
-{{define "action_form_recurring"}}
-<form method="post" action="/recurring" class="form-card global-action-form" data-global-action-form hx-post="/recurring" hx-target="main.container" hx-select="main.container" hx-swap="outerHTML" hx-push-url="/recurring">
-  <label>Etichetta <input name="label" required></label>
-  <label>Tipo
-    <select name="kind" required>
-      <option value="Expense">Uscita</option>
-      <option value="Income">Entrata</option>
-    </select>
-  </label>
-  <label>Conto
-    <select name="account" required>
-      {{range .Accounts}}<option>{{.Name}}</option>{{end}}
-    </select>
-  </label>
-  <label>Importo <input name="amount" type="number" step="0.01" inputmode="decimal" required></label>
-  <label>Giorno del mese <input name="day_of_month" type="number" min="1" max="31" required></label>
-  <label>Categoria <input name="category" list="recurring-category-options" autocomplete="off"></label>
-  <label>Sottocategoria <input name="subcategory" list="recurring-subcategory-options" autocomplete="off"></label>
-  <datalist id="recurring-category-options">
-    {{range .CategorySuggestions.Categories}}<option value="{{.}}"></option>{{end}}
-  </datalist>
-  <datalist id="recurring-subcategory-options">
-    {{range .CategorySuggestions.Subcategories}}<option value="{{.}}"></option>{{end}}
-  </datalist>
-  <label>Descrizione <input name="payee"></label>
-  <label class="checkbox"><input name="active" type="checkbox" checked> Attivo</label>
-  <label class="full">Note <input name="note"></label>
-  <button type="submit">Salva</button>
-</form>
-{{end}}

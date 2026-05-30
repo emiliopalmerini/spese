@@ -1,18 +1,19 @@
 # Spese (Go + HTMX)
 
-Simple expense tracking application that saves to Google Spreadsheets with hierarchical categories.
+Simple expense and net-worth tracker backed by local SQLite, with Google Sheets as an external mirror.
 - Automatic date (day and month) pre-filled in the form
 - Description and expense amount input
 - **Hierarchical categories**: Primary categories with dynamic secondary category loading
-- Categories and subcategories read from Spreadsheet with intelligent mapping
+- Categories and subcategories suggested from local transaction history
 
-Stack: Go, HTMX, SQLite, Google Sheets API, Docker (multistage), Docker Compose, Makefile, pre-commit.
+Stack: Go, HTMX, SQLite, Honker, Google Sheets API, Docker, Docker Compose, Makefile, pre-commit.
 
 ## Requirements
 
 - Go 1.22+
 - Docker + Docker Compose (for containers)
-- Google Sheets API access via OAuth (client + token)
+- Honker SQLite extension
+- Google Sheets API access via service account when sheet mirroring is enabled
 
 ## Local Execution
 
@@ -23,18 +24,10 @@ Stack: Go, HTMX, SQLite, Google Sheets API, Docker (multistage), Docker Compose,
 Example `.env` (base names without year; the app automatically prefixes the current year):
 
 ```bash
+SPESE_PORT=8080
+SPESE_DB_PATH=./spese.db
+HONKER_EXTENSION_PATH=/path/to/libhonker_ext.dylib
 GOOGLE_SPREADSHEET_ID=...
-GOOGLE_SHEET_NAME=Expenses
-GOOGLE_CATEGORIES_SHEET_NAME=Dashboard
-GOOGLE_SUBCATEGORIES_SHEET_NAME=Dashboard
-# Base name of the dashboard sheet used for monthly summary
-# The app builds "<year> <name>", e.g.: "2025 Dashboard"
-DASHBOARD_SHEET_NAME=Dashboard
-# (legacy fallback) Pattern with %d: e.g. "%d Dashboard"
-# DASHBOARD_SHEET_PREFIX="%d Dashboard"
-
-DATA_BACKEND=sqlite # use 'sheets' to integrate Google Sheets directly or 'sqlite' for local storage + async sync
-PORT=8080
 # Google Service Account
 # GOOGLE_SERVICE_ACCOUNT_FILE=/path/to/service-account.json
 ```
@@ -44,11 +37,7 @@ PORT=8080
 - `make run` for local development (with graceful shutdown)
 - `make docker-up` for execution via Docker Compose
 
-App available at `http://localhost:8080` (`PORT` variable).
-
-The app supports two backends:
-- `DATA_BACKEND=sqlite`: Uses local SQLite database with async Google Sheets sync
-- `DATA_BACKEND=sheets`: Direct Google Sheets integration
+App available at `http://localhost:8080` (`SPESE_PORT` variable).
 
 **Security and Performance:**
 - Rate limiting: 60 requests per minute per IP
@@ -59,26 +48,13 @@ The app supports two backends:
 ## Supported Environment Variables
 
 See `.env.example` for defaults. Main variables:
-- `PORT`: HTTP port (default: 8080)
-- `BASE_URL`: public base URL (for absolute links)
+- `SPESE_PORT`: HTTP port (default: 8080)
+- `SPESE_DB_PATH`: SQLite database path (default: `./spese.db`)
+- `HONKER_EXTENSION_PATH`: Honker SQLite extension path
 - `GOOGLE_SPREADSHEET_ID`: Google Sheets document ID
-- `GOOGLE_SHEET_NAME`: base name of expenses sheet (without year), default `Expenses` → resolved to `"<year> Expenses"`
-- `GOOGLE_CATEGORIES_SHEET_NAME`: base name categories sheet, default `Dashboard` → `"<year> Dashboard"`
-- `GOOGLE_SUBCATEGORIES_SHEET_NAME`: base name subcategories sheet, default `Dashboard` → `"<year> Dashboard"`
-- `DATA_BACKEND`: `sqlite` (default), or `sheets`
-- `DASHBOARD_SHEET_NAME`: base name of annual dashboard sheet to read totals from (preferred). Result: `"<year> <name>"`.
-- `DASHBOARD_SHEET_PREFIX`: (legacy) pattern or prefix of annual dashboard sheet (e.g. `%d Dashboard`). Used only if `DASHBOARD_SHEET_NAME` is not set.
-
-SQLite Configuration (backend `sqlite`):
-- `SQLITE_DB_PATH`: SQLite database path (default: `./data/spese.db`)
-- `SYNC_BATCH_SIZE`: sync processor batch size (default: `10`)
-- `SYNC_INTERVAL`: periodic sync interval (default: `30s`)
-- `RECURRING_PROCESSOR_INTERVAL`: recurring expenses check interval (default: `1h`)
 
 Google Service Account:
-- `GOOGLE_SERVICE_ACCOUNT_JSON`: Service account credentials as JSON string
 - `GOOGLE_SERVICE_ACCOUNT_FILE`: Path to service account credentials file
-- `GOOGLE_APPLICATION_CREDENTIALS`: Standard Google Cloud credentials file path
 
 ## Useful Makefile Commands
 
@@ -96,11 +72,11 @@ Google Service Account:
 
 ## Architecture
 
-The application runs as a single binary with integrated processors:
+The application runs as a single binary:
 
 1. **HTTP Server**: Handles web requests with HTMX frontend
-2. **Sync Processor**: Periodically syncs pending expenses to Google Sheets
-3. **Recurring Processor**: Creates expenses from recurring configurations when due
+2. **Honker Queue**: Records durable sheet-sync work in the same SQLite transaction as each write
+3. **Sheet Mirror**: Rebuilds Google Sheets source tabs from SQLite when Google credentials are configured
 
 Benefits:
 - **Simplicity**: Single deployment unit
@@ -110,16 +86,14 @@ Benefits:
 
 ## Docker
 
-- Multistage Dockerfile for small images (builder + scratch runner).
+- Multistage Dockerfile for small images (builder + Alpine runner).
 - `docker compose up -d` for local execution; configuration reads `.env` and injects it into containers (`env_file`).
 
 ## Google Sheets Setup (Quick)
 
 1) Create document and sheets:
-- Expenses sheet (e.g. `2025 Expenses`) with headers in row 1:
-  - A: Month, B: Day, C: Expense, D: Amount, E: Currency, F: EUR, G: Primary, H: Secondary
-- Categories sheet (e.g. `2025 Dashboard` column `A2:A65`)
-- Subcategories sheet (e.g. `2025 Dashboard` column `B2:B65`)
+- Source tabs matching the app model: `accounts`, `transactions`, and `snapshots`.
+- Derived `v_*` tabs are optional now; the app reads reports from SQLite.
 
 2) Service Account setup:
 - Create a service account in Google Cloud Console
@@ -127,7 +101,7 @@ Benefits:
 - Generate JSON credentials for the service account
 - Share your spreadsheet with the service account email address
 - Set `GOOGLE_SERVICE_ACCOUNT_FILE=/path/to/service-account.json`
-- Start the app with `DATA_BACKEND=sheets` and service account variables set.
+- Start the app with `SPESE_DB_PATH`, `HONKER_EXTENSION_PATH`, and service account variables set.
 
 **Service Account Security:**
 - Credentials file should be stored securely with restricted permissions (e.g., 0600)

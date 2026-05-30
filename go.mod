@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/joho/godotenv v1.5.1
+	github.com/russellromney/honker-go v0.0.0-20260502020136-bdbe80df13ef
 	google.golang.org/api v0.279.0
 )
 
@@ -19,6 +20,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.15 // indirect
 	github.com/googleapis/gax-go/v2 v2.22.0 // indirect
+	github.com/mattn/go-sqlite3 v1.14.24 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0 // indirect
 	go.opentelemetry.io/otel v1.43.0 // indirect

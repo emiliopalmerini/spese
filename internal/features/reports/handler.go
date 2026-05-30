@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"spese/internal/sheets"
+	"spese/internal/storage"
 )
 
 // Renderer is the minimal template interface this slice needs.
@@ -13,9 +13,9 @@ type Renderer interface {
 	Render(w http.ResponseWriter, name string, data any) error
 }
 
-// Handler renders read-only reports backed by the v_* tabs.
+// Handler renders read-only reports backed by local SQLite queries.
 type Handler struct {
-	Client *sheets.Client
+	Store  *storage.Store
 	Logger *slog.Logger
 	Render Renderer
 }
@@ -41,7 +41,7 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 type BalanceSheetView struct{ Rows []BalanceRow }
 
 func (h *Handler) balanceSheet(w http.ResponseWriter, r *http.Request) {
-	rows, err := BalanceSheet(r.Context(), h.Client, false)
+	rows, err := BalanceSheet(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("balance sheet", "err", err)
 		http.Error(w, "failed to load balance sheet", http.StatusBadGateway)
@@ -54,7 +54,7 @@ func (h *Handler) balanceSheet(w http.ResponseWriter, r *http.Request) {
 type IncomeStatementView struct{ Rows []IncomeRow }
 
 func (h *Handler) incomeStatement(w http.ResponseWriter, r *http.Request) {
-	rows, err := IncomeStatement(r.Context(), h.Client, false)
+	rows, err := IncomeStatement(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("income statement", "err", err)
 		http.Error(w, "failed to load income statement", http.StatusBadGateway)
@@ -67,7 +67,7 @@ func (h *Handler) incomeStatement(w http.ResponseWriter, r *http.Request) {
 type NwTimelineView struct{ Rows []NwRow }
 
 func (h *Handler) nwTimeline(w http.ResponseWriter, r *http.Request) {
-	rows, err := NwMonthly(r.Context(), h.Client, false)
+	rows, err := NwMonthly(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("nw monthly", "err", err)
 		http.Error(w, "failed to load NW timeline", http.StatusBadGateway)
@@ -80,7 +80,7 @@ func (h *Handler) nwTimeline(w http.ResponseWriter, r *http.Request) {
 type InvestmentsView struct{ Rows []InvestmentRow }
 
 func (h *Handler) investments(w http.ResponseWriter, r *http.Request) {
-	rows, err := Investments(r.Context(), h.Client, false)
+	rows, err := Investments(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("investments", "err", err)
 		http.Error(w, "failed to load investments", http.StatusBadGateway)

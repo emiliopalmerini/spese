@@ -4,7 +4,6 @@ import (
 	"reflect"
 	"testing"
 
-	"spese/internal/features/recurring"
 	"spese/internal/features/transactions"
 )
 
@@ -16,19 +15,15 @@ func TestBuildCategorySuggestions(t *testing.T) {
 		{Kind: transactions.Adjustment, Category: "Manuale"},
 		{Kind: transactions.Expense, Category: "cibo", Subcategory: "pranzo"},
 	}
-	recs := []recurring.Recurring{
-		{Kind: transactions.Expense, Category: "Casa", Subcategory: "Affitto"},
-		{Kind: transactions.Income, Category: "Stipendio"},
-	}
 
-	got := buildCategorySuggestions(txns, recs)
+	got := buildCategorySuggestions(txns)
 
-	wantCategories := []string{"Casa", "Cibo", "Stipendio"}
+	wantCategories := []string{"Cibo", "Stipendio"}
 	if !reflect.DeepEqual(got.Categories, wantCategories) {
 		t.Fatalf("Categories = %#v, want %#v", got.Categories, wantCategories)
 	}
 
-	wantSubcategories := []string{"Affitto", "Mensile", "Pranzo"}
+	wantSubcategories := []string{"Mensile", "Pranzo"}
 	if !reflect.DeepEqual(got.Subcategories, wantSubcategories) {
 		t.Fatalf("Subcategories = %#v, want %#v", got.Subcategories, wantSubcategories)
 	}

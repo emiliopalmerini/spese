@@ -1,6 +1,4 @@
-// Package reports renders read-only views derived from the v_* tabs that
-// the spreadsheet builds via QUERY formulas. The Go code does no aggregation
-// itself: it parses rows and hands them to templates.
+// Package reports renders read-only views derived from local SQLite data.
 package reports
 
 import (
@@ -8,7 +6,7 @@ import (
 	"fmt"
 
 	"spese/internal/kernel"
-	"spese/internal/sheets"
+	"spese/internal/storage"
 )
 
 // BalanceRow is one row of v_balance_sheet.
@@ -45,127 +43,210 @@ type InvestmentRow struct {
 	LatestMonth kernel.Date
 }
 
-// BalanceSheet reads v_balance_sheet.
-func BalanceSheet(ctx context.Context, client *sheets.Client, force bool) ([]BalanceRow, error) {
-	_, rows, err := client.ReadTable(ctx, "v_balance_sheet", force)
+// BalanceSheet returns the latest canonical balance per account.
+func BalanceSheet(ctx context.Context, store *storage.Store, _ bool) ([]BalanceRow, error) {
+	rows, err := store.DB().QueryContext(ctx, canonicalSnapshotsSQL+`
+		, latest AS (
+			SELECT account, effective_month, balance_cents
+			FROM (
+				SELECT
+					account,
+					effective_month,
+					balance_cents,
+					row_number() OVER (
+						PARTITION BY account
+						ORDER BY effective_month DESC
+					) AS rn
+				FROM canonical_snapshots
+			)
+			WHERE rn = 1
+		)
+		SELECT a.name, a.type, a.class, coalesce(l.balance_cents, 0), coalesce(l.effective_month, '')
+		FROM accounts a
+		LEFT JOIN latest l ON l.account = a.name
+		ORDER BY a.type, a.class, a.name
+	`)
 	if err != nil {
-		return nil, fmt.Errorf("read v_balance_sheet: %w", err)
+		return nil, fmt.Errorf("read balance sheet: %w", err)
 	}
-	out := make([]BalanceRow, 0, len(rows))
-	for _, r := range rows {
-		if len(r) == 0 || sheets.CellString(r[0]) == "" {
-			continue
+	defer rows.Close()
+
+	var out []BalanceRow
+	for rows.Next() {
+		var monthStr string
+		row := BalanceRow{}
+		var balance int64
+		if err := rows.Scan(&row.Account, &row.Type, &row.Class, &balance, &monthStr); err != nil {
+			return nil, fmt.Errorf("scan balance sheet: %w", err)
 		}
-		row := BalanceRow{
-			Account: sheets.CellString(at(r, 0)),
-			Type:    sheets.CellString(at(r, 1)),
-			Class:   sheets.CellString(at(r, 2)),
-		}
-		if m, ok := sheets.CellMoney(at(r, 3)); ok {
-			row.Balance = m
-		}
-		if d, ok := sheets.CellDate(at(r, 4)); ok {
-			row.LatestMonth = d
+		row.Balance = kernel.Money(balance)
+		if monthStr != "" {
+			d, err := kernel.ParseDate(monthStr)
+			if err != nil {
+				return nil, fmt.Errorf("parse balance month: %w", err)
+			}
+			row.LatestMonth = d.FirstOfMonth()
 		}
 		out = append(out, row)
 	}
-	return out, nil
+	return out, rows.Err()
 }
 
-// IncomeStatement reads v_income_statement.
-func IncomeStatement(ctx context.Context, client *sheets.Client, force bool) ([]IncomeRow, error) {
-	_, rows, err := client.ReadTable(ctx, "v_income_statement", force)
+// IncomeStatement aggregates income and expense transactions per month.
+func IncomeStatement(ctx context.Context, store *storage.Store, _ bool) ([]IncomeRow, error) {
+	rows, err := store.DB().QueryContext(ctx, `
+		SELECT
+			substr(date, 1, 7) AS month,
+			sum(CASE WHEN kind = 'Income' THEN amount_cents ELSE 0 END) AS revenue,
+			sum(CASE WHEN kind = 'Expense' THEN amount_cents ELSE 0 END) AS expenses
+		FROM transactions
+		WHERE kind IN ('Income', 'Expense')
+		GROUP BY month
+		ORDER BY month
+	`)
 	if err != nil {
-		return nil, fmt.Errorf("read v_income_statement: %w", err)
+		return nil, fmt.Errorf("read income statement: %w", err)
 	}
-	out := make([]IncomeRow, 0, len(rows))
-	for _, r := range rows {
-		if len(r) == 0 {
-			continue
-		}
+	defer rows.Close()
+
+	var out []IncomeRow
+	for rows.Next() {
+		var monthStr string
+		var revenue, expenses int64
 		row := IncomeRow{}
-		if d, ok := sheets.CellDate(at(r, 0)); ok {
-			row.Month = d
-		} else {
-			continue
+		if err := rows.Scan(&monthStr, &revenue, &expenses); err != nil {
+			return nil, fmt.Errorf("scan income statement: %w", err)
 		}
-		if m, ok := sheets.CellMoney(at(r, 1)); ok {
-			row.Revenue = m
+		month, err := kernel.ParseDate(monthStr)
+		if err != nil {
+			return nil, fmt.Errorf("parse income month: %w", err)
 		}
-		if m, ok := sheets.CellMoney(at(r, 2)); ok {
-			row.Expenses = m
-		}
-		if m, ok := sheets.CellMoney(at(r, 3)); ok {
-			row.NetIncome = m
-		}
-		if f, ok := sheets.CellFloat(at(r, 4)); ok {
-			row.SavingsRate = f
+		row.Month = month.FirstOfMonth()
+		row.Revenue = kernel.Money(revenue)
+		row.Expenses = kernel.Money(expenses)
+		row.NetIncome = row.Revenue + row.Expenses
+		if row.Revenue != 0 {
+			row.SavingsRate = float64(row.NetIncome) / float64(row.Revenue)
 		}
 		out = append(out, row)
 	}
-	return out, nil
+	return out, rows.Err()
 }
 
-// NwMonthly reads v_nw_monthly (just the month + net_worth columns).
-func NwMonthly(ctx context.Context, client *sheets.Client, force bool) ([]NwRow, error) {
-	_, rows, err := client.ReadTable(ctx, "v_nw_monthly", force)
+// NwMonthly returns net worth per month from canonical snapshots.
+func NwMonthly(ctx context.Context, store *storage.Store, _ bool) ([]NwRow, error) {
+	rows, err := store.DB().QueryContext(ctx, canonicalSnapshotsSQL+`
+		SELECT effective_month, sum(balance_cents)
+		FROM canonical_snapshots
+		GROUP BY effective_month
+		ORDER BY effective_month
+	`)
 	if err != nil {
-		return nil, fmt.Errorf("read v_nw_monthly: %w", err)
+		return nil, fmt.Errorf("read nw monthly: %w", err)
 	}
-	out := make([]NwRow, 0, len(rows))
-	for _, r := range rows {
-		if len(r) == 0 {
-			continue
-		}
+	defer rows.Close()
+
+	var out []NwRow
+	for rows.Next() {
+		var monthStr string
+		var amount int64
 		row := NwRow{}
-		if d, ok := sheets.CellDate(at(r, 0)); ok {
-			row.Month = d
-		} else {
-			continue
+		if err := rows.Scan(&monthStr, &amount); err != nil {
+			return nil, fmt.Errorf("scan nw monthly: %w", err)
 		}
-		if m, ok := sheets.CellMoney(at(r, 1)); ok {
-			row.NetWorth = m
+		month, err := kernel.ParseDate(monthStr)
+		if err != nil {
+			return nil, fmt.Errorf("parse nw month: %w", err)
 		}
+		row.Month = month.FirstOfMonth()
+		row.NetWorth = kernel.Money(amount)
 		out = append(out, row)
 	}
-	return out, nil
+	return out, rows.Err()
 }
 
-// Investments reads v_investments.
-func Investments(ctx context.Context, client *sheets.Client, force bool) ([]InvestmentRow, error) {
-	_, rows, err := client.ReadTable(ctx, "v_investments", force)
+// Investments compares latest investment balances with cumulative transfers.
+func Investments(ctx context.Context, store *storage.Store, _ bool) ([]InvestmentRow, error) {
+	rows, err := store.DB().QueryContext(ctx, canonicalSnapshotsSQL+`
+		, latest AS (
+			SELECT account, effective_month, balance_cents
+			FROM (
+				SELECT
+					account,
+					effective_month,
+					balance_cents,
+					row_number() OVER (
+						PARTITION BY account
+						ORDER BY effective_month DESC
+					) AS rn
+				FROM canonical_snapshots
+			)
+			WHERE rn = 1
+		),
+		cost_basis AS (
+			SELECT account, sum(amount_cents) AS cost_cents
+			FROM transactions
+			WHERE kind = 'Transfer'
+			GROUP BY account
+		)
+		SELECT
+			a.name,
+			coalesce(c.cost_cents, 0),
+			coalesce(l.balance_cents, 0),
+			coalesce(l.effective_month, '')
+		FROM accounts a
+		LEFT JOIN latest l ON l.account = a.name
+		LEFT JOIN cost_basis c ON c.account = a.name
+		WHERE a.class = 'Investment'
+		ORDER BY a.name
+	`)
 	if err != nil {
-		return nil, fmt.Errorf("read v_investments: %w", err)
+		return nil, fmt.Errorf("read investments: %w", err)
 	}
-	out := make([]InvestmentRow, 0, len(rows))
-	for _, r := range rows {
-		if len(r) == 0 || sheets.CellString(r[0]) == "" {
-			continue
+	defer rows.Close()
+
+	var out []InvestmentRow
+	for rows.Next() {
+		var monthStr string
+		var cost, value int64
+		row := InvestmentRow{}
+		if err := rows.Scan(&row.Account, &cost, &value, &monthStr); err != nil {
+			return nil, fmt.Errorf("scan investments: %w", err)
 		}
-		row := InvestmentRow{Account: sheets.CellString(at(r, 0))}
-		if m, ok := sheets.CellMoney(at(r, 1)); ok {
-			row.CostBasis = m
+		row.CostBasis = kernel.Money(cost)
+		row.Value = kernel.Money(value)
+		row.Return = row.Value - row.CostBasis
+		if row.CostBasis != 0 {
+			row.ReturnPct = float64(row.Return) / float64(row.CostBasis)
 		}
-		if m, ok := sheets.CellMoney(at(r, 2)); ok {
-			row.Value = m
-		}
-		if m, ok := sheets.CellMoney(at(r, 3)); ok {
-			row.Return = m
-		}
-		if f, ok := sheets.CellFloat(at(r, 4)); ok {
-			row.ReturnPct = f
-		}
-		if d, ok := sheets.CellDate(at(r, 5)); ok {
-			row.LatestMonth = d
+		if monthStr != "" {
+			month, err := kernel.ParseDate(monthStr)
+			if err != nil {
+				return nil, fmt.Errorf("parse investment month: %w", err)
+			}
+			row.LatestMonth = month.FirstOfMonth()
 		}
 		out = append(out, row)
 	}
-	return out, nil
+	return out, rows.Err()
 }
 
-func at(r []any, i int) any {
-	if i >= len(r) {
-		return nil
-	}
-	return r[i]
-}
+const canonicalSnapshotsSQL = `
+	WITH canonical_snapshots AS (
+		SELECT effective_month, account, balance_cents, note
+		FROM (
+			SELECT
+				b.effective_month,
+				sb.account,
+				sb.balance_cents,
+				sb.note,
+				row_number() OVER (
+					PARTITION BY b.effective_month, sb.account
+					ORDER BY b.captured_at DESC, b.id DESC
+				) AS rn
+			FROM snapshot_balances sb
+			JOIN snapshot_batches b ON b.id = sb.batch_id
+		)
+		WHERE rn = 1
+	)
+`

@@ -96,10 +96,15 @@
               description = "Path to Google service account JSON file.";
             };
 
-            recurringProcessorInterval = mkOption {
+            dbPath = mkOption {
               type = types.str;
-              default = "6h";
-              description = "How often to scan the `recurring` tab.";
+              default = "/var/lib/spese/spese.db";
+              description = "Path to the local SQLite database.";
+            };
+
+            honkerExtensionPath = mkOption {
+              type = types.path;
+              description = "Path to the Honker SQLite extension library.";
             };
 
             environmentFile = mkOption {
@@ -140,9 +145,10 @@
 
               environment = {
                 SPESE_PORT = toString cfg.port;
+                SPESE_DB_PATH = cfg.dbPath;
+                HONKER_EXTENSION_PATH = toString cfg.honkerExtensionPath;
                 GOOGLE_SPREADSHEET_ID = cfg.googleSpreadsheetId;
                 GOOGLE_SERVICE_ACCOUNT_FILE = toString cfg.googleServiceAccountFile;
-                RECURRING_PROCESSOR_INTERVAL = cfg.recurringProcessorInterval;
               };
             };
           };

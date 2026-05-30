@@ -7,13 +7,13 @@ import (
 	"strings"
 
 	"spese/internal/kernel"
-	"spese/internal/sheets"
+	"spese/internal/storage"
 )
 
 // Handler bundles the HTTP endpoints for this slice. It carries only the
-// sheet client and a logger; everything else is computed per-request.
+// local store and a logger; everything else is computed per-request.
 type Handler struct {
-	Client *sheets.Client
+	Store  *storage.Store
 	Logger *slog.Logger
 	Render Renderer
 }
@@ -33,7 +33,7 @@ func (h *Handler) Mount(mux *http.ServeMux, prefix string) {
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	accs, err := List(r.Context(), h.Client, false)
+	accs, err := List(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("list accounts", "err", err)
 		http.Error(w, "failed to load accounts", http.StatusBadGateway)
@@ -54,13 +54,13 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := Append(r.Context(), h.Client, a); err != nil {
+	if err := Append(r.Context(), h.Store, a); err != nil {
 		h.Logger.Error("append account", "err", err)
 		http.Error(w, "failed to write account", http.StatusBadGateway)
 		return
 	}
 	// Re-list after write so HTMX can swap the table.
-	accs, _ := List(r.Context(), h.Client, true)
+	accs, _ := List(r.Context(), h.Store, true)
 	_ = h.Render.Render(w, "accounts/list", ListView{Accounts: accs})
 }
 

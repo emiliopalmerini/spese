@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 
 	"spese/internal/kernel"
-	"spese/internal/sheets"
+	"spese/internal/storage"
 )
 
-// Tab is the sheet tab name for this slice.
+// Tab is the sheet tab name this slice mirrors to.
 const Tab = "transactions"
 
 // Filter narrows the set of transactions returned by List.
@@ -20,18 +21,24 @@ type Filter struct {
 	Last int         // if > 0, keep only the last N rows after filtering+sorting (most recent first)
 }
 
-// List reads transactions, applies the filter, and returns them sorted by
-// date descending.
-func List(ctx context.Context, client *sheets.Client, f Filter, force bool) ([]Transaction, error) {
-	_, rows, err := client.ReadTable(ctx, Tab, force)
+// List reads transactions from the local database, applies the filter, and
+// returns them sorted by date descending.
+func List(ctx context.Context, store *storage.Store, f Filter, _ bool) ([]Transaction, error) {
+	rows, err := store.DB().QueryContext(ctx, `
+		SELECT id, date, kind, account, amount_cents, category, subcategory, payee, note
+		FROM transactions
+		ORDER BY date DESC, id DESC
+	`)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", Tab, err)
 	}
-	out := make([]Transaction, 0, len(rows))
-	for _, r := range rows {
-		t := parseRow(r)
-		if t.Date.IsZero() {
-			continue
+	defer rows.Close()
+
+	var out []Transaction
+	for rows.Next() {
+		t, err := scanTransaction(rows)
+		if err != nil {
+			return nil, err
 		}
 		if f.Kind != "" && t.Kind != f.Kind {
 			continue
@@ -44,22 +51,74 @@ func List(ctx context.Context, client *sheets.Client, f Filter, force bool) ([]T
 		}
 		out = append(out, t)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Date.After(out[j].Date.Time) })
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Date.After(out[j].Date.Time) })
 	if f.Last > 0 && len(out) > f.Last {
 		out = out[:f.Last]
 	}
 	return out, nil
 }
 
-// Append writes one or more transactions to the end of the sheet (atomic
-// from the user's POV — one API call).
-func Append(ctx context.Context, client *sheets.Client, txns []Transaction) error {
+// Append writes one or more transactions locally and enqueues one sheet mirror
+// refresh in the same transaction.
+func Append(ctx context.Context, store *storage.Store, txns []Transaction) error {
 	if len(txns) == 0 {
 		return nil
 	}
-	rows := make([][]any, len(txns))
-	for i, t := range txns {
-		rows[i] = []any{
+	tx, err := store.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for _, t := range txns {
+		if _, err := tx.Exec(`
+			INSERT INTO transactions (
+				date, kind, account, amount_cents, category, subcategory, payee, note
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`,
+			t.Date.ISO(),
+			string(t.Kind),
+			t.Account,
+			int64(t.Amount),
+			t.Category,
+			t.Subcategory,
+			t.Payee,
+			t.Note,
+		); err != nil {
+			return fmt.Errorf("insert %s: %w", Tab, err)
+		}
+	}
+	if err := store.EnqueueSheetSync(tx, Tab); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit %s: %w", Tab, err)
+	}
+	return nil
+}
+
+// SheetRows returns the source-tab rows for the Google Sheets mirror.
+func SheetRows(ctx context.Context, store *storage.Store) ([][]any, error) {
+	rows, err := store.DB().QueryContext(ctx, `
+		SELECT id, date, kind, account, amount_cents, category, subcategory, payee, note
+		FROM transactions
+		ORDER BY date, id
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("read %s mirror rows: %w", Tab, err)
+	}
+	defer rows.Close()
+
+	var out [][]any
+	for rows.Next() {
+		t, err := scanTransaction(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, []any{
 			t.Date.ISO(),
 			string(t.Kind),
 			t.Account,
@@ -69,32 +128,40 @@ func Append(ctx context.Context, client *sheets.Client, txns []Transaction) erro
 			t.Payee,
 			t.Note,
 			t.ID,
-		}
+		})
 	}
-	return client.AppendRows(ctx, Tab, rows)
+	return out, rows.Err()
 }
 
-func parseRow(r []any) Transaction {
-	get := func(i int) any {
-		if i >= len(r) {
-			return nil
-		}
-		return r[i]
+type transactionScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanTransaction(row transactionScanner) (Transaction, error) {
+	var id int64
+	var dateStr, kind string
+	var amount int64
+	t := Transaction{}
+	if err := row.Scan(
+		&id,
+		&dateStr,
+		&kind,
+		&t.Account,
+		&amount,
+		&t.Category,
+		&t.Subcategory,
+		&t.Payee,
+		&t.Note,
+	); err != nil {
+		return Transaction{}, fmt.Errorf("scan %s: %w", Tab, err)
 	}
-	t := Transaction{
-		Kind:        Kind(sheets.CellString(get(1))),
-		Account:     sheets.CellString(get(2)),
-		Category:    sheets.CellString(get(4)),
-		Subcategory: sheets.CellString(get(5)),
-		Payee:       sheets.CellString(get(6)),
-		Note:        sheets.CellString(get(7)),
-		ID:          sheets.CellString(get(8)),
+	d, err := kernel.ParseDate(dateStr)
+	if err != nil {
+		return Transaction{}, fmt.Errorf("parse transaction date: %w", err)
 	}
-	if d, ok := sheets.CellDate(get(0)); ok {
-		t.Date = d
-	}
-	if m, ok := sheets.CellMoney(get(3)); ok {
-		t.Amount = m
-	}
-	return t
+	t.ID = strconv.FormatInt(id, 10)
+	t.Date = d
+	t.Kind = Kind(kind)
+	t.Amount = kernel.Money(amount)
+	return t, nil
 }

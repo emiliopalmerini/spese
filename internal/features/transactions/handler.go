@@ -8,7 +8,7 @@ import (
 
 	"spese/internal/features/accounts"
 	"spese/internal/kernel"
-	"spese/internal/sheets"
+	"spese/internal/storage"
 )
 
 // Renderer is the minimal template interface this slice needs.
@@ -18,7 +18,7 @@ type Renderer interface {
 
 // Handler owns the HTTP endpoints for income + expense entry and listing.
 type Handler struct {
-	Client *sheets.Client
+	Store  *storage.Store
 	Logger *slog.Logger
 	Render Renderer
 }
@@ -37,13 +37,13 @@ type ListView struct {
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	txns, err := List(r.Context(), h.Client, Filter{}, false)
+	txns, err := List(r.Context(), h.Store, Filter{}, false)
 	if err != nil {
 		h.Logger.Error("list transactions", "err", err)
 		http.Error(w, "failed to load transactions", http.StatusBadGateway)
 		return
 	}
-	accs, err := accounts.List(r.Context(), h.Client, false)
+	accs, err := accounts.List(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("list accounts", "err", err)
 		http.Error(w, "failed to load accounts", http.StatusBadGateway)
@@ -64,14 +64,14 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := Append(r.Context(), h.Client, []Transaction{t}); err != nil {
+	if err := Append(r.Context(), h.Store, []Transaction{t}); err != nil {
 		h.Logger.Error("append transaction", "err", err)
 		http.Error(w, "failed to write transaction", http.StatusBadGateway)
 		return
 	}
 	// Refresh and re-render so HTMX can swap.
-	txns, _ := List(r.Context(), h.Client, Filter{}, true)
-	accs, _ := accounts.List(r.Context(), h.Client, false)
+	txns, _ := List(r.Context(), h.Store, Filter{}, true)
+	accs, _ := accounts.List(r.Context(), h.Store, false)
 	_ = h.Render.Render(w, "transactions/list", ListView{Transactions: BuildListViewRows(txns, transactionListLimit), Accounts: accs})
 }
 

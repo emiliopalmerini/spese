@@ -16,13 +16,14 @@ import (
 	"spese/internal/features/accounts"
 	"spese/internal/features/actions"
 	"spese/internal/features/dashboard"
-	"spese/internal/features/recurring"
 	"spese/internal/features/reports"
 	"spese/internal/features/snapshots"
 	"spese/internal/features/transactions"
 	"spese/internal/features/transfers"
 	"spese/internal/render"
+	"spese/internal/sheetmirror"
 	"spese/internal/sheets"
+	"spese/internal/storage"
 	"spese/web"
 )
 
@@ -41,10 +42,28 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	client, err := sheets.New(ctx, cfg.ServiceAccountFile, cfg.SpreadsheetID)
+	store, err := storage.Open(ctx, cfg.DBPath, cfg.HonkerExtensionPath)
 	if err != nil {
-		logger.Error("sheets client", "err", err)
+		logger.Error("storage", "err", err)
 		os.Exit(1)
+	}
+	defer store.Close()
+
+	if cfg.SpreadsheetID != "" && cfg.ServiceAccountFile != "" {
+		client, err := sheets.New(ctx, cfg.ServiceAccountFile, cfg.SpreadsheetID)
+		if err != nil {
+			logger.Error("sheets client", "err", err)
+			os.Exit(1)
+		}
+		mirror := &sheetmirror.Processor{Store: store, Client: client, Logger: logger}
+		go func() {
+			if err := mirror.Run(ctx); err != nil {
+				logger.Error("sheet mirror", "err", err)
+				cancel()
+			}
+		}()
+	} else {
+		logger.Info("sheet mirror disabled; GOOGLE_SPREADSHEET_ID or GOOGLE_SERVICE_ACCOUNT_FILE missing")
 	}
 
 	tmpl, err := render.Load(web.TemplatesFS)
@@ -55,14 +74,13 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	(&dashboard.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/")
-	(&actions.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/actions")
-	(&accounts.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/accounts")
-	(&transactions.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/transactions")
-	(&transfers.Handler{Client: client, Logger: logger}).Mount(mux, "/transfers")
-	(&snapshots.Handler{Client: client, Logger: logger}).Mount(mux, "/snapshots")
-	(&recurring.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/recurring")
-	(&reports.Handler{Client: client, Logger: logger, Render: tmpl}).Mount(mux, "/reports")
+	(&dashboard.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/")
+	(&actions.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/actions")
+	(&accounts.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/accounts")
+	(&transactions.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/transactions")
+	(&transfers.Handler{Store: store, Logger: logger}).Mount(mux, "/transfers")
+	(&snapshots.Handler{Store: store, Logger: logger}).Mount(mux, "/snapshots")
+	(&reports.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/reports")
 
 	staticFS, err := fs.Sub(web.StaticFS, "static")
 	if err != nil {
@@ -79,18 +97,6 @@ func main() {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-
-	// Recurring processor in a goroutine; stops when ctx is cancelled.
-	proc := &recurring.Processor{
-		Client:   client,
-		Logger:   logger,
-		Interval: cfg.RecurringProcessorInterval,
-	}
-	go func() {
-		if err := proc.Run(ctx); err != nil {
-			logger.Error("recurring processor", "err", err)
-		}
-	}()
 
 	// HTTP server lifecycle.
 	go func() {

@@ -17,7 +17,7 @@ Spese is a Go single-binary HTMX application backed by Google Sheets. The entry 
 
 ## Coding Style & Naming Conventions
 
-Use `gofmt -s` for all Go code; `make fmt` applies it repository-wide. Keep packages small and domain-oriented. Prefer existing vertical-slice boundaries over technical-layer directories. Name feature packages by domain nouns such as `accounts`, `transactions`, and `recurring`. Keep sheet writes append-only unless the architecture decision records say otherwise. Add comments only for non-obvious intent, invariants, or external constraints.
+Use `gofmt -s` for all Go code; `make fmt` applies it repository-wide. Keep packages small and domain-oriented. Prefer existing vertical-slice boundaries over technical-layer directories. Name feature packages by domain nouns such as `accounts`, `transactions`, and `snapshots`. Keep sheet writes append-only unless the architecture decision records say otherwise. Add comments only for non-obvious intent, invariants, or external constraints.
 
 ## Testing Guidelines
 
@@ -29,4 +29,4 @@ History uses Conventional Commits, for example `fix(sheets): treat missing tab a
 
 ## Security & Configuration Tips
 
-Do not commit `.env` files, Google service-account JSON, spreadsheet IDs from private environments, or local database artifacts. Configure local runs with `GOOGLE_SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_FILE`, optional `SPESE_PORT`, and `RECURRING_PROCESSOR_INTERVAL`.
+Do not commit `.env` files, Google service-account JSON, spreadsheet IDs from private environments, or local database artifacts. Configure local runs with `GOOGLE_SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_FILE`, optional `SPESE_PORT`, `SPESE_DB_PATH`, and `HONKER_EXTENSION_PATH`.

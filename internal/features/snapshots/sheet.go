@@ -5,33 +5,41 @@ import (
 	"fmt"
 
 	"spese/internal/kernel"
-	"spese/internal/sheets"
+	"spese/internal/storage"
 )
 
-// Tab is the sheet tab name for this slice.
+// Tab is the sheet tab name this slice mirrors to.
 const Tab = "snapshots"
 
-// List reads all snapshot rows.
-func List(ctx context.Context, client *sheets.Client, force bool) ([]Snapshot, error) {
-	_, rows, err := client.ReadTable(ctx, Tab, force)
+// List reads canonical snapshot rows from the local database. If several
+// bilanci exist for the same account and month, only the newest batch is
+// returned so month totals cannot double-count older submissions.
+func List(ctx context.Context, store *storage.Store, _ bool) ([]Snapshot, error) {
+	rows, err := store.DB().QueryContext(ctx, canonicalSnapshotsSQL+`
+		SELECT effective_month, account, balance_cents, note
+		FROM canonical_snapshots
+		ORDER BY effective_month, account
+	`)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", Tab, err)
 	}
-	out := make([]Snapshot, 0, len(rows))
-	for _, r := range rows {
-		s := parseRow(r)
-		if s.Account == "" || s.Month.IsZero() {
-			continue
+	defer rows.Close()
+
+	var out []Snapshot
+	for rows.Next() {
+		s, err := scanSnapshot(rows)
+		if err != nil {
+			return nil, err
 		}
 		out = append(out, s)
 	}
-	return out, nil
+	return out, rows.Err()
 }
 
 // LatestPerAccount returns the most recent snapshot per account, keyed by
 // account name.
-func LatestPerAccount(ctx context.Context, client *sheets.Client, force bool) (map[string]Snapshot, error) {
-	all, err := List(ctx, client, force)
+func LatestPerAccount(ctx context.Context, store *storage.Store, force bool) (map[string]Snapshot, error) {
+	all, err := List(ctx, store, force)
 	if err != nil {
 		return nil, err
 	}
@@ -45,10 +53,51 @@ func LatestPerAccount(ctx context.Context, client *sheets.Client, force bool) (m
 	return latest, nil
 }
 
-// Append writes one or more snapshot rows.
-func Append(ctx context.Context, client *sheets.Client, snaps []Snapshot) error {
+// Append writes one bilancio batch locally and enqueues a canonical sheet
+// mirror refresh in the same transaction.
+func Append(ctx context.Context, store *storage.Store, snaps []Snapshot) error {
 	if len(snaps) == 0 {
 		return nil
+	}
+	tx, err := store.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	batch, err := tx.Exec(`
+		INSERT INTO snapshot_batches (effective_month)
+		VALUES (?)
+	`, snaps[0].Month.FirstOfMonth().Month())
+	if err != nil {
+		return fmt.Errorf("insert snapshot batch: %w", err)
+	}
+	batchID, err := batch.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("snapshot batch id: %w", err)
+	}
+	for _, s := range snaps {
+		if _, err := tx.Exec(`
+			INSERT INTO snapshot_balances (batch_id, account, balance_cents, note)
+			VALUES (?, ?, ?, ?)
+		`, batchID, s.Account, int64(s.Balance), s.Note); err != nil {
+			return fmt.Errorf("insert snapshot balance: %w", err)
+		}
+	}
+	if err := store.EnqueueSheetSync(tx, Tab); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit %s: %w", Tab, err)
+	}
+	return nil
+}
+
+// SheetRows returns canonical source-tab rows for the Google Sheets mirror.
+func SheetRows(ctx context.Context, store *storage.Store) ([][]any, error) {
+	snaps, err := List(ctx, store, false)
+	if err != nil {
+		return nil, err
 	}
 	rows := make([][]any, len(snaps))
 	for i, s := range snaps {
@@ -59,27 +108,47 @@ func Append(ctx context.Context, client *sheets.Client, snaps []Snapshot) error 
 			s.Note,
 		}
 	}
-	return client.AppendRows(ctx, Tab, rows)
+	return rows, nil
 }
 
-func parseRow(r []any) Snapshot {
-	get := func(i int) any {
-		if i >= len(r) {
-			return nil
-		}
-		return r[i]
+const canonicalSnapshotsSQL = `
+	WITH canonical_snapshots AS (
+		SELECT effective_month, account, balance_cents, note
+		FROM (
+			SELECT
+				b.effective_month,
+				sb.account,
+				sb.balance_cents,
+				sb.note,
+				row_number() OVER (
+					PARTITION BY b.effective_month, sb.account
+					ORDER BY b.captured_at DESC, b.id DESC
+				) AS rn
+			FROM snapshot_balances sb
+			JOIN snapshot_batches b ON b.id = sb.batch_id
+		)
+		WHERE rn = 1
+	)
+`
+
+type snapshotScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanSnapshot(row snapshotScanner) (Snapshot, error) {
+	var monthStr string
+	var amount int64
+	s := Snapshot{}
+	if err := row.Scan(&monthStr, &s.Account, &amount, &s.Note); err != nil {
+		return Snapshot{}, fmt.Errorf("scan %s: %w", Tab, err)
 	}
-	s := Snapshot{
-		Account: sheets.CellString(get(1)),
-		Note:    sheets.CellString(get(3)),
+	month, err := kernel.ParseDate(monthStr)
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("parse snapshot month: %w", err)
 	}
-	if d, ok := sheets.CellDate(get(0)); ok {
-		s.Month = d.FirstOfMonth()
-	}
-	if m, ok := sheets.CellMoney(get(2)); ok {
-		s.Balance = m
-	}
-	return s
+	s.Month = month.FirstOfMonth()
+	s.Balance = kernel.Money(amount)
+	return s, nil
 }
 
 // dateOrEmpty is unused now but kept for the symmetry with accounts.sheet.go.

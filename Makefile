@@ -58,7 +58,7 @@ test: fmt
 	go test -race -cover $(PKG)
 
 build: fmt
-	CGO_ENABLED=0 go build -ldflags='-s -w' -o $(BIN) ./cmd/spese
+	go build -ldflags='-s -w' -o $(BIN) ./cmd/spese
 
 run:
 	go run ./cmd/spese

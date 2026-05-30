@@ -1216,8 +1216,7 @@ details.form-card form {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .transactions .form-card form,
-  .recurring .form-card form {
+  .transactions .form-card form {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 

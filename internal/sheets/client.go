@@ -129,6 +129,27 @@ func (c *Client) AppendRows(ctx context.Context, tab string, rows [][]any) error
 	return nil
 }
 
+// ReplaceRows clears a tab and writes the supplied rows from A1. It is used by
+// the SQLite-to-Sheets mirror, where the sheet is derived state.
+func (c *Client) ReplaceRows(ctx context.Context, tab string, rows [][]any) error {
+	_, err := c.svc.Spreadsheets.Values.Clear(c.spreadsheetID, tab, &sheets.ClearValuesRequest{}).
+		Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("sheets clear %s: %w", tab, err)
+	}
+	if len(rows) > 0 {
+		vr := &sheets.ValueRange{Values: rows}
+		_, err = c.svc.Spreadsheets.Values.Update(c.spreadsheetID, tab+"!A1", vr).
+			ValueInputOption("USER_ENTERED").
+			Context(ctx).Do()
+		if err != nil {
+			return fmt.Errorf("sheets update %s: %w", tab, err)
+		}
+	}
+	c.invalidate(tab)
+	return nil
+}
+
 // Invalidate drops cached reads for any range starting with tabPrefix.
 // Call this manually if a feature edits cells outside its own AppendRows.
 func (c *Client) Invalidate(tabPrefix string) { c.invalidate(tabPrefix) }
