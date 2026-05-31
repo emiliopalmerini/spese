@@ -26,8 +26,7 @@ func TestMigrateAddsAccountColumnsToLegacyDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	store := &Store{db: db}
-	if err := store.migrate(context.Background()); err != nil {
+	if err := MigrateSQLite(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
 

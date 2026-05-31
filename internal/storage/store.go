@@ -22,6 +22,11 @@ type Store struct {
 	db     *sql.DB
 }
 
+type SQLRunner interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
 // SheetSyncPayload is the durable outbox message written after local changes.
 type SheetSyncPayload struct {
 	Scope string `json:"scope"`
@@ -79,20 +84,27 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) migrate(ctx context.Context) error {
+	return MigrateSQLite(ctx, s.db)
+}
+
+// MigrateSQLite applies the app schema to a plain SQLite handle. It is used by
+// the server after Honker opens the database and by one-off maintenance tools
+// that do not need to load the Honker extension.
+func MigrateSQLite(ctx context.Context, db SQLRunner) error {
 	schema, err := schemaFS.ReadFile("schema.sql")
 	if err != nil {
 		return fmt.Errorf("read schema: %w", err)
 	}
-	if _, err := s.db.ExecContext(ctx, string(schema)); err != nil {
+	if _, err := db.ExecContext(ctx, string(schema)); err != nil {
 		return fmt.Errorf("migrate db: %w", err)
 	}
-	if err := ensureAccountColumns(ctx, s.db); err != nil {
+	if err := ensureAccountColumns(ctx, db); err != nil {
 		return fmt.Errorf("migrate accounts: %w", err)
 	}
 	return nil
 }
 
-func ensureAccountColumns(ctx context.Context, db *sql.DB) error {
+func ensureAccountColumns(ctx context.Context, db SQLRunner) error {
 	rows, err := db.QueryContext(ctx, "PRAGMA table_info(accounts)")
 	if err != nil {
 		return err

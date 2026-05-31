@@ -10,27 +10,29 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        spesePackage = subPackages: mainProgram: pkgs.buildGoModule {
+          pname = mainProgram;
+          version = "0.2.0";
+          src = ./.;
+
+          # Recompute with `nix build` if go.mod changes.
+          vendorHash = "sha256-y1BIP/Pi2yDeTmv5Vk+WUTtBQktiNfQTVdt3obUK8L0=";
+
+          ldflags = [ "-s" "-w" ];
+          inherit subPackages;
+
+          meta = with pkgs.lib; {
+            description = "Personal net worth + expense tracker backed by Google Sheets";
+            homepage = "https://github.com/emiliopalmerini/spese";
+            license = licenses.mit;
+            inherit mainProgram;
+          };
+        };
       in
       {
         packages = {
-          default = pkgs.buildGoModule {
-            pname = "spese";
-            version = "0.2.0";
-            src = ./.;
-
-            # Recompute with `nix build` if go.mod changes.
-            vendorHash = "sha256-y1BIP/Pi2yDeTmv5Vk+WUTtBQktiNfQTVdt3obUK8L0=";
-
-            ldflags = [ "-s" "-w" ];
-            subPackages = [ "cmd/spese" ];
-
-            meta = with pkgs.lib; {
-              description = "Personal net worth + expense tracker backed by Google Sheets";
-              homepage = "https://github.com/emiliopalmerini/spese";
-              license = licenses.mit;
-              mainProgram = "spese";
-            };
-          };
+          default = spesePackage [ "cmd/spese" ] "spese";
+          import-sheets = spesePackage [ "cmd/spese-import-sheets" ] "spese-import-sheets";
 
           docker = pkgs.dockerTools.buildLayeredImage {
             name = "spese";
