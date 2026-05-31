@@ -49,21 +49,23 @@ func main() {
 	}
 	defer store.Close()
 
-	if cfg.SpreadsheetID != "" && cfg.ServiceAccountFile != "" {
+	switch cfg.ResolvedSheetMirrorBackend() {
+	case config.SheetMirrorBackendGoogle:
 		client, err := sheets.New(ctx, cfg.ServiceAccountFile, cfg.SpreadsheetID)
 		if err != nil {
 			logger.Error("sheets client", "err", err)
 			os.Exit(1)
 		}
-		mirror := &sheetmirror.Processor{Store: store, Client: client, Logger: logger}
-		go func() {
-			if err := mirror.Run(ctx); err != nil {
-				logger.Error("sheet mirror", "err", err)
-				cancel()
-			}
-		}()
-	} else {
-		logger.Info("sheet mirror disabled; GOOGLE_SPREADSHEET_ID or GOOGLE_SERVICE_ACCOUNT_FILE missing")
+		startSheetMirror(ctx, cancel, store, client, logger, "google")
+	case config.SheetMirrorBackendLocal:
+		client, err := sheets.NewFileClient(cfg.LocalSheetPath)
+		if err != nil {
+			logger.Error("local sheets client", "err", err)
+			os.Exit(1)
+		}
+		startSheetMirror(ctx, cancel, store, client, logger, "local", "path", cfg.LocalSheetPath)
+	case config.SheetMirrorBackendNone:
+		logger.Info("sheet mirror disabled")
 	}
 
 	tmpl, err := render.Load(web.TemplatesFS)
@@ -73,6 +75,10 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok\n"))
+	})
 
 	(&dashboard.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/")
 	(&actions.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/actions")
@@ -119,4 +125,17 @@ func main() {
 		logger.Error("shutdown", "err", err)
 	}
 	cancel()
+}
+
+func startSheetMirror(ctx context.Context, cancel context.CancelFunc, store *storage.Store, client sheetmirror.SheetWriter, logger *slog.Logger, backend string, attrs ...any) {
+	args := append([]any{"backend", backend}, attrs...)
+	logger.Info("sheet mirror enabled", args...)
+
+	mirror := &sheetmirror.Processor{Store: store, Client: client, Logger: logger}
+	go func() {
+		if err := mirror.Run(ctx); err != nil {
+			logger.Error("sheet mirror", "err", err)
+			cancel()
+		}
+	}()
 }

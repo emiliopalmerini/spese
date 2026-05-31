@@ -13,7 +13,7 @@ Stack: Go, HTMX, SQLite, Honker, Google Sheets API, Docker, Docker Compose, Make
 - Go 1.22+
 - Docker + Docker Compose (for containers)
 - Honker SQLite extension
-- Google Sheets API access via service account when sheet mirroring is enabled
+- Google Sheets API access via service account when Google sheet mirroring is enabled
 
 ## Local Execution
 
@@ -25,19 +25,32 @@ Example `.env` (base names without year; the app automatically prefixes the curr
 
 ```bash
 SPESE_PORT=8080
-SPESE_DB_PATH=./spese.db
+SPESE_DB_PATH=tmp/spese-local.db
 HONKER_EXTENSION_PATH=/path/to/libhonker_ext.dylib
-GOOGLE_SPREADSHEET_ID=...
-# Google Service Account
+SPESE_SHEET_MIRROR_BACKEND=local
+SPESE_LOCAL_SHEET_PATH=tmp/local-sheet.json
+
+# For Google mirroring instead:
+# SPESE_SHEET_MIRROR_BACKEND=google
+# GOOGLE_SPREADSHEET_ID=...
 # GOOGLE_SERVICE_ACCOUNT_FILE=/path/to/service-account.json
 ```
 
 2) Start the app:
 
 - `make run` for local development (with graceful shutdown)
+- `make run-local` to force the Honker worker to mirror into `tmp/local-sheet.json`
 - `make docker-up` for execution via Docker Compose
 
 App available at `http://localhost:8080` (`SPESE_PORT` variable).
+
+To exercise the HTTP write path, Honker queue, worker, and local mirror output:
+
+```bash
+make run-local
+# in another shell
+make smoke-local
+```
 
 **Security and Performance:**
 - Rate limiting: 60 requests per minute per IP
@@ -51,6 +64,8 @@ See `.env.example` for defaults. Main variables:
 - `SPESE_PORT`: HTTP port (default: 8080)
 - `SPESE_DB_PATH`: SQLite database path (default: `./spese.db`)
 - `HONKER_EXTENSION_PATH`: Honker SQLite extension path
+- `SPESE_SHEET_MIRROR_BACKEND`: `auto`, `google`, `local`, or `none` (default: `auto`)
+- `SPESE_LOCAL_SHEET_PATH`: JSON output path for `local` mirror mode (default: `tmp/local-sheet.json`)
 - `GOOGLE_SPREADSHEET_ID`: Google Sheets document ID
 
 Google Service Account:
@@ -62,7 +77,8 @@ Google Service Account:
 - `make tidy`: manage Go modules
 - `make build`: compile binary
 - `make run`: run app locally
-- `make sqlc-generate`: regenerate sqlc code after schema changes
+- `make run-local`: run app locally with Honker worker mirroring to `tmp/local-sheet.json`
+- `make smoke-local`: post smoke data and verify the local sheet mirror
 - `make test`: unit tests with race/coverage
 - `make lint`: lints and vet
 - `make fmt`: format code
@@ -76,7 +92,7 @@ The application runs as a single binary:
 
 1. **HTTP Server**: Handles web requests with HTMX frontend
 2. **Honker Queue**: Records durable sheet-sync work in the same SQLite transaction as each write
-3. **Sheet Mirror**: Rebuilds Google Sheets source tabs from SQLite when Google credentials are configured
+3. **Sheet Mirror**: Rebuilds source tabs from SQLite through Honker, writing either Google Sheets or a local JSON sheet file
 
 Benefits:
 - **Simplicity**: Single deployment unit
@@ -101,7 +117,7 @@ Benefits:
 - Generate JSON credentials for the service account
 - Share your spreadsheet with the service account email address
 - Set `GOOGLE_SERVICE_ACCOUNT_FILE=/path/to/service-account.json`
-- Start the app with `SPESE_DB_PATH`, `HONKER_EXTENSION_PATH`, and service account variables set.
+- Start the app with `SPESE_SHEET_MIRROR_BACKEND=google`, `SPESE_DB_PATH`, `HONKER_EXTENSION_PATH`, and service account variables set.
 
 **Service Account Security:**
 - Credentials file should be stored securely with restricted permissions (e.g., 0600)
@@ -115,8 +131,6 @@ Troubleshooting Service Account (Docker):
 ## Health & Readiness
 
 - `GET /healthz`: quick health check (always 200 if process is alive)
-- `GET /readyz`: readiness check (includes dependency verification)
-- `GET /metrics`: application and security metrics (Prometheus format)
 
 ## Deploy
 

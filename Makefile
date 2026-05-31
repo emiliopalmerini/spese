@@ -2,7 +2,7 @@ APP_NAME := spese
 PKG := ./...
 BIN := bin/$(APP_NAME)
 
-.PHONY: all help setup tidy fmt vet lint test build run clean dev nix-build nix-docker
+.PHONY: all help setup tidy fmt vet lint test build run run-local smoke-local clean dev nix-build nix-docker
 
 all: help
 
@@ -22,6 +22,8 @@ help: ## Show this help message
 	@echo ""
 	@echo "Run:"
 	@echo "  run            Run application locally"
+	@echo "  run-local      Run with Honker worker mirroring to tmp/local-sheet.json"
+	@echo "  smoke-local    Smoke-test local worker output"
 	@echo ""
 	@echo "Code quality:"
 	@echo "  fmt            Format Go code"
@@ -62,6 +64,13 @@ build: fmt
 
 run:
 	go run ./cmd/spese
+
+run-local:
+	mkdir -p tmp
+	SPESE_DB_PATH=$${SPESE_DB_PATH:-tmp/spese-local.db} SPESE_SHEET_MIRROR_BACKEND=local SPESE_LOCAL_SHEET_PATH=$${SPESE_LOCAL_SHEET_PATH:-tmp/local-sheet.json} go run ./cmd/spese
+
+smoke-local:
+	SPESE_SHEET_MIRROR_BACKEND=local SPESE_LOCAL_SHEET_PATH=$${SPESE_LOCAL_SHEET_PATH:-tmp/local-sheet.json} scripts/smoke.sh
 
 clean:
 	rm -rf bin result result-*

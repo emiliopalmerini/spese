@@ -1,4 +1,4 @@
-// Package sheetmirror syncs local SQLite source data to Google Sheets.
+// Package sheetmirror syncs local SQLite source data to sheet targets.
 package sheetmirror
 
 import (
@@ -12,7 +12,6 @@ import (
 	"spese/internal/features/accounts"
 	"spese/internal/features/snapshots"
 	"spese/internal/features/transactions"
-	"spese/internal/sheets"
 	"spese/internal/storage"
 )
 
@@ -23,8 +22,14 @@ const workerID = "spese-sheet-mirror"
 // same account/month never leak into the sheet.
 type Processor struct {
 	Store  *storage.Store
-	Client *sheets.Client
+	Client SheetWriter
 	Logger *slog.Logger
+}
+
+// SheetWriter is the output port used by the mirror worker. Google Sheets and
+// local test sinks both implement it.
+type SheetWriter interface {
+	ReplaceRows(ctx context.Context, tab string, rows [][]any) error
 }
 
 // Run blocks until ctx is cancelled.

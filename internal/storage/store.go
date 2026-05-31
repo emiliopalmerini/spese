@@ -86,5 +86,55 @@ func (s *Store) migrate(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, string(schema)); err != nil {
 		return fmt.Errorf("migrate db: %w", err)
 	}
+	if err := ensureAccountColumns(ctx, s.db); err != nil {
+		return fmt.Errorf("migrate accounts: %w", err)
+	}
+	return nil
+}
+
+func ensureAccountColumns(ctx context.Context, db *sql.DB) error {
+	rows, err := db.QueryContext(ctx, "PRAGMA table_info(accounts)")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	columns := make(map[string]bool)
+	for rows.Next() {
+		var (
+			cid      int
+			name     string
+			typ      string
+			notNull  int
+			defaultV sql.NullString
+			primaryK int
+		)
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &defaultV, &primaryK); err != nil {
+			return err
+		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, stmt := range []struct {
+		column string
+		sql    string
+	}{
+		{"class", "ALTER TABLE accounts ADD COLUMN class TEXT NOT NULL DEFAULT 'Other'"},
+		{"currency", "ALTER TABLE accounts ADD COLUMN currency TEXT NOT NULL DEFAULT 'EUR'"},
+		{"active_from", "ALTER TABLE accounts ADD COLUMN active_from TEXT NOT NULL DEFAULT ''"},
+		{"active_to", "ALTER TABLE accounts ADD COLUMN active_to TEXT NOT NULL DEFAULT ''"},
+		{"note", "ALTER TABLE accounts ADD COLUMN note TEXT NOT NULL DEFAULT ''"},
+		{"created_at", "ALTER TABLE accounts ADD COLUMN created_at TEXT NOT NULL DEFAULT ''"},
+	} {
+		if columns[stmt.column] {
+			continue
+		}
+		if _, err := db.ExecContext(ctx, stmt.sql); err != nil {
+			return fmt.Errorf("add column %s: %w", stmt.column, err)
+		}
+	}
 	return nil
 }
