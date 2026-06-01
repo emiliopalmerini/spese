@@ -176,13 +176,14 @@ func TestBuildViewEmptyRowsUseEmptyStates(t *testing.T) {
 }
 
 func TestBuildCategoryChartGroupsAndSortsTransactions(t *testing.T) {
+	may := mustDate(t, "2026-05")
 	chart := buildCategoryChart([]transactions.Transaction{
-		{Kind: transactions.Expense, Amount: kernel.Money(-2000), Category: "Cibo"},
-		{Kind: transactions.Expense, Amount: kernel.Money(-9000), Category: "Casa"},
-		{Kind: transactions.Expense, Amount: kernel.Money(-1000), Category: "Cibo"},
-		{Kind: transactions.Income, Amount: kernel.Money(500000), Category: "Stipendio"},
-		{Kind: transactions.Expense, Amount: kernel.Money(-500), Category: ""},
-	}, transactions.Expense, mustDate(t, "2026-05"))
+		{Date: may, Kind: transactions.Expense, Amount: kernel.Money(-2000), Category: "Cibo"},
+		{Date: may, Kind: transactions.Expense, Amount: kernel.Money(-9000), Category: "Casa"},
+		{Date: may, Kind: transactions.Expense, Amount: kernel.Money(-1000), Category: "Cibo"},
+		{Date: may, Kind: transactions.Income, Amount: kernel.Money(500000), Category: "Stipendio"},
+		{Date: may, Kind: transactions.Expense, Amount: kernel.Money(-500), Category: ""},
+	}, transactions.Expense, may)
 
 	if chart.Empty {
 		t.Fatal("category chart unexpectedly empty")
