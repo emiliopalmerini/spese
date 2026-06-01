@@ -73,6 +73,48 @@ func TestBuildViewSummarizesLatestReportRows(t *testing.T) {
 	}
 }
 
+func TestBuildViewUsesRequestedPeriodForMonthlySummary(t *testing.T) {
+	may := mustDate(t, "2026-05")
+	jun := mustDate(t, "2026-06")
+
+	view := buildView(
+		[]reports.IncomeRow{
+			{Month: may, Revenue: kernel.Money(350000), Expenses: kernel.Money(-140000), NetIncome: kernel.Money(210000), SavingsRate: 0.60},
+		},
+		nil,
+		nil,
+		nil,
+		[]transactions.Transaction{
+			{Date: may, Kind: transactions.Expense, Amount: kernel.Money(-90000), Category: "Casa"},
+			{Date: may, Kind: transactions.Income, Amount: kernel.Money(300000), Category: "Stipendio"},
+		},
+		jun,
+	)
+
+	assertKPI(t, view.KPIs, "Risparmio mese", "0,00 €")
+	assertKPI(t, view.KPIs, "Tasso risparmio", "0.0%")
+	if view.ExpenseBreakdown.Period != "2026-06" {
+		t.Fatalf("expense period = %q, want 2026-06", view.ExpenseBreakdown.Period)
+	}
+	if !view.ExpenseBreakdown.Empty {
+		t.Fatal("expense breakdown should be empty for the requested month")
+	}
+	if view.IncomeComposition.Period != "2026-06" {
+		t.Fatalf("income period = %q, want 2026-06", view.IncomeComposition.Period)
+	}
+	if !view.IncomeComposition.Empty {
+		t.Fatal("income composition should be empty for the requested month")
+	}
+}
+
+func TestDashboardPeriodUsesCurrentMonth(t *testing.T) {
+	got := dashboardPeriod()
+	want := kernel.Today().FirstOfMonth()
+	if !got.Equal(want.Time) {
+		t.Fatalf("dashboard period = %s, want current month %s", got.Month(), want.Month())
+	}
+}
+
 func TestBuildCashFlowChartKeepsLatestTwelveMonths(t *testing.T) {
 	rows := make([]reports.IncomeRow, 0, 14)
 	for month := 1; month <= 14; month++ {

@@ -53,7 +53,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load dashboard", http.StatusBadGateway)
 		return
 	}
-	period := dashboardPeriod(income)
+	period := dashboardPeriod()
 	txns, err := transactions.List(r.Context(), h.Store, transactions.Filter{
 		From: period,
 		To:   nextMonth(period),

@@ -160,12 +160,12 @@ type InvestmentChartRow struct {
 }
 
 func buildView(income []reports.IncomeRow, nw []reports.NwRow, balances []reports.BalanceRow, investments []reports.InvestmentRow, txns []transactions.Transaction, period kernel.Date) View {
-	latestIncome, hasIncome := latestIncomeRow(income)
 	latestNW, hasNW := latestNWRow(nw)
 	investmentChart := buildInvestmentChart(investments)
 	if period.IsZero() {
-		period = dashboardPeriod(income)
+		period = dashboardPeriod()
 	}
+	periodIncome, hasPeriodIncome := incomeRowForPeriod(income, period)
 
 	kpis := []KPI{
 		{
@@ -176,15 +176,15 @@ func buildView(income []reports.IncomeRow, nw []reports.NwRow, balances []report
 		},
 		{
 			Label: "Risparmio mese",
-			Value: moneyOrEmpty(latestIncome.NetIncome, hasIncome),
+			Value: moneyOrEmpty(periodIncome.NetIncome, hasPeriodIncome),
 			Help:  "Entrate meno uscite",
-			Tone:  moneyTone(latestIncome.NetIncome),
+			Tone:  moneyTone(periodIncome.NetIncome),
 		},
 		{
 			Label: "Tasso risparmio",
-			Value: pctOrEmpty(latestIncome.SavingsRate, hasIncome),
+			Value: pctOrEmpty(periodIncome.SavingsRate, hasPeriodIncome),
 			Help:  "Quota del reddito accantonata",
-			Tone:  rateTone(latestIncome.SavingsRate),
+			Tone:  rateTone(periodIncome.SavingsRate),
 		},
 		{
 			Label: "Investimenti",
@@ -285,8 +285,12 @@ func buildCategoryChart(txns []transactions.Transaction, kind transactions.Kind,
 	}
 
 	groups := make(map[string]kernel.Money)
+	period = period.FirstOfMonth()
 	for _, txn := range txns {
 		if txn.Kind != kind {
+			continue
+		}
+		if !txn.Date.FirstOfMonth().Equal(period.Time) {
 			continue
 		}
 		amount := categoryAmount(txn, kind)
@@ -557,6 +561,16 @@ func latestIncomeRow(rows []reports.IncomeRow) (reports.IncomeRow, bool) {
 	return rows[0], true
 }
 
+func incomeRowForPeriod(rows []reports.IncomeRow, period kernel.Date) (reports.IncomeRow, bool) {
+	period = period.FirstOfMonth()
+	for _, row := range rows {
+		if row.Month.FirstOfMonth().Equal(period.Time) {
+			return row, true
+		}
+	}
+	return reports.IncomeRow{}, false
+}
+
 func latestNWRow(rows []reports.NwRow) (reports.NwRow, bool) {
 	rows = latestNwRows(rows, 1)
 	if len(rows) == 0 {
@@ -565,10 +579,7 @@ func latestNWRow(rows []reports.NwRow) (reports.NwRow, bool) {
 	return rows[0], true
 }
 
-func dashboardPeriod(rows []reports.IncomeRow) kernel.Date {
-	if latest, ok := latestIncomeRow(rows); ok {
-		return latest.Month.FirstOfMonth()
-	}
+func dashboardPeriod() kernel.Date {
 	return kernel.Today().FirstOfMonth()
 }
 
