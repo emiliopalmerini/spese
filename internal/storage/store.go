@@ -7,6 +7,7 @@ import (
 	"embed"
 	"fmt"
 
+	_ "github.com/mattn/go-sqlite3"
 	honker "github.com/russellromney/honker-go"
 )
 
@@ -20,6 +21,12 @@ var schemaFS embed.FS
 type Store struct {
 	honker *honker.Database
 	db     *sql.DB
+}
+
+type Tx interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	Commit() error
+	Rollback() error
 }
 
 type SQLRunner interface {
@@ -46,6 +53,33 @@ func Open(ctx context.Context, dbPath, extensionPath string) (*Store, error) {
 	return st, nil
 }
 
+// OpenPlain opens the SQLite database without Honker. Use it when the durable
+// sheet mirror worker is disabled so idle servers do not pay Honker's watcher
+// polling cost.
+func OpenPlain(ctx context.Context, dbPath string) (*Store, error) {
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("open sqlite db: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		PRAGMA journal_mode = WAL;
+		PRAGMA synchronous = NORMAL;
+		PRAGMA busy_timeout = 5000;
+		PRAGMA foreign_keys = ON;
+		PRAGMA cache_size = -32000;
+		PRAGMA temp_store = MEMORY;
+	`); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("sqlite pragmas: %w", err)
+	}
+	st := &Store{db: db}
+	if err := st.migrate(ctx); err != nil {
+		_ = st.Close()
+		return nil, err
+	}
+	return st, nil
+}
+
 // DB returns the database/sql handle for read-side queries.
 func (s *Store) DB() *sql.DB { return s.db }
 
@@ -54,7 +88,14 @@ func (s *Store) Honker() *honker.Database { return s.honker }
 
 // Begin starts a Honker transaction. Writes that need sync should call
 // EnqueueSheetSync before Commit.
-func (s *Store) Begin(ctx context.Context) (*honker.Transaction, error) {
+func (s *Store) Begin(ctx context.Context) (Tx, error) {
+	if s.honker == nil {
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return nil, fmt.Errorf("begin tx: %w", err)
+		}
+		return tx, nil
+	}
 	tx, err := s.honker.Transaction(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
@@ -64,12 +105,19 @@ func (s *Store) Begin(ctx context.Context) (*honker.Transaction, error) {
 
 // EnqueueSheetSync writes a durable Honker queue message in the supplied
 // transaction. This is the transactional outbox for the sheet mirror.
-func (s *Store) EnqueueSheetSync(tx *honker.Transaction, scope string) error {
+func (s *Store) EnqueueSheetSync(tx Tx, scope string) error {
+	if s.honker == nil {
+		return nil
+	}
+	honkerTx, ok := tx.(*honker.Transaction)
+	if !ok {
+		return fmt.Errorf("enqueue sheet sync: transaction is not a honker transaction")
+	}
 	queue := s.honker.Queue(SheetSyncOutboxName, honker.QueueOptions{
 		VisibilityTimeoutS: 300,
 		MaxAttempts:        10,
 	})
-	if _, err := queue.EnqueueTx(tx, SheetSyncPayload{Scope: scope}, honker.EnqueueOptions{}); err != nil {
+	if _, err := queue.EnqueueTx(honkerTx, SheetSyncPayload{Scope: scope}, honker.EnqueueOptions{}); err != nil {
 		return fmt.Errorf("enqueue sheet sync: %w", err)
 	}
 	return nil
@@ -77,10 +125,13 @@ func (s *Store) EnqueueSheetSync(tx *honker.Transaction, scope string) error {
 
 // Close closes the database connection.
 func (s *Store) Close() error {
-	if s == nil || s.honker == nil {
+	if s == nil {
 		return nil
 	}
-	return s.honker.Close()
+	if s.honker != nil {
+		return s.honker.Close()
+	}
+	return s.db.Close()
 }
 
 func (s *Store) migrate(ctx context.Context) error {

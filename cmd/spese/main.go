@@ -40,7 +40,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	store, err := storage.Open(ctx, cfg.DBPath, cfg.HonkerExtensionPath)
+	store, err := storage.OpenPlain(ctx, cfg.DBPath)
 	if err != nil {
 		logger.Error("storage", "err", err)
 		os.Exit(1)
