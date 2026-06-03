@@ -21,8 +21,6 @@ import (
 	"spese/internal/features/transactions"
 	"spese/internal/features/transfers"
 	"spese/internal/render"
-	"spese/internal/sheetmirror"
-	"spese/internal/sheets"
 	"spese/internal/storage"
 	"spese/web"
 )
@@ -49,24 +47,13 @@ func main() {
 	}
 	defer store.Close()
 
-	switch cfg.ResolvedSheetMirrorBackend() {
-	case config.SheetMirrorBackendGoogle:
-		client, err := sheets.New(ctx, cfg.ServiceAccountFile, cfg.SpreadsheetID)
-		if err != nil {
-			logger.Error("sheets client", "err", err)
-			os.Exit(1)
-		}
-		startSheetMirror(ctx, cancel, store, client, logger, "google")
-	case config.SheetMirrorBackendLocal:
-		client, err := sheets.NewFileClient(cfg.LocalSheetPath)
-		if err != nil {
-			logger.Error("local sheets client", "err", err)
-			os.Exit(1)
-		}
-		startSheetMirror(ctx, cancel, store, client, logger, "local", "path", cfg.LocalSheetPath)
-	case config.SheetMirrorBackendNone:
-		logger.Info("sheet mirror disabled")
-	}
+	logger.Info(
+		"sheet mirror disabled",
+		"backend",
+		cfg.ResolvedSheetMirrorBackend(),
+		"reason",
+		"honker idle worker disabled",
+	)
 
 	tmpl, err := render.Load(web.TemplatesFS)
 	if err != nil {
@@ -125,17 +112,4 @@ func main() {
 		logger.Error("shutdown", "err", err)
 	}
 	cancel()
-}
-
-func startSheetMirror(ctx context.Context, cancel context.CancelFunc, store *storage.Store, client sheetmirror.SheetWriter, logger *slog.Logger, backend string, attrs ...any) {
-	args := append([]any{"backend", backend}, attrs...)
-	logger.Info("sheet mirror enabled", args...)
-
-	mirror := &sheetmirror.Processor{Store: store, Client: client, Logger: logger}
-	go func() {
-		if err := mirror.Run(ctx); err != nil {
-			logger.Error("sheet mirror", "err", err)
-			cancel()
-		}
-	}()
 }
