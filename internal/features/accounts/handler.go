@@ -33,13 +33,13 @@ func (h *Handler) Mount(mux *http.ServeMux, prefix string) {
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	accs, err := List(r.Context(), h.Store, false)
+	rows, err := ListWithLatest(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("list accounts", "err", err)
 		http.Error(w, "failed to load accounts", http.StatusBadGateway)
 		return
 	}
-	if err := h.Render.Render(w, "accounts/list", ListView{Accounts: accs}); err != nil {
+	if err := h.Render.Render(w, "accounts/list", ListView{Rows: rows}); err != nil {
 		h.Logger.Error("render accounts list", "err", err)
 	}
 }
@@ -60,8 +60,8 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Re-list after write so HTMX can swap the table.
-	accs, _ := List(r.Context(), h.Store, true)
-	_ = h.Render.Render(w, "accounts/list", ListView{Accounts: accs})
+	rows, _ := ListWithLatest(r.Context(), h.Store, true)
+	_ = h.Render.Render(w, "accounts/list", ListView{Rows: rows})
 }
 
 // parseForm turns submitted form values into an Account, validating the
@@ -112,4 +112,4 @@ func defaultStr(v, fallback string) string {
 }
 
 // ListView is the template payload for the list page.
-type ListView struct{ Accounts []Account }
+type ListView struct{ Rows []AccountRow }

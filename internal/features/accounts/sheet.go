@@ -49,6 +49,108 @@ func List(ctx context.Context, store *storage.Store, _ bool) ([]Account, error) 
 	return out, rows.Err()
 }
 
+// ListWithLatest reads every account with its most recent canonical snapshot.
+func ListWithLatest(ctx context.Context, store *storage.Store, _ bool) ([]AccountRow, error) {
+	return listWithLatest(ctx, store.DB())
+}
+
+func listWithLatest(ctx context.Context, db storage.SQLRunner) ([]AccountRow, error) {
+	rows, err := db.QueryContext(ctx, `
+		WITH canonical_snapshots AS (
+			SELECT effective_month, account, balance_cents
+			FROM (
+				SELECT
+					b.effective_month,
+					sb.account,
+					sb.balance_cents,
+					row_number() OVER (
+						PARTITION BY b.effective_month, sb.account
+						ORDER BY b.captured_at DESC, b.id DESC
+					) AS rn
+				FROM snapshot_balances sb
+				JOIN snapshot_batches b ON b.id = sb.batch_id
+			)
+			WHERE rn = 1
+		),
+		latest AS (
+			SELECT account, effective_month, balance_cents
+			FROM (
+				SELECT
+					account,
+					effective_month,
+					balance_cents,
+					row_number() OVER (
+						PARTITION BY account
+						ORDER BY effective_month DESC
+					) AS rn
+				FROM canonical_snapshots
+			)
+			WHERE rn = 1
+		)
+		SELECT
+			a.name,
+			a.type,
+			a.class,
+			a.currency,
+			a.active_from,
+			a.active_to,
+			a.note,
+			coalesce(l.balance_cents, 0),
+			coalesce(l.effective_month, '')
+		FROM accounts a
+		LEFT JOIN latest l ON l.account = a.name
+		ORDER BY a.name
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("read %s with latest: %w", Tab, err)
+	}
+	defer rows.Close()
+
+	var out []AccountRow
+	for rows.Next() {
+		var row AccountRow
+		var activeFrom, activeTo, latestMonth string
+		var balance int64
+		if err := rows.Scan(
+			&row.Account.Name,
+			&row.Account.Type,
+			&row.Account.Class,
+			&row.Account.Currency,
+			&activeFrom,
+			&activeTo,
+			&row.Account.Note,
+			&balance,
+			&latestMonth,
+		); err != nil {
+			return nil, fmt.Errorf("scan %s with latest: %w", Tab, err)
+		}
+		if activeFrom != "" {
+			d, err := kernel.ParseDate(activeFrom)
+			if err != nil {
+				return nil, fmt.Errorf("parse active_from: %w", err)
+			}
+			row.Account.ActiveFrom = d
+		}
+		if activeTo != "" {
+			d, err := kernel.ParseDate(activeTo)
+			if err != nil {
+				return nil, fmt.Errorf("parse active_to: %w", err)
+			}
+			row.Account.ActiveTo = d
+		}
+		row.LatestBalance = kernel.Money(balance)
+		if latestMonth != "" {
+			d, err := kernel.ParseDate(latestMonth)
+			if err != nil {
+				return nil, fmt.Errorf("parse latest month: %w", err)
+			}
+			row.LatestMonth = d.FirstOfMonth()
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
 // Append writes a new account locally and enqueues a sheet mirror refresh.
 func Append(ctx context.Context, store *storage.Store, a Account) error {
 	tx, err := store.Begin(ctx)

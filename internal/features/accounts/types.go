@@ -37,6 +37,14 @@ type Account struct {
 	Note       string
 }
 
+// AccountRow is the account list view model enriched with the latest known
+// canonical balance snapshot.
+type AccountRow struct {
+	Account       Account
+	LatestBalance kernel.Money
+	LatestMonth   kernel.Date
+}
+
 // IsActive returns true if the account is open on date d. Either bound being
 // zero means open-ended.
 func (a Account) IsActive(d kernel.Date) bool {

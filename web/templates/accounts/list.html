@@ -13,20 +13,24 @@
         <th>Tipo</th>
         <th>Classe</th>
         <th>Valuta</th>
+        <th class="num">Saldo</th>
+        <th>Ultimo aggiornamento</th>
         <th>Note</th>
       </tr>
     </thead>
     <tbody>
-      {{range .Accounts}}
+      {{range .Rows}}
         <tr>
-          <td class="list-cell list-cell--primary" data-label="Nome">{{.Name}}</td>
-          <td class="list-cell list-cell--status" data-label="Tipo">{{.Type}}</td>
-          <td class="list-cell list-cell--secondary" data-label="Classe">{{.Class}}</td>
-          <td class="list-cell list-cell--meta" data-label="Valuta">{{.Currency}}</td>
-          <td class="list-cell list-cell--detail muted" data-label="Note">{{.Note}}</td>
+          <td class="list-cell list-cell--primary" data-label="Nome">{{.Account.Name}}</td>
+          <td class="list-cell list-cell--status" data-label="Tipo">{{.Account.Type}}</td>
+          <td class="list-cell list-cell--secondary" data-label="Classe">{{.Account.Class}}</td>
+          <td class="list-cell list-cell--meta" data-label="Valuta">{{.Account.Currency}}</td>
+          <td class="list-cell list-cell--amount num" data-label="Saldo">{{if .LatestMonth.IsZero}}-{{else}}{{money .LatestBalance}}{{end}}</td>
+          <td class="list-cell list-cell--detail muted" data-label="Ultimo aggiornamento">{{if .LatestMonth.IsZero}}Mai{{else}}{{isodate .LatestMonth}}{{end}}</td>
+          <td class="list-cell list-cell--detail muted" data-label="Note">{{.Account.Note}}</td>
         </tr>
       {{else}}
-        <tr><td colspan="5" class="muted">Nessun conto.</td></tr>
+        <tr><td colspan="7" class="muted">Nessun conto.</td></tr>
       {{end}}
     </tbody>
   </table>

@@ -32,10 +32,13 @@ func TestTemplatesRender(t *testing.T) {
 		Note:     "Uso quotidiano",
 	}
 	accountList := []accounts.Account{account}
+	accountRows := []accounts.AccountRow{
+		{Account: account, LatestBalance: kernel.Money(1234567), LatestMonth: month},
+	}
 
 	cases := map[string]any{
 		"accounts/list": accounts.ListView{
-			Accounts: accountList,
+			Rows: accountRows,
 		},
 		"dashboard/home": dashboard.View{
 			KPIs: []dashboard.KPI{
