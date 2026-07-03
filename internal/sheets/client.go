@@ -25,6 +25,8 @@ type Client struct {
 
 	mu    sync.RWMutex
 	cache map[string]cacheEntry
+
+	writeLimiter *WriteRateLimiter
 }
 
 type cacheEntry struct {
@@ -48,6 +50,11 @@ func New(ctx context.Context, credentialsPath, spreadsheetID string) (*Client, e
 // SpreadsheetID returns the configured spreadsheet ID. Useful for building
 // share links in UI.
 func (c *Client) SpreadsheetID() string { return c.spreadsheetID }
+
+// SetWriteLimiter applies a limiter before every Google Sheets write request.
+func (c *Client) SetWriteLimiter(limiter *WriteRateLimiter) {
+	c.writeLimiter = limiter
+}
 
 // ReadRange returns raw cell values for an A1 range like "transactions!A2:I"
 // or a bare tab name like "accounts". Cached results are revalidated with the
@@ -117,6 +124,9 @@ func (c *Client) AppendRows(ctx context.Context, tab string, rows [][]any) error
 	if len(rows) == 0 {
 		return nil
 	}
+	if err := c.waitForWrite(ctx); err != nil {
+		return fmt.Errorf("sheets append rate limit %s: %w", tab, err)
+	}
 	vr := &sheets.ValueRange{Values: rows}
 	_, err := c.svc.Spreadsheets.Values.Append(c.spreadsheetID, tab, vr).
 		ValueInputOption("USER_ENTERED").
@@ -132,12 +142,18 @@ func (c *Client) AppendRows(ctx context.Context, tab string, rows [][]any) error
 // ReplaceRows clears a tab and writes the supplied rows from A1. It is used by
 // the SQLite-to-Sheets mirror, where the sheet is derived state.
 func (c *Client) ReplaceRows(ctx context.Context, tab string, rows [][]any) error {
+	if err := c.waitForWrite(ctx); err != nil {
+		return fmt.Errorf("sheets clear rate limit %s: %w", tab, err)
+	}
 	_, err := c.svc.Spreadsheets.Values.Clear(c.spreadsheetID, tab, &sheets.ClearValuesRequest{}).
 		Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("sheets clear %s: %w", tab, err)
 	}
 	if len(rows) > 0 {
+		if err := c.waitForWrite(ctx); err != nil {
+			return fmt.Errorf("sheets update rate limit %s: %w", tab, err)
+		}
 		vr := &sheets.ValueRange{Values: rows}
 		_, err = c.svc.Spreadsheets.Values.Update(c.spreadsheetID, tab+"!A1", vr).
 			ValueInputOption("USER_ENTERED").
@@ -153,6 +169,13 @@ func (c *Client) ReplaceRows(ctx context.Context, tab string, rows [][]any) erro
 // Invalidate drops cached reads for any range starting with tabPrefix.
 // Call this manually if a feature edits cells outside its own AppendRows.
 func (c *Client) Invalidate(tabPrefix string) { c.invalidate(tabPrefix) }
+
+func (c *Client) waitForWrite(ctx context.Context) error {
+	if c.writeLimiter == nil {
+		return nil
+	}
+	return c.writeLimiter.Wait(ctx)
+}
 
 func (c *Client) invalidate(tabPrefix string) {
 	c.mu.Lock()

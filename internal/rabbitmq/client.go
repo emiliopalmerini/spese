@@ -242,24 +242,90 @@ func (c *Consumer) runOnce(ctx context.Context, handler DeliveryHandler) error {
 			if !ok {
 				return errors.New("rabbitmq delivery channel closed")
 			}
-			if err := handler(ctx, delivery); err != nil {
-				if c.Logger != nil {
-					c.Logger.Error("sheet sync failed", "message_id", delivery.MessageId, "err", err)
-				}
-				if retryErr := c.retryOrDead(ctx, publishCh, topology, delivery, err); retryErr != nil {
-					_ = delivery.Nack(false, true)
-					return retryErr
-				}
-				if err := delivery.Ack(false); err != nil {
-					return fmt.Errorf("ack failed sheet sync: %w", err)
-				}
-				continue
-			}
-			if err := delivery.Ack(false); err != nil {
-				return fmt.Errorf("ack sheet sync: %w", err)
+			if err := c.handleDelivery(ctx, publishCh, topology, delivery, handler); err != nil {
+				return err
 			}
 		}
 	}
+}
+
+// RunOne processes at most one queued message and then returns. If the queue is
+// empty it returns delivered=false without waiting.
+func (c *Consumer) RunOne(ctx context.Context, handler DeliveryHandler) (delivered bool, err error) {
+	count, err := c.RunAvailable(ctx, 1, handler)
+	return count > 0, err
+}
+
+// RunAvailable processes queued messages until the queue is empty or maxCount
+// is reached. A maxCount <= 0 means no limit. It does not wait for future
+// messages.
+func (c *Consumer) RunAvailable(ctx context.Context, maxCount int, handler DeliveryHandler) (count int, err error) {
+	topology := NewTopology(c.Queue)
+	conn, err := amqp.Dial(c.URL)
+	if err != nil {
+		return 0, fmt.Errorf("connect rabbitmq: %w", err)
+	}
+	defer conn.Close()
+
+	consumeCh, err := conn.Channel()
+	if err != nil {
+		return 0, fmt.Errorf("open consume channel: %w", err)
+	}
+	defer consumeCh.Close()
+	if err := declareTopology(consumeCh, topology); err != nil {
+		return 0, err
+	}
+
+	publishCh, err := conn.Channel()
+	if err != nil {
+		return 0, fmt.Errorf("open retry channel: %w", err)
+	}
+	defer publishCh.Close()
+	if err := publishCh.Confirm(false); err != nil {
+		return 0, fmt.Errorf("enable retry publisher confirms: %w", err)
+	}
+
+	for maxCount <= 0 || count < maxCount {
+		if ctx.Err() != nil {
+			return count, ctx.Err()
+		}
+		delivery, ok, err := consumeCh.Get(topology.MainQueue, false)
+		if err != nil {
+			return count, fmt.Errorf("get sheet sync: %w", err)
+		}
+		if !ok {
+			return count, nil
+		}
+		count++
+		if err := c.handleDelivery(ctx, publishCh, topology, delivery, handler); err != nil {
+			return count, err
+		}
+	}
+	return count, nil
+}
+
+func (c *Consumer) handleDelivery(ctx context.Context, publishCh *amqp.Channel, topology Topology, delivery amqp.Delivery, handler DeliveryHandler) error {
+	if err := handler(ctx, delivery); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			_ = delivery.Nack(false, true)
+			return err
+		}
+		if c.Logger != nil {
+			c.Logger.Error("sheet sync failed", "message_id", delivery.MessageId, "err", err)
+		}
+		if retryErr := c.retryOrDead(ctx, publishCh, topology, delivery, err); retryErr != nil {
+			_ = delivery.Nack(false, true)
+			return retryErr
+		}
+		if err := delivery.Ack(false); err != nil {
+			return fmt.Errorf("ack failed sheet sync: %w", err)
+		}
+		return nil
+	}
+	if err := delivery.Ack(false); err != nil {
+		return fmt.Errorf("ack sheet sync: %w", err)
+	}
+	return nil
 }
 
 func (c *Consumer) retryOrDead(ctx context.Context, ch *amqp.Channel, topology Topology, delivery amqp.Delivery, cause error) error {

@@ -28,6 +28,8 @@ SPESE_PORT=8080
 SPESE_DB_PATH=tmp/spese-local.db
 SPESE_RABBITMQ_URL=amqp://guest:guest@localhost:5672/
 SPESE_RABBITMQ_QUEUE=spese.sheet-sync
+SPESE_WORKER_MODE=daemon
+SPESE_SHEETS_WRITE_RATE_PER_MINUTE=10
 SPESE_SHEET_MIRROR_BACKEND=local
 SPESE_LOCAL_SHEET_PATH=tmp/local-sheet.json
 
@@ -72,6 +74,8 @@ See `.env.example` for defaults. Main variables:
 - `SPESE_LOCAL_SHEET_PATH`: JSON output path for `local` mirror mode (default: `tmp/local-sheet.json`)
 - `SPESE_RABBITMQ_URL`: RabbitMQ/AMQPCloud URL required when sheet mirroring is enabled
 - `SPESE_RABBITMQ_QUEUE`: RabbitMQ queue name (default: `spese.sheet-sync`)
+- `SPESE_WORKER_MODE`: `daemon` to keep consuming, or `once` to drain currently queued messages and exit (default: `daemon`)
+- `SPESE_SHEETS_WRITE_RATE_PER_MINUTE`: Google Sheets write request limit in the worker; `10` spaces writes 6 seconds apart, `0` disables it (default: `10`)
 - `GOOGLE_SPREADSHEET_ID`: Google Sheets document ID
 
 Google Service Account:
@@ -99,7 +103,7 @@ The application runs as two cooperating processes when mirroring is enabled:
 
 1. **HTTP Server**: Handles web requests with HTMX frontend
 2. **SQLite Outbox + Rabbit Publisher**: Records durable sheet-sync work in the same SQLite transaction as each write, then publishes confirmed RabbitMQ messages in the background
-3. **Sheet Mirror Worker**: Consumes RabbitMQ messages and rebuilds source tabs from SQLite, writing either Google Sheets or a local JSON sheet file
+3. **Sheet Mirror Worker**: Consumes RabbitMQ messages and rebuilds source tabs from SQLite, writing either Google Sheets or a local JSON sheet file. Google writes are rate-limited in the worker; production can run the worker in `once` mode from an hourly scheduler.
 
 Benefits:
 - **Simplicity**: Single codebase and container image

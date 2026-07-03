@@ -24,6 +24,8 @@ services:
       - SPESE_DB_PATH=/data/spese.db
       - SPESE_RABBITMQ_URL=${SPESE_RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
       - SPESE_RABBITMQ_QUEUE=${SPESE_RABBITMQ_QUEUE:-spese.sheet-sync}
+      - SPESE_WORKER_MODE=${SPESE_WORKER_MODE:-daemon}
+      - SPESE_SHEETS_WRITE_RATE_PER_MINUTE=${SPESE_SHEETS_WRITE_RATE_PER_MINUTE:-10}
       - SPESE_LOCAL_SHEET_PATH=${SPESE_LOCAL_SHEET_PATH:-/data/local-sheet.json}
       # Google Sheets configuration
       - GOOGLE_SPREADSHEET_ID=${GOOGLE_SPREADSHEET_ID}
