@@ -1,8 +1,9 @@
 APP_NAME := spese
 PKG := ./...
 BIN := bin/$(APP_NAME)
+WORKER_BIN := bin/$(APP_NAME)-worker
 
-.PHONY: all help setup tidy fmt vet lint test build run run-local smoke-local clean dev nix-build nix-docker
+.PHONY: all help setup tidy fmt vet lint test build run run-local run-worker run-worker-local smoke-local clean dev nix-build nix-docker
 
 all: help
 
@@ -22,7 +23,9 @@ help: ## Show this help message
 	@echo ""
 	@echo "Run:"
 	@echo "  run            Run application locally"
-	@echo "  run-local      Run with Honker worker mirroring to tmp/local-sheet.json"
+	@echo "  run-local      Run web app with Rabbit sheet-sync publisher"
+	@echo "  run-worker     Run Rabbit sheet-sync worker"
+	@echo "  run-worker-local Run worker mirroring to tmp/local-sheet.json"
 	@echo "  smoke-local    Smoke-test local worker output"
 	@echo ""
 	@echo "Code quality:"
@@ -61,16 +64,24 @@ test: fmt
 
 build: fmt
 	go build -ldflags='-s -w' -o $(BIN) ./cmd/spese
+	go build -ldflags='-s -w' -o $(WORKER_BIN) ./cmd/spese-worker
 
 run:
 	go run ./cmd/spese
 
 run-local:
 	mkdir -p tmp
-	SPESE_DB_PATH=$${SPESE_DB_PATH:-tmp/spese-local.db} SPESE_SHEET_MIRROR_BACKEND=local SPESE_LOCAL_SHEET_PATH=$${SPESE_LOCAL_SHEET_PATH:-tmp/local-sheet.json} go run ./cmd/spese
+	SPESE_DB_PATH=$${SPESE_DB_PATH:-tmp/spese-local.db} SPESE_SHEET_MIRROR_BACKEND=local SPESE_LOCAL_SHEET_PATH=$${SPESE_LOCAL_SHEET_PATH:-tmp/local-sheet.json} SPESE_RABBITMQ_URL=$${SPESE_RABBITMQ_URL:-amqp://guest:guest@localhost:5672/} go run ./cmd/spese
+
+run-worker:
+	go run ./cmd/spese-worker
+
+run-worker-local:
+	mkdir -p tmp
+	SPESE_DB_PATH=$${SPESE_DB_PATH:-tmp/spese-local.db} SPESE_SHEET_MIRROR_BACKEND=local SPESE_LOCAL_SHEET_PATH=$${SPESE_LOCAL_SHEET_PATH:-tmp/local-sheet.json} SPESE_RABBITMQ_URL=$${SPESE_RABBITMQ_URL:-amqp://guest:guest@localhost:5672/} go run ./cmd/spese-worker
 
 smoke-local:
-	SPESE_SHEET_MIRROR_BACKEND=local SPESE_LOCAL_SHEET_PATH=$${SPESE_LOCAL_SHEET_PATH:-tmp/local-sheet.json} scripts/smoke.sh
+	SPESE_SHEET_MIRROR_BACKEND=local SPESE_LOCAL_SHEET_PATH=$${SPESE_LOCAL_SHEET_PATH:-tmp/local-sheet.json} SPESE_RABBITMQ_URL=$${SPESE_RABBITMQ_URL:-amqp://guest:guest@localhost:5672/} scripts/smoke.sh
 
 clean:
 	rm -rf bin result result-*

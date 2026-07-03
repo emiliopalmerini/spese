@@ -58,7 +58,7 @@ post_form "/transactions" \
   --data-urlencode "note=smoke"
 
 if [[ "${SPESE_SHEET_MIRROR_BACKEND:-}" == "local" || "${VERIFY_LOCAL_SHEET:-}" == "1" ]]; then
-  echo "[smoke] Waiting for Honker worker to write ${SHEET_FILE} ..."
+  echo "[smoke] Waiting for Rabbit worker to write ${SHEET_FILE} ..."
   for _ in {1..50}; do
     if [[ -f "$SHEET_FILE" ]] && grep -Fq "$ACCOUNT" "$SHEET_FILE" && grep -Fq "$PAYEE" "$SHEET_FILE"; then
       echo "[smoke] Local sheet mirror OK"

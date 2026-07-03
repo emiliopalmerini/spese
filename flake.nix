@@ -16,7 +16,7 @@
           src = ./.;
 
           # Recompute with `nix build` if go.mod changes.
-          vendorHash = "sha256-y1BIP/Pi2yDeTmv5Vk+WUTtBQktiNfQTVdt3obUK8L0=";
+          vendorHash = "sha256-SN4cccqmNqvKOUMTiH1KGkpgkBroRVEsGMOv36gYx+A=";
 
           ldflags = [ "-s" "-w" ];
           inherit subPackages;
@@ -31,7 +31,7 @@
       in
       {
         packages = {
-          default = spesePackage [ "cmd/spese" ] "spese";
+          default = spesePackage [ "cmd/spese" "cmd/spese-worker" ] "spese";
           import-sheets = spesePackage [ "cmd/spese-import-sheets" ] "spese-import-sheets";
 
           docker = pkgs.dockerTools.buildLayeredImage {
@@ -70,6 +70,14 @@
         with lib;
         let
           cfg = config.services.spese;
+          serviceEnvironment = {
+            SPESE_DB_PATH = cfg.dbPath;
+            SPESE_RABBITMQ_QUEUE = cfg.rabbitMQQueue;
+            GOOGLE_SPREADSHEET_ID = cfg.googleSpreadsheetId;
+            GOOGLE_SERVICE_ACCOUNT_FILE = toString cfg.googleServiceAccountFile;
+          } // optionalAttrs (cfg.rabbitMQUrl != "") {
+            SPESE_RABBITMQ_URL = cfg.rabbitMQUrl;
+          };
         in
         {
           options.services.spese = {
@@ -104,9 +112,16 @@
               description = "Path to the local SQLite database.";
             };
 
-            honkerExtensionPath = mkOption {
-              type = types.path;
-              description = "Path to the Honker SQLite extension library.";
+            rabbitMQUrl = mkOption {
+              type = types.str;
+              default = "";
+              description = "RabbitMQ or AMQPCloud URL. Prefer environmentFile for secrets.";
+            };
+
+            rabbitMQQueue = mkOption {
+              type = types.str;
+              default = "spese.sheet-sync";
+              description = "RabbitMQ queue name used for sheet-sync messages.";
             };
 
             environmentFile = mkOption {
@@ -147,11 +162,38 @@
 
               environment = {
                 SPESE_PORT = toString cfg.port;
-                SPESE_DB_PATH = cfg.dbPath;
-                HONKER_EXTENSION_PATH = toString cfg.honkerExtensionPath;
-                GOOGLE_SPREADSHEET_ID = cfg.googleSpreadsheetId;
-                GOOGLE_SERVICE_ACCOUNT_FILE = toString cfg.googleServiceAccountFile;
+              } // serviceEnvironment;
+            };
+
+            systemd.services.spese-worker = {
+              description = "Spese sheet sync worker";
+              wantedBy = [ "multi-user.target" ];
+              after = [ "network.target" "spese.service" ];
+
+              serviceConfig = {
+                Type = "simple";
+                ExecStart = "${cfg.package}/bin/spese-worker";
+                Restart = "always";
+                RestartSec = 5;
+
+                # Hardening
+                DynamicUser = true;
+                ProtectSystem = "strict";
+                ProtectHome = true;
+                PrivateTmp = true;
+                NoNewPrivileges = true;
+                ProtectKernelTunables = true;
+                ProtectKernelModules = true;
+                ProtectControlGroups = true;
+                RestrictNamespaces = true;
+                RestrictRealtime = true;
+                RestrictSUIDSGID = true;
+                LockPersonality = true;
+              } // optionalAttrs (cfg.environmentFile != null) {
+                EnvironmentFile = cfg.environmentFile;
               };
+
+              environment = serviceEnvironment;
             };
           };
         };

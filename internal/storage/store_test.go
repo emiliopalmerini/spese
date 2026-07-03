@@ -3,7 +3,9 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -48,4 +50,119 @@ func TestMigrateAddsAccountColumnsToLegacyDatabase(t *testing.T) {
 	if activeFrom != "" || activeTo != "" || note != "" {
 		t.Fatalf("expected empty legacy metadata, got active_from=%q active_to=%q note=%q", activeFrom, activeTo, note)
 	}
+}
+
+func TestEnqueueSheetSyncUsesTransaction(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	store.SetSheetSyncEnabled(true)
+
+	tx, err := store.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.EnqueueSheetSync(tx, "accounts"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	if got := countOutboxRows(t, store.DB()); got != 0 {
+		t.Fatalf("outbox rows after rollback = %d, want 0", got)
+	}
+
+	tx, err = store.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.EnqueueSheetSync(tx, "transactions"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if got := countOutboxRows(t, store.DB()); got != 1 {
+		t.Fatalf("outbox rows after commit = %d, want 1", got)
+	}
+
+	var payloadJSON string
+	if err := store.DB().QueryRow("SELECT payload_json FROM sheet_sync_outbox").Scan(&payloadJSON); err != nil {
+		t.Fatal(err)
+	}
+	var payload SheetSyncPayload
+	if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Version != 1 || payload.Scope != "transactions" || payload.OutboxID == 0 {
+		t.Fatalf("payload = %+v", payload)
+	}
+}
+
+func TestEnqueueSheetSyncDisabledIsNoop(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	tx, err := store.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.EnqueueSheetSync(tx, "accounts"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if got := countOutboxRows(t, store.DB()); got != 0 {
+		t.Fatalf("outbox rows = %d, want 0", got)
+	}
+}
+
+func TestClaimAndMarkSheetSyncOutbox(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	if err := store.EnqueueSheetSyncEvent(ctx, SheetSyncBootstrapScope); err != nil {
+		t.Fatal(err)
+	}
+	msg, ok, err := store.ClaimSheetSyncOutbox(ctx, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("expected claimed message")
+	}
+	if msg.Scope != SheetSyncBootstrapScope || msg.ID == 0 || len(msg.Payload) == 0 || msg.Attempts != 1 {
+		t.Fatalf("message = %+v", msg)
+	}
+	if err := store.MarkSheetSyncPublished(ctx, msg.ID); err != nil {
+		t.Fatal(err)
+	}
+	msg, ok, err = store.ClaimSheetSyncOutbox(ctx, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatalf("unexpected message after publish: %+v", msg)
+	}
+}
+
+func countOutboxRows(t *testing.T, db *sql.DB) int {
+	t.Helper()
+	var count int
+	if err := db.QueryRow("SELECT count(*) FROM sheet_sync_outbox").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	return count
 }

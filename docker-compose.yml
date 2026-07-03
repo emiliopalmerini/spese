@@ -1,16 +1,30 @@
 services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: spese-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - spese_rabbitmq:/var/lib/rabbitmq
+    restart: unless-stopped
+
   spese:
     build: .
     image: spese:dev
     container_name: spese
     env_file:
       - .env
+    depends_on:
+      - rabbitmq
     ports:
       - "${SPESE_PORT:-8081}:${SPESE_PORT:-8081}"
     environment:
       - SPESE_PORT=${SPESE_PORT:-8081}
       - SPESE_DB_PATH=/data/spese.db
-      - HONKER_EXTENSION_PATH=${HONKER_EXTENSION_PATH}
+      - SPESE_RABBITMQ_URL=${SPESE_RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      - SPESE_RABBITMQ_QUEUE=${SPESE_RABBITMQ_QUEUE:-spese.sheet-sync}
+      - SPESE_LOCAL_SHEET_PATH=${SPESE_LOCAL_SHEET_PATH:-/data/local-sheet.json}
       # Google Sheets configuration
       - GOOGLE_SPREADSHEET_ID=${GOOGLE_SPREADSHEET_ID}
       # Service Account credentials for Google Sheets access
@@ -20,5 +34,28 @@ services:
       - spese_data:/data
     restart: unless-stopped
 
+  spese-worker:
+    build: .
+    image: spese:dev
+    container_name: spese-worker
+    command: ["/app/spese-worker"]
+    env_file:
+      - .env
+    depends_on:
+      - rabbitmq
+      - spese
+    environment:
+      - SPESE_DB_PATH=/data/spese.db
+      - SPESE_RABBITMQ_URL=${SPESE_RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      - SPESE_RABBITMQ_QUEUE=${SPESE_RABBITMQ_QUEUE:-spese.sheet-sync}
+      - SPESE_LOCAL_SHEET_PATH=${SPESE_LOCAL_SHEET_PATH:-/data/local-sheet.json}
+      - GOOGLE_SPREADSHEET_ID=${GOOGLE_SPREADSHEET_ID}
+      - GOOGLE_SERVICE_ACCOUNT_FILE=/service-account.json
+    volumes:
+      - ./configs/service-account.json:${GOOGLE_SERVICE_ACCOUNT_FILE:-/service-account.json}:ro
+      - spese_data:/data
+    restart: unless-stopped
+
 volumes:
   spese_data:
+  spese_rabbitmq:

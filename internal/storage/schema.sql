@@ -46,3 +46,19 @@ CREATE TABLE IF NOT EXISTS snapshot_balances (
 );
 
 CREATE INDEX IF NOT EXISTS idx_snapshot_balances_account ON snapshot_balances(account);
+
+CREATE TABLE IF NOT EXISTS sheet_sync_outbox (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scope TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'publishing', 'published')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  available_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  last_error TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  published_at TEXT NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_sheet_sync_outbox_claim
+ON sheet_sync_outbox(status, available_at, id);

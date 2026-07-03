@@ -20,7 +20,9 @@ import (
 	"spese/internal/features/snapshots"
 	"spese/internal/features/transactions"
 	"spese/internal/features/transfers"
+	"spese/internal/rabbitmq"
 	"spese/internal/render"
+	"spese/internal/sheetmirror"
 	"spese/internal/storage"
 	"spese/web"
 )
@@ -40,20 +42,23 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	store, err := storage.OpenPlain(ctx, cfg.DBPath)
+	store, err := storage.Open(ctx, cfg.DBPath)
 	if err != nil {
 		logger.Error("storage", "err", err)
 		os.Exit(1)
 	}
 	defer store.Close()
 
-	logger.Info(
-		"sheet mirror disabled",
-		"backend",
-		cfg.ResolvedSheetMirrorBackend(),
-		"reason",
-		"honker idle worker disabled",
-	)
+	store.SetSheetSyncEnabled(cfg.SheetMirrorEnabled())
+	if cfg.SheetMirrorEnabled() {
+		if err := store.EnqueueSheetSyncEvent(ctx, storage.SheetSyncBootstrapScope); err != nil {
+			logger.Error("bootstrap sheet sync", "err", err)
+			os.Exit(1)
+		}
+		startSheetSyncRelay(ctx, cfg, store, logger)
+	} else {
+		logger.Info("sheet mirror disabled", "backend", cfg.ResolvedSheetMirrorBackend())
+	}
 
 	tmpl, err := render.Load(web.TemplatesFS)
 	if err != nil {
@@ -112,4 +117,21 @@ func main() {
 		logger.Error("shutdown", "err", err)
 	}
 	cancel()
+}
+
+func startSheetSyncRelay(ctx context.Context, cfg config.Config, store *storage.Store, logger *slog.Logger) {
+	logger.Info(
+		"sheet sync publisher enabled",
+		"backend",
+		cfg.ResolvedSheetMirrorBackend(),
+		"queue",
+		cfg.RabbitMQQueue,
+	)
+	publisher := rabbitmq.NewPublisher(cfg.RabbitMQURL, cfg.RabbitMQQueue, logger)
+	relay := &sheetmirror.Relay{Store: store, Publisher: publisher, Logger: logger}
+	go func() {
+		if err := relay.Run(ctx); err != nil {
+			logger.Error("sheet sync relay", "err", err)
+		}
+	}()
 }

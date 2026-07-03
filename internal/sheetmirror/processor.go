@@ -3,11 +3,8 @@ package sheetmirror
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
-
-	honker "github.com/russellromney/honker-go"
 
 	"spese/internal/features/accounts"
 	"spese/internal/features/snapshots"
@@ -15,11 +12,9 @@ import (
 	"spese/internal/storage"
 )
 
-const workerID = "spese-sheet-mirror"
-
-// Processor drains durable Honker sheet-sync jobs and rebuilds source tabs
-// from SQLite. Rebuilding keeps the mirror idempotent: older bilanci for the
-// same account/month never leak into the sheet.
+// Processor rebuilds source tabs from SQLite. Rebuilding keeps the mirror
+// idempotent: older bilanci for the same account/month never leak into the
+// sheet.
 type Processor struct {
 	Store  *storage.Store
 	Client SheetWriter
@@ -30,38 +25,6 @@ type Processor struct {
 // local test sinks both implement it.
 type SheetWriter interface {
 	ReplaceRows(ctx context.Context, tab string, rows [][]any) error
-}
-
-// Run blocks until ctx is cancelled.
-func (p *Processor) Run(ctx context.Context) error {
-	queue := p.Store.Honker().Queue(storage.SheetSyncOutboxName, honker.QueueOptions{
-		VisibilityTimeoutS: 300,
-		MaxAttempts:        10,
-	})
-	waker := queue.ClaimWaker()
-	defer waker.Close()
-
-	for {
-		job, err := waker.Next(ctx, workerID)
-		if err != nil {
-			return fmt.Errorf("claim sheet sync: %w", err)
-		}
-		if job == nil {
-			return nil
-		}
-		if err := p.Export(ctx); err != nil {
-			if _, retryErr := job.Retry(30, err.Error()); retryErr != nil && p.Logger != nil {
-				p.Logger.Error("retry sheet sync", "err", retryErr)
-			}
-			if p.Logger != nil {
-				p.Logger.Error("sheet sync failed", "job", job.ID, "err", err)
-			}
-			continue
-		}
-		if _, err := job.Ack(); err != nil && p.Logger != nil {
-			p.Logger.Error("ack sheet sync", "job", job.ID, "err", err)
-		}
-	}
 }
 
 // Export rewrites all source tabs from the local database.

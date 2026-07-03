@@ -29,4 +29,4 @@ History uses Conventional Commits, for example `fix(sheets): treat missing tab a
 
 ## Security & Configuration Tips
 
-Do not commit `.env` files, Google service-account JSON, spreadsheet IDs from private environments, or local database artifacts. Configure local runs with `GOOGLE_SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_FILE`, optional `SPESE_PORT`, `SPESE_DB_PATH`, and `HONKER_EXTENSION_PATH`.
+Do not commit `.env` files, Google service-account JSON, spreadsheet IDs from private environments, or local database artifacts. Configure local runs with `GOOGLE_SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_FILE`, optional `SPESE_PORT`, `SPESE_DB_PATH`, and `SPESE_RABBITMQ_URL`.

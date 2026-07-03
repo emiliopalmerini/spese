@@ -9,6 +9,7 @@ COPY go.mod ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download || true
 COPY . .
 RUN CGO_ENABLED=1 go build -ldflags='-s -w' -o /out/spese ./cmd/spese
+RUN CGO_ENABLED=1 go build -ldflags='-s -w' -o /out/spese-worker ./cmd/spese-worker
 
 ########################
 # Runner
@@ -16,6 +17,7 @@ FROM alpine:3.22 AS runner
 WORKDIR /app
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /out/spese /app/spese
+COPY --from=builder /out/spese-worker /app/spese-worker
 
 ENV SPESE_PORT=8081
 EXPOSE 8081

@@ -7,8 +7,7 @@ import (
 	"strings"
 )
 
-// SheetMirrorBackend selects where the Honker sheet-mirror worker exports
-// source tabs.
+// SheetMirrorBackend selects where the sheet-mirror worker exports source tabs.
 type SheetMirrorBackend string
 
 const (
@@ -20,13 +19,14 @@ const (
 
 // Config is the resolved application configuration.
 type Config struct {
-	Port                string
-	DBPath              string
-	HonkerExtensionPath string
-	SpreadsheetID       string
-	ServiceAccountFile  string
-	SheetMirrorBackend  SheetMirrorBackend
-	LocalSheetPath      string
+	Port               string
+	DBPath             string
+	SpreadsheetID      string
+	ServiceAccountFile string
+	SheetMirrorBackend SheetMirrorBackend
+	LocalSheetPath     string
+	RabbitMQURL        string
+	RabbitMQQueue      string
 }
 
 // Load reads config from the environment. It does not call godotenv.Load —
@@ -41,23 +41,24 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		Port:                envOr("SPESE_PORT", "8080"),
-		DBPath:              envOr("SPESE_DB_PATH", "spese.db"),
-		HonkerExtensionPath: strings.TrimSpace(os.Getenv("HONKER_EXTENSION_PATH")),
-		SpreadsheetID:       strings.TrimSpace(os.Getenv("GOOGLE_SPREADSHEET_ID")),
-		ServiceAccountFile:  strings.TrimSpace(os.Getenv("GOOGLE_SERVICE_ACCOUNT_FILE")),
-		SheetMirrorBackend:  backend,
-		LocalSheetPath:      envOr("SPESE_LOCAL_SHEET_PATH", "tmp/local-sheet.json"),
+		Port:               envOr("SPESE_PORT", "8080"),
+		DBPath:             envOr("SPESE_DB_PATH", "spese.db"),
+		SpreadsheetID:      strings.TrimSpace(os.Getenv("GOOGLE_SPREADSHEET_ID")),
+		ServiceAccountFile: strings.TrimSpace(os.Getenv("GOOGLE_SERVICE_ACCOUNT_FILE")),
+		SheetMirrorBackend: backend,
+		LocalSheetPath:     envOr("SPESE_LOCAL_SHEET_PATH", "tmp/local-sheet.json"),
+		RabbitMQURL:        firstEnv("SPESE_RABBITMQ_URL", "CLOUDAMQP_URL", "AMQP_URL"),
+		RabbitMQQueue:      envOr("SPESE_RABBITMQ_QUEUE", "spese.sheet-sync"),
 	}
 
-	if cfg.HonkerExtensionPath == "" {
-		return Config{}, errors.New("HONKER_EXTENSION_PATH is required")
-	}
 	if cfg.ResolvedSheetMirrorBackend() == SheetMirrorBackendGoogle && (cfg.SpreadsheetID == "" || cfg.ServiceAccountFile == "") {
 		return Config{}, errors.New("GOOGLE_SPREADSHEET_ID and GOOGLE_SERVICE_ACCOUNT_FILE are required for google sheet mirror")
 	}
 	if cfg.ResolvedSheetMirrorBackend() == SheetMirrorBackendLocal && strings.TrimSpace(cfg.LocalSheetPath) == "" {
 		return Config{}, errors.New("SPESE_LOCAL_SHEET_PATH is required for local sheet mirror")
+	}
+	if cfg.SheetMirrorEnabled() && cfg.RabbitMQURL == "" {
+		return Config{}, errors.New("SPESE_RABBITMQ_URL is required when sheet mirror is enabled")
 	}
 	return cfg, nil
 }
@@ -74,8 +75,7 @@ func (c Config) ResolvedSheetMirrorBackend() SheetMirrorBackend {
 	return SheetMirrorBackendNone
 }
 
-// SheetMirrorEnabled reports whether a worker should drain the durable Honker
-// outbox and export rows.
+// SheetMirrorEnabled reports whether the app should publish sheet-sync work.
 func (c Config) SheetMirrorEnabled() bool {
 	return c.ResolvedSheetMirrorBackend() != SheetMirrorBackendNone
 }
@@ -86,6 +86,15 @@ func envOr(key, fallback string) string {
 		return fallback
 	}
 	return v
+}
+
+func firstEnv(keys ...string) string {
+	for _, key := range keys {
+		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func parseSheetMirrorBackend(v string) (SheetMirrorBackend, error) {
