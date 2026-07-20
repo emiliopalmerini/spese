@@ -212,14 +212,16 @@ type InvestmentChart struct {
 
 // InvestmentChartRow is one investment account comparison.
 type InvestmentChartRow struct {
-	Account      string
-	CostFmt      string
-	ValueFmt     string
-	ReturnFmt    string
-	ReturnPctFmt string
-	CostWidth    int
-	ValueWidth   int
-	ReturnTone   string
+	Account        string
+	CostFmt        string
+	ValueFmt       string
+	ReturnFmt      string
+	ReturnPctFmt   string
+	CostX          int
+	ValueX         int
+	ConnectorX     int
+	ConnectorWidth int
+	ReturnTone     string
 }
 
 func buildView(income []reports.IncomeRow, nw []reports.NwRow, balances []reports.BalanceRow, investments []reports.InvestmentRow, txns []transactions.Transaction, period kernel.Date) View {
@@ -828,15 +830,25 @@ func buildInvestmentChart(rows []reports.InvestmentRow) InvestmentChart {
 		chart.Truncated = true
 	}
 	for _, row := range rows[:limit] {
+		costX := 2 + roundFloat(float64(absMoney(row.CostBasis))/float64(maxBar)*96)
+		valueX := 2 + roundFloat(float64(absMoney(row.Value))/float64(maxBar)*96)
+		connectorX := costX
+		connectorWidth := valueX - costX
+		if connectorWidth < 0 {
+			connectorX = valueX
+			connectorWidth = -connectorWidth
+		}
 		chart.Rows = append(chart.Rows, InvestmentChartRow{
-			Account:      row.Account,
-			CostFmt:      moneyFmt(row.CostBasis),
-			ValueFmt:     moneyFmt(row.Value),
-			ReturnFmt:    moneyFmt(row.Return),
-			ReturnPctFmt: pctFmt(row.ReturnPct),
-			CostWidth:    clampPercent(roundFloat(float64(absMoney(row.CostBasis)) / float64(maxBar) * 100)),
-			ValueWidth:   clampPercent(roundFloat(float64(absMoney(row.Value)) / float64(maxBar) * 100)),
-			ReturnTone:   moneyTone(row.Return),
+			Account:        row.Account,
+			CostFmt:        moneyFmt(row.CostBasis),
+			ValueFmt:       moneyFmt(row.Value),
+			ReturnFmt:      moneyFmt(row.Return),
+			ReturnPctFmt:   pctFmt(row.ReturnPct),
+			CostX:          costX,
+			ValueX:         valueX,
+			ConnectorX:     connectorX,
+			ConnectorWidth: connectorWidth,
+			ReturnTone:     moneyTone(row.Return),
 		})
 	}
 	return chart

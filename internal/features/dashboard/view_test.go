@@ -398,6 +398,20 @@ func TestBuildInvestmentChartUsesWeightedTotalReturn(t *testing.T) {
 	}
 }
 
+func TestBuildInvestmentChartPositionsDumbbellPoints(t *testing.T) {
+	chart := buildInvestmentChart([]reports.InvestmentRow{
+		{Account: "Gain", CostBasis: kernel.Money(100000), Value: kernel.Money(150000), Return: kernel.Money(50000)},
+		{Account: "Loss", CostBasis: kernel.Money(200000), Value: kernel.Money(150000), Return: kernel.Money(-50000)},
+	})
+
+	if chart.Rows[0].CostX != 50 || chart.Rows[0].ValueX != 74 || chart.Rows[0].ConnectorX != 50 || chart.Rows[0].ConnectorWidth != 24 {
+		t.Fatalf("gain geometry = %+v, want points 50/74 and connector 50+24", chart.Rows[0])
+	}
+	if chart.Rows[1].CostX != 98 || chart.Rows[1].ValueX != 74 || chart.Rows[1].ConnectorX != 74 || chart.Rows[1].ConnectorWidth != 24 {
+		t.Fatalf("loss geometry = %+v, want points 98/74 and connector 74+24", chart.Rows[1])
+	}
+}
+
 func TestBuildInvestmentChartReportsWhenRowsAreTruncated(t *testing.T) {
 	rows := make([]reports.InvestmentRow, 6)
 	for i := range rows {

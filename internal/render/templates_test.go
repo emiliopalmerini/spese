@@ -116,7 +116,7 @@ func TestTemplatesRender(t *testing.T) {
 				TotalReturnFmt: "3.000,00 €",
 				ReturnPctFmt:   "11.1%",
 				Rows: []dashboard.InvestmentChartRow{
-					{Account: "Broker", CostFmt: "27.000,00 €", ValueFmt: "30.000,00 €", ReturnFmt: "3.000,00 €", ReturnPctFmt: "11.1%", CostWidth: 90, ValueWidth: 100, ReturnTone: "positive"},
+					{Account: "Broker", CostFmt: "27.000,00 €", ValueFmt: "30.000,00 €", ReturnFmt: "3.000,00 €", ReturnPctFmt: "11.1%", CostX: 88, ValueX: 98, ConnectorX: 88, ConnectorWidth: 10, ReturnTone: "positive"},
 				},
 			},
 		},
@@ -184,6 +184,9 @@ func TestTemplatesRender(t *testing.T) {
 			}
 			if name == "dashboard/home" && (!strings.Contains(body, `class="dashboard-allocation"`) || !strings.Contains(body, `class="dashboard-allocation__axis"`)) {
 				t.Fatalf("render %s did not use divergent allocation bars", name)
+			}
+			if name == "dashboard/home" && (!strings.Contains(body, `class="investment-row__dumbbell"`) || !strings.Contains(body, `investment-row__point--cost`) || !strings.Contains(body, `investment-row__point--value`)) {
+				t.Fatalf("render %s did not use investment dumbbells", name)
 			}
 		})
 	}
@@ -322,7 +325,7 @@ func TestDashboardTemplateEscapesChartLabels(t *testing.T) {
 		Investments: dashboard.InvestmentChart{
 			TotalValueFmt: "1,00 €", TotalReturnFmt: "0,00 €", ReturnPctFmt: "0.0%",
 			Rows: []dashboard.InvestmentChartRow{
-				{Account: malicious, CostFmt: "1,00 €", ValueFmt: "1,00 €", ReturnFmt: "0,00 €", ReturnPctFmt: "0.0%", CostWidth: 100, ValueWidth: 100, ReturnTone: "neutral"},
+				{Account: malicious, CostFmt: "1,00 €", ValueFmt: "1,00 €", ReturnFmt: "0,00 €", ReturnPctFmt: "0.0%", CostX: 98, ValueX: 98, ConnectorX: 98, ReturnTone: "neutral"},
 			},
 		},
 	}

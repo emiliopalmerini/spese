@@ -750,7 +750,7 @@ details.form-card form {
 .dashboard-range,
 .dashboard-legend,
 .dashboard-bar__meta span,
-.investment-row__bars span,
+.investment-row__values,
 .investment-row__return {
   color: var(--muted);
   font-size: 0.78rem;
@@ -1118,8 +1118,7 @@ details.form-card form {
   white-space: nowrap;
 }
 
-.dashboard-bar__track,
-.investment-row__track {
+.dashboard-bar__track {
   display: block;
   width: 100%;
   height: 8px;
@@ -1129,8 +1128,7 @@ details.form-card form {
   fill: var(--surface-muted);
 }
 
-.dashboard-bar__fill--positive,
-.investment-row__fill--value {
+.dashboard-bar__fill--positive {
   fill: var(--accent);
 }
 
@@ -1138,8 +1136,7 @@ details.form-card form {
   fill: var(--expense);
 }
 
-.dashboard-bar__fill--neutral,
-.investment-row__fill--cost {
+.dashboard-bar__fill--neutral {
   fill: var(--line-strong);
 }
 
@@ -1155,11 +1152,74 @@ details.form-card form {
   border-top: 0;
 }
 
-.investment-row__bars {
+.investment-row__comparison {
   display: grid;
-  grid-template-columns: minmax(5.5rem, auto) minmax(0, 1fr);
-  gap: var(--space-2) var(--space-3);
+  gap: var(--space-1);
+}
+
+.investment-row__dumbbell {
+  display: block;
+  width: 100%;
+  height: 24px;
+  overflow: visible;
+}
+
+.investment-row__rail {
+  stroke: var(--surface-muted);
+  stroke-width: 4;
+}
+
+.investment-row__connector--positive {
+  fill: var(--income);
+}
+
+.investment-row__connector--negative {
+  fill: var(--expense);
+}
+
+.investment-row__connector--neutral {
+  fill: var(--muted);
+}
+
+.investment-row__point {
+  stroke-width: 9;
+  stroke-linecap: round;
+}
+
+.investment-row__point--cost {
+  stroke: var(--line-strong);
+}
+
+.investment-row__point--value {
+  stroke: var(--accent);
+}
+
+.investment-row__values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  justify-content: space-between;
+}
+
+.investment-row__values span {
+  display: inline-flex;
+  gap: var(--space-2);
   align-items: center;
+}
+
+.investment-row__key {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+}
+
+.investment-row__key--cost {
+  background: var(--line-strong);
+}
+
+.investment-row__key--value {
+  background: var(--accent);
 }
 
 .dashboard-category {

@@ -255,17 +255,21 @@
               <strong>{{.Account}}</strong>
               <span class="investment-row__return investment-row__return--{{.ReturnTone}}">{{.ReturnFmt}} · {{.ReturnPctFmt}}</span>
             </header>
-            <div class="investment-row__bars">
-              <span>Flussi netti {{.CostFmt}}</span>
-              <svg class="investment-row__track" viewBox="0 0 100 8" preserveAspectRatio="none" role="img" aria-label="Flussi netti {{.CostFmt}}">
-                <rect class="dashboard-bar__rail" x="0" y="0" width="100" height="8" rx="4"></rect>
-                <rect class="investment-row__fill investment-row__fill--cost" x="0" y="0" width="{{.CostWidth}}" height="8" rx="4"></rect>
+            <div class="investment-row__comparison">
+              <svg class="investment-row__dumbbell" viewBox="0 0 100 24" preserveAspectRatio="none" role="img" aria-label="Flussi netti {{.CostFmt}}, valore {{.ValueFmt}}">
+                <line class="investment-row__rail" x1="2" x2="98" y1="12" y2="12"></line>
+                <rect class="investment-row__connector investment-row__connector--{{.ReturnTone}}" x="{{.ConnectorX}}" y="10" width="{{.ConnectorWidth}}" height="4" rx="2"></rect>
+                <line class="investment-row__point investment-row__point--cost" x1="{{.CostX}}" x2="{{.CostX}}" y1="12" y2="12" vector-effect="non-scaling-stroke">
+                  <title>Flussi netti {{.CostFmt}}</title>
+                </line>
+                <line class="investment-row__point investment-row__point--value" x1="{{.ValueX}}" x2="{{.ValueX}}" y1="12" y2="12" vector-effect="non-scaling-stroke">
+                  <title>Valore {{.ValueFmt}}</title>
+                </line>
               </svg>
-              <span>Valore {{.ValueFmt}}</span>
-              <svg class="investment-row__track" viewBox="0 0 100 8" preserveAspectRatio="none" role="img" aria-label="Valore {{.ValueFmt}}">
-                <rect class="dashboard-bar__rail" x="0" y="0" width="100" height="8" rx="4"></rect>
-                <rect class="investment-row__fill investment-row__fill--value" x="0" y="0" width="{{.ValueWidth}}" height="8" rx="4"></rect>
-              </svg>
+              <div class="investment-row__values" aria-hidden="true">
+                <span><i class="investment-row__key investment-row__key--cost"></i>Flussi netti {{.CostFmt}}</span>
+                <span><i class="investment-row__key investment-row__key--value"></i>Valore {{.ValueFmt}}</span>
+              </div>
             </div>
           </article>
         {{end}}
