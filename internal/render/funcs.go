@@ -14,6 +14,7 @@ var funcs = template.FuncMap{
 	"money":        fmtMoney,
 	"pct":          fmtPct,
 	"isodate":      fmtISODate,
+	"dateIT":       fmtDateIT,
 	"monthIT":      fmtMonthIT,
 	"title":        cases.Title,
 	"join":         strings.Join,
@@ -57,6 +58,23 @@ func fmtISODate(v any) string {
 		return d.Format("2006-01-02")
 	}
 	return ""
+}
+
+func fmtDateIT(v any) string {
+	var value time.Time
+	switch date := v.(type) {
+	case kernel.Date:
+		value = date.Time
+	case time.Time:
+		value = date
+	default:
+		return ""
+	}
+	if value.IsZero() {
+		return ""
+	}
+	months := [...]string{"gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"}
+	return fmt.Sprintf("%d %s %d", value.Day(), months[value.Month()-1], value.Year())
 }
 
 // fmtMonthIT renders a kernel.Date as "Aprile 2026" (italian month name).

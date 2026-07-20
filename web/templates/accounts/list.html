@@ -27,7 +27,7 @@
           <td class="list-cell list-cell--secondary" data-label="Classe">{{accountClass .Account.Class}}</td>
           <td class="list-cell list-cell--meta" data-label="Valuta">{{.Account.Currency}}</td>
           <td class="list-cell list-cell--amount num" data-label="Saldo"><span class="list-cell__prefix">Saldo </span>{{if .LatestMonth.IsZero}}-{{else}}{{money .LatestBalance}}{{end}}</td>
-          <td class="list-cell list-cell--detail muted" data-label="Ultimo aggiornamento"><span class="list-cell__prefix">Aggiornato </span>{{if .LatestMonth.IsZero}}Mai{{else}}{{isodate .LatestMonth}}{{end}}</td>
+          <td class="list-cell list-cell--detail muted" data-label="Ultimo aggiornamento"><span class="list-cell__prefix">Aggiornato </span>{{if .LatestMonth.IsZero}}Mai{{else}}{{dateIT .LatestMonth}}{{end}}</td>
           <td class="list-cell list-cell--extra muted" data-label="Note">{{if .Account.Note}}<span class="list-cell__prefix">Note </span>{{.Account.Note}}{{end}}</td>
         </tr>
       {{else}}

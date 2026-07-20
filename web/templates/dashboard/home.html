@@ -51,7 +51,7 @@
           {{end}}
           <line class="dashboard-svg__axis" x1="{{.CashFlow.AxisStart}}" y1="{{.CashFlow.Baseline}}" x2="{{.CashFlow.AxisEnd}}" y2="{{.CashFlow.Baseline}}"></line>
           {{range .CashFlow.Bars}}
-            <rect class="dashboard-svg__bar dashboard-svg__bar--{{.Class}}" x="{{.X}}" y="{{.Y}}" width="{{.Width}}" height="{{.Height}}" rx="3">
+            <rect class="dashboard-svg__bar dashboard-svg__bar--{{.Class}}" x="{{.X}}" y="{{.Y}}" width="{{.Width}}" height="{{.Height}}" rx="3" tabindex="0" aria-label="{{.Label}}, {{.Kind}}: {{.ValueFmt}}">
               <title>{{.Label}} · {{.Kind}} {{.ValueFmt}}</title>
             </rect>
           {{end}}
@@ -132,7 +132,7 @@
             <line class="dashboard-svg__axis" x1="{{.NetWorth.AxisStart}}" y1="{{.NetWorth.Baseline}}" x2="{{.NetWorth.AxisEnd}}" y2="{{.NetWorth.Baseline}}"></line>
             <polyline class="dashboard-svg__line" points="{{.NetWorth.PointsAttr}}"></polyline>
             {{range .NetWorth.Points}}
-              <circle class="dashboard-svg__point" cx="{{.X}}" cy="{{.Y}}" r="4">
+              <circle class="dashboard-svg__point" cx="{{.X}}" cy="{{.Y}}" r="5" tabindex="0" aria-label="{{.Label}}: {{.ValueFmt}}">
                 <title>{{.Label}} · {{.ValueFmt}}</title>
               </circle>
             {{end}}

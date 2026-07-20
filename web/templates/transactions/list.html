@@ -51,7 +51,7 @@
       <tbody>
         {{range .Transactions}}
           <tr class="kind-{{.Kind}}">
-            <td class="transaction-cell transaction-cell--date list-cell list-cell--detail" data-label="Data">{{isodate .Date}}</td>
+            <td class="transaction-cell transaction-cell--date list-cell list-cell--detail" data-label="Data">{{dateIT .Date}}</td>
             <td class="transaction-cell transaction-cell--kind list-cell list-cell--status" data-label="Tipo">{{if eq .Kind "Income"}}Entrata{{else if eq .Kind "Expense"}}Uscita{{else if eq .Kind "Transfer"}}Trasferimento{{else}}{{.Kind}}{{end}}</td>
             <td class="transaction-cell transaction-cell--account list-cell list-cell--meta" data-label="Conto">{{.Account}}</td>
             <td class="transaction-cell transaction-cell--amount list-cell list-cell--amount num" data-label="Importo">{{money .Amount}}</td>

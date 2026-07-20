@@ -32,7 +32,7 @@
             {{if .LatestMonth.IsZero}}
               <span class="data-freshness data-freshness--missing">Mai aggiornato</span>
             {{else}}
-              <span class="list-cell__prefix">Aggiornato </span>{{isodate .LatestMonth}}
+              <span class="list-cell__prefix">Aggiornato </span>{{dateIT .LatestMonth}}
               {{if .Freshness}}<span class="data-freshness">{{.Freshness}}</span>{{end}}
             {{end}}
           </td>

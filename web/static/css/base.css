@@ -920,10 +920,27 @@ details.form-card form {
   stroke-width: 3;
 }
 
+.dashboard-svg__bar:focus,
+.dashboard-svg__point:focus {
+  outline: none;
+  stroke: var(--focus);
+  stroke-width: 3;
+}
+
 .dashboard-svg__label {
   fill: var(--muted);
   font-size: 13px;
   font-weight: 700;
+}
+
+@media (max-width: 639px) {
+  .dashboard-svg--line {
+    min-width: 0;
+  }
+
+  .dashboard-svg--line .dashboard-svg__label {
+    font-size: 11px;
+  }
 }
 
 .dashboard-legend,

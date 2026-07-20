@@ -30,7 +30,7 @@
           <td class="list-cell list-cell--meta num" data-label="Valore"><span class="list-cell__prefix">Valore </span>{{money .Value}}</td>
           <td class="list-cell list-cell--amount num" data-label="Differenza">{{money .Return}}</td>
           <td class="list-cell list-cell--status num" data-label="%">{{pct .ReturnPct}}</td>
-          <td class="list-cell list-cell--detail muted" data-label="Ultimo aggiornamento"><span class="list-cell__prefix">Aggiornato </span>{{isodate .LatestMonth}}</td>
+          <td class="list-cell list-cell--detail muted" data-label="Ultimo aggiornamento"><span class="list-cell__prefix">Aggiornato </span>{{if .LatestMonth.IsZero}}Mai{{else}}{{dateIT .LatestMonth}}{{end}}</td>
         </tr>
       {{else}}
         <tr><td colspan="6" class="muted">Nessun investimento.</td></tr>
