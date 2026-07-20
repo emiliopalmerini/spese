@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 
 	"spese/internal/kernel"
 	"spese/internal/storage"
@@ -15,10 +16,13 @@ const Tab = "transactions"
 
 // Filter narrows the set of transactions returned by List.
 type Filter struct {
-	From kernel.Date // inclusive; zero = no lower bound
-	To   kernel.Date // exclusive; zero = no upper bound
-	Kind Kind        // empty = any
-	Last int         // if > 0, keep only the last N rows after filtering+sorting (most recent first)
+	From     kernel.Date // inclusive; zero = no lower bound
+	To       kernel.Date // exclusive; zero = no upper bound
+	Kind     Kind        // empty = any
+	Account  string      // empty = any
+	Category string      // empty = any
+	Query    string      // case-insensitive text search
+	Last     int         // if > 0, keep only the last N rows after filtering+sorting (most recent first)
 }
 
 // List reads transactions from the local database, applies the filter, and
@@ -43,6 +47,15 @@ func List(ctx context.Context, store *storage.Store, f Filter, _ bool) ([]Transa
 		if f.Kind != "" && t.Kind != f.Kind {
 			continue
 		}
+		if f.Account != "" && !strings.EqualFold(t.Account, f.Account) {
+			continue
+		}
+		if f.Category != "" && !strings.EqualFold(t.Category, f.Category) {
+			continue
+		}
+		if f.Query != "" && !transactionContains(t, f.Query) {
+			continue
+		}
 		if !f.From.IsZero() && t.Date.Before(f.From.Time) {
 			continue
 		}
@@ -59,6 +72,19 @@ func List(ctx context.Context, store *storage.Store, f Filter, _ bool) ([]Transa
 		out = out[:f.Last]
 	}
 	return out, nil
+}
+
+func transactionContains(transaction Transaction, query string) bool {
+	query = strings.ToLower(strings.TrimSpace(query))
+	if query == "" {
+		return true
+	}
+	for _, value := range []string{transaction.Account, transaction.Category, transaction.Subcategory, transaction.Payee, transaction.Note} {
+		if strings.Contains(strings.ToLower(value), query) {
+			return true
+		}
+	}
+	return false
 }
 
 // Append writes one or more transactions locally and enqueues one sheet mirror

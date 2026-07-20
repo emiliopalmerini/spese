@@ -3,6 +3,7 @@ package dashboard
 import (
 	"fmt"
 	"math"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -101,6 +102,7 @@ type CategoryRow struct {
 	Label      string
 	ValueFmt   string
 	PercentFmt string
+	URL        string
 	Width      int
 	Palette    int
 }
@@ -356,6 +358,7 @@ func buildCategoryChart(txns []transactions.Transaction, kind transactions.Kind,
 
 	chart.Empty = false
 	chart.TotalFmt = moneyFmt(total)
+	periodEnd := kernel.Date{Time: period.AddDate(0, 1, -1)}
 	x := 0
 	for i, group := range grouped {
 		pct := float64(group.value) / float64(total)
@@ -385,8 +388,13 @@ func buildCategoryChart(txns []transactions.Transaction, kind transactions.Kind,
 			Label:      group.label,
 			ValueFmt:   moneyFmt(group.value),
 			PercentFmt: percentFmt,
-			Width:      width,
-			Palette:    palette,
+			URL: "/transactions?" + url.Values{
+				"category": {group.label},
+				"from":     {period.ISO()},
+				"to":       {periodEnd.ISO()},
+			}.Encode(),
+			Width:   width,
+			Palette: palette,
 		})
 		x += width
 	}

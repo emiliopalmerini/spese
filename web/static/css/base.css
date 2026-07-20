@@ -420,6 +420,55 @@ details.form-card form {
   justify-self: stretch;
 }
 
+.transaction-filters__search,
+.transaction-filters__actions {
+  grid-column: 1 / -1;
+}
+
+.transaction-filters__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.transaction-filters__actions button,
+.transaction-filters__actions a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-4);
+}
+
+.transaction-results {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.transaction-results__count {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.pagination a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 0 var(--space-4);
+  font-weight: 750;
+}
+
 .snapshots-form {
   gap: var(--space-4);
 }

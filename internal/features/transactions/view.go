@@ -6,8 +6,6 @@ import (
 	"spese/internal/kernel"
 )
 
-const transactionListLimit = 100
-
 // BuildListViewRows returns transactions as they should appear in the
 // movements list. Transfer legs remain separate in the sheet, but matching
 // source/destination rows are collapsed into a single display row.

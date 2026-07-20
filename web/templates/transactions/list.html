@@ -3,35 +3,72 @@
 <section class="page transactions">
   <header class="page-head">
     <h1>Movimenti</h1>
-    <p class="muted">Ultimi 100 movimenti.</p>
+    <p class="muted">Cerca e filtra il registro dei movimenti.</p>
   </header>
 
-  <table class="data-table list-table list-table--ledger">
-    <caption class="sr-only">Ultimi cento movimenti registrati</caption>
-    <thead>
-      <tr>
-        <th scope="col">Data</th>
-        <th scope="col">Tipo</th>
-        <th scope="col">Conto</th>
-        <th scope="col" class="num">Importo</th>
-        <th scope="col">Categoria</th>
-        <th scope="col">Descrizione</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{range .Transactions}}
-        <tr class="kind-{{.Kind}}">
-          <td class="transaction-cell transaction-cell--date list-cell list-cell--detail" data-label="Data">{{isodate .Date}}</td>
-          <td class="transaction-cell transaction-cell--kind list-cell list-cell--status" data-label="Tipo">{{if eq .Kind "Income"}}Entrata{{else if eq .Kind "Expense"}}Uscita{{else if eq .Kind "Transfer"}}Trasferimento{{else}}{{.Kind}}{{end}}</td>
-          <td class="transaction-cell transaction-cell--account list-cell list-cell--meta" data-label="Conto">{{.Account}}</td>
-          <td class="transaction-cell transaction-cell--amount list-cell list-cell--amount num" data-label="Importo">{{money .Amount}}</td>
-          <td class="transaction-cell transaction-cell--category list-cell list-cell--secondary" data-label="Categoria">{{.Category}}{{if .Subcategory}} <span class="muted">/ {{.Subcategory}}</span>{{end}}</td>
-          <th scope="row" class="transaction-cell transaction-cell--description list-cell list-cell--primary" data-label="Descrizione">{{.Payee}}</th>
+  <form class="form-card transaction-filters" method="get" action="/transactions" hx-get="/transactions" hx-target="#transaction-results" hx-select="#transaction-results" hx-swap="outerHTML" hx-push-url="true">
+    <label class="transaction-filters__search">Cerca
+      <input type="search" name="q" value="{{.Filters.Query}}" placeholder="Descrizione, categoria, nota…">
+    </label>
+    <label>Dal <input type="date" name="from" value="{{.Filters.From}}"></label>
+    <label>Al <input type="date" name="to" value="{{.Filters.To}}"></label>
+    <label>Tipo
+      <select name="kind">
+        <option value="">Tutti</option>
+        <option value="Income"{{if eq .Filters.Kind "Income"}} selected{{end}}>Entrate</option>
+        <option value="Expense"{{if eq .Filters.Kind "Expense"}} selected{{end}}>Uscite</option>
+        <option value="Transfer"{{if eq .Filters.Kind "Transfer"}} selected{{end}}>Trasferimenti</option>
+        <option value="Adjustment"{{if eq .Filters.Kind "Adjustment"}} selected{{end}}>Aggiustamenti</option>
+      </select>
+    </label>
+    <label>Conto
+      <select name="account">
+        <option value="">Tutti</option>
+        {{range .Accounts}}<option value="{{.Name}}"{{if eq $.Filters.Account .Name}} selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+    </label>
+    <label>Categoria <input name="category" value="{{.Filters.Category}}"></label>
+    <div class="transaction-filters__actions">
+      <button type="submit">Applica filtri</button>
+      <a class="button-secondary" href="/transactions">Azzera</a>
+    </div>
+  </form>
+
+  <section id="transaction-results" class="transaction-results" aria-live="polite" aria-busy="false">
+    <p class="muted transaction-results__count">{{if .Total}}Movimenti {{.First}}–{{.Last}} di {{.Total}}{{else}}Nessun movimento trovato{{end}}</p>
+    <table class="data-table list-table list-table--ledger">
+      <caption class="sr-only">Movimenti registrati</caption>
+      <thead>
+        <tr>
+          <th scope="col">Data</th>
+          <th scope="col">Tipo</th>
+          <th scope="col">Conto</th>
+          <th scope="col" class="num">Importo</th>
+          <th scope="col">Categoria</th>
+          <th scope="col">Descrizione</th>
         </tr>
-      {{else}}
-        <tr><td colspan="6" class="muted">Nessun movimento.</td></tr>
-      {{end}}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {{range .Transactions}}
+          <tr class="kind-{{.Kind}}">
+            <td class="transaction-cell transaction-cell--date list-cell list-cell--detail" data-label="Data">{{isodate .Date}}</td>
+            <td class="transaction-cell transaction-cell--kind list-cell list-cell--status" data-label="Tipo">{{if eq .Kind "Income"}}Entrata{{else if eq .Kind "Expense"}}Uscita{{else if eq .Kind "Transfer"}}Trasferimento{{else}}{{.Kind}}{{end}}</td>
+            <td class="transaction-cell transaction-cell--account list-cell list-cell--meta" data-label="Conto">{{.Account}}</td>
+            <td class="transaction-cell transaction-cell--amount list-cell list-cell--amount num" data-label="Importo">{{money .Amount}}</td>
+            <td class="transaction-cell transaction-cell--category list-cell list-cell--secondary" data-label="Categoria"><a href="/transactions?category={{urlquery .Category}}">{{.Category}}</a>{{if .Subcategory}} <span class="muted">/ {{.Subcategory}}</span>{{end}}</td>
+            <th scope="row" class="transaction-cell transaction-cell--description list-cell list-cell--primary" data-label="Descrizione">{{.Payee}}</th>
+          </tr>
+        {{else}}
+          <tr><td colspan="6" class="muted">Prova a modificare o azzerare i filtri.</td></tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{if or .HasPrevious .HasNext}}
+      <nav class="pagination" aria-label="Pagine movimenti">
+        {{if .HasPrevious}}<a href="{{.PreviousURL}}" hx-get="{{.PreviousURL}}" hx-target="#transaction-results" hx-select="#transaction-results" hx-swap="outerHTML" hx-push-url="true">Precedenti</a>{{else}}<span></span>{{end}}
+        {{if .HasNext}}<a href="{{.NextURL}}" hx-get="{{.NextURL}}" hx-target="#transaction-results" hx-select="#transaction-results" hx-swap="outerHTML" hx-push-url="true">Successivi</a>{{end}}
+      </nav>
+    {{end}}
+  </section>
 </section>
 {{end}}

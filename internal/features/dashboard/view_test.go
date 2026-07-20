@@ -220,6 +220,9 @@ func TestBuildCategoryChartGroupsAndSortsTransactions(t *testing.T) {
 	if got := chart.Rows[0].Label; got != "Casa" {
 		t.Fatalf("first row = %q, want Casa", got)
 	}
+	if got := chart.Rows[0].URL; got != "/transactions?category=Casa&from=2026-05-01&to=2026-05-31" {
+		t.Fatalf("first row URL = %q", got)
+	}
 	if got := chart.Rows[1].Label; got != "Cibo" {
 		t.Fatalf("second row = %q, want Cibo", got)
 	}
