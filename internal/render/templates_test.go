@@ -320,6 +320,9 @@ func TestDashboardTemplateEscapesChartLabels(t *testing.T) {
 	if !strings.Contains(body, "dashboard-svg--bars") || !strings.Contains(body, "dashboard-svg--line") {
 		t.Fatalf("dashboard did not render chart SVGs:\n%s", body)
 	}
+	if !strings.Contains(body, `rx="8"`) || !strings.Contains(body, `rx="5"`) {
+		t.Fatalf("dashboard did not render rounded chart bars:\n%s", body)
+	}
 }
 
 func mustDate(t *testing.T, value string) kernel.Date {

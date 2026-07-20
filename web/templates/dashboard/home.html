@@ -51,7 +51,7 @@
           {{end}}
           <line class="dashboard-svg__axis" x1="{{.CashFlow.AxisStart}}" y1="{{.CashFlow.Baseline}}" x2="{{.CashFlow.AxisEnd}}" y2="{{.CashFlow.Baseline}}"></line>
           {{range .CashFlow.Bars}}
-            <rect class="dashboard-svg__bar dashboard-svg__bar--{{.Class}}" x="{{.X}}" y="{{.Y}}" width="{{.Width}}" height="{{.Height}}" rx="3" tabindex="0" aria-label="{{.Label}}, {{.Kind}}: {{.ValueFmt}}">
+            <rect class="dashboard-svg__bar dashboard-svg__bar--{{.Class}}" x="{{.X}}" y="{{.Y}}" width="{{.Width}}" height="{{.Height}}" rx="8" tabindex="0" aria-label="{{.Label}}, {{.Kind}}: {{.ValueFmt}}">
               <title>{{.Label}} · {{.Kind}} {{.ValueFmt}}</title>
             </rect>
           {{end}}
@@ -230,7 +230,7 @@
     <svg class="dashboard-category__track" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="Composizione categorie">
       <rect class="dashboard-category__rail" x="0" y="0" width="100" height="10" rx="5"></rect>
       {{range .Segments}}
-        <rect class="dashboard-category__segment dashboard-category__segment--{{.Palette}}" x="{{.X}}" y="0" width="{{.Width}}" height="10">
+        <rect class="dashboard-category__segment dashboard-category__segment--{{.Palette}}" x="{{.X}}" y="0" width="{{.Width}}" height="10" rx="5">
           <title>{{.Label}} · {{.ValueFmt}} · {{.PercentFmt}}</title>
         </rect>
       {{end}}
