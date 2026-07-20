@@ -1068,6 +1068,34 @@ details.form-card form {
   gap: var(--space-4);
 }
 
+.dashboard-allocation {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.dashboard-allocation__directions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.dashboard-allocation__directions span:first-child {
+  padding-right: var(--space-2);
+  text-align: right;
+}
+
+.dashboard-allocation__directions span:last-child {
+  padding-left: var(--space-2);
+}
+
+.dashboard-allocation__axis {
+  stroke: var(--ink);
+  stroke-width: 0.6;
+}
+
 .dashboard-bar {
   display: grid;
   gap: var(--space-2);

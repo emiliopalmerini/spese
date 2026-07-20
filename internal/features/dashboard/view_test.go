@@ -364,6 +364,23 @@ func TestBuildNetWorthChartSinglePointIsCentered(t *testing.T) {
 	}
 }
 
+func TestBuildAllocationChartDivergesAroundZero(t *testing.T) {
+	chart := buildAllocationChart([]reports.BalanceRow{
+		{Class: "Cash", Balance: kernel.Money(100000)},
+		{Class: "Credit", Balance: kernel.Money(-40000)},
+	})
+
+	if len(chart.Rows) != 2 {
+		t.Fatalf("rows = %d, want 2", len(chart.Rows))
+	}
+	if chart.Rows[0].X != 50 || chart.Rows[0].Width != 50 {
+		t.Fatalf("asset geometry = x %d width %d, want x 50 width 50", chart.Rows[0].X, chart.Rows[0].Width)
+	}
+	if chart.Rows[1].X != 30 || chart.Rows[1].Width != 20 {
+		t.Fatalf("liability geometry = x %d width %d, want x 30 width 20", chart.Rows[1].X, chart.Rows[1].Width)
+	}
+}
+
 func TestBuildInvestmentChartUsesWeightedTotalReturn(t *testing.T) {
 	chart := buildInvestmentChart([]reports.InvestmentRow{
 		{Account: "A", CostBasis: kernel.Money(100000), Value: kernel.Money(125000), Return: kernel.Money(25000), ReturnPct: 0.25},

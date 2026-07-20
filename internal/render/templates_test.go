@@ -182,6 +182,9 @@ func TestTemplatesRender(t *testing.T) {
 			if name == "dashboard/home" && (!strings.Contains(body, `class="dashboard-donut"`) || !strings.Contains(body, `dashboard-income-bars`)) {
 				t.Fatalf("render %s did not use distinct category charts", name)
 			}
+			if name == "dashboard/home" && (!strings.Contains(body, `class="dashboard-allocation"`) || !strings.Contains(body, `class="dashboard-allocation__axis"`)) {
+				t.Fatalf("render %s did not use divergent allocation bars", name)
+			}
 		})
 	}
 }

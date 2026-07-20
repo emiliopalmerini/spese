@@ -213,16 +213,21 @@
       {{if .Allocation.Empty}}
         <p class="dashboard-empty">Nessun saldo disponibile.</p>
       {{else}}
-        <div class="dashboard-bars">
+        <div class="dashboard-allocation">
+          <div class="dashboard-allocation__directions" aria-hidden="true">
+            <span>Passività</span>
+            <span>Attività</span>
+          </div>
           {{range .Allocation.Rows}}
             <div class="dashboard-bar">
               <div class="dashboard-bar__meta">
                 <strong>{{.Label}}</strong>
                 <span>{{.ValueFmt}} · {{.PercentFmt}}</span>
               </div>
-              <svg class="dashboard-bar__track" viewBox="0 0 100 8" preserveAspectRatio="none" role="img" aria-label="{{.Label}} {{.PercentFmt}}">
+              <svg class="dashboard-bar__track" viewBox="0 0 100 8" preserveAspectRatio="none" role="img" aria-label="{{.Label}} {{.ValueFmt}}, {{.PercentFmt}} dell'esposizione lorda">
                 <rect class="dashboard-bar__rail" x="0" y="0" width="100" height="8" rx="4"></rect>
-                <rect class="dashboard-bar__fill dashboard-bar__fill--{{.Tone}}" x="0" y="0" width="{{.Width}}" height="8" rx="4"></rect>
+                <rect class="dashboard-bar__fill dashboard-bar__fill--{{.Tone}}" x="{{.X}}" y="0" width="{{.Width}}" height="8" rx="4"></rect>
+                <line class="dashboard-allocation__axis" x1="50" x2="50" y1="0" y2="8"></line>
               </svg>
             </div>
           {{end}}

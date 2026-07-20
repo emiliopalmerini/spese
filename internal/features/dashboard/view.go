@@ -193,6 +193,7 @@ type AllocationRow struct {
 	Label      string
 	ValueFmt   string
 	PercentFmt string
+	X          int
 	Width      int
 	Tone       string
 }
@@ -740,11 +741,13 @@ func buildAllocationChart(rows []reports.BalanceRow) AllocationChart {
 	grouped := make([]group, 0, len(groups))
 	totalSize := kernel.Money(0)
 	totalValue := kernel.Money(0)
+	maxSize := kernel.Money(0)
 	for label, value := range groups {
 		size := absMoney(value)
 		grouped = append(grouped, group{label: label, value: value, size: size})
 		totalSize += size
 		totalValue += value
+		maxSize = maxMoney(maxSize, size)
 	}
 	sort.Slice(grouped, func(i, j int) bool {
 		if grouped[i].size == grouped[j].size {
@@ -760,11 +763,17 @@ func buildAllocationChart(rows []reports.BalanceRow) AllocationChart {
 	}
 	for _, group := range grouped {
 		pct := float64(group.size) / float64(totalSize)
+		width := roundFloat(float64(group.size) / float64(maxSize) * 50)
+		x := 50
+		if group.value < 0 {
+			x -= width
+		}
 		chart.Rows = append(chart.Rows, AllocationRow{
 			Label:      allocationLabel(group.label),
 			ValueFmt:   moneyFmt(group.value),
 			PercentFmt: fmt.Sprintf("%.0f%%", pct*100),
-			Width:      clampPercent(roundFloat(pct * 100)),
+			X:          x,
+			Width:      width,
 			Tone:       moneyTone(group.value),
 		})
 	}
