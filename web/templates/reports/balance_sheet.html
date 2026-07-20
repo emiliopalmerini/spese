@@ -6,21 +6,22 @@
     <p class="muted">Saldo corrente per ogni conto.</p>
   </header>
   <table class="data-table list-table list-table--ledger">
+    <caption class="sr-only">Saldo corrente per conto</caption>
     <thead>
       <tr>
-        <th>Conto</th>
-        <th>Tipo</th>
-        <th>Classe</th>
-        <th class="num">Saldo</th>
-        <th>Ultimo aggiornamento</th>
+        <th scope="col">Conto</th>
+        <th scope="col">Tipo</th>
+        <th scope="col">Classe</th>
+        <th scope="col" class="num">Saldo</th>
+        <th scope="col">Ultimo aggiornamento</th>
       </tr>
     </thead>
     <tbody>
       {{range .Rows}}
         <tr>
-          <td class="list-cell list-cell--primary" data-label="Conto">{{.Account}}</td>
-          <td class="list-cell list-cell--status" data-label="Tipo">{{.Type}}</td>
-          <td class="list-cell list-cell--secondary" data-label="Classe">{{.Class}}</td>
+          <th scope="row" class="list-cell list-cell--primary" data-label="Conto">{{.Account}}</th>
+          <td class="list-cell list-cell--status" data-label="Tipo">{{accountType .Type}}</td>
+          <td class="list-cell list-cell--secondary" data-label="Classe">{{accountClass .Class}}</td>
           <td class="list-cell list-cell--amount num" data-label="Saldo">{{money .Balance}}</td>
           <td class="list-cell list-cell--detail muted" data-label="Ultimo aggiornamento"><span class="list-cell__prefix">Aggiornato </span>{{isodate .LatestMonth}}</td>
         </tr>

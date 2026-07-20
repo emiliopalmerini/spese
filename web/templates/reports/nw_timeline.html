@@ -6,16 +6,17 @@
     <p class="muted">Patrimonio netto totale, mese per mese.</p>
   </header>
   <table class="data-table list-table list-table--ledger">
+    <caption class="sr-only">Patrimonio netto totale per mese</caption>
     <thead>
       <tr>
-        <th>Mese</th>
-        <th class="num">Patrimonio</th>
+        <th scope="col">Mese</th>
+        <th scope="col" class="num">Patrimonio</th>
       </tr>
     </thead>
     <tbody>
       {{range .Rows}}
         <tr>
-          <td class="list-cell list-cell--primary" data-label="Mese">{{monthIT .Month}}</td>
+          <th scope="row" class="list-cell list-cell--primary" data-label="Mese">{{monthIT .Month}}</th>
           <td class="list-cell list-cell--amount num" data-label="Patrimonio">{{money .NetWorth}}</td>
         </tr>
       {{else}}

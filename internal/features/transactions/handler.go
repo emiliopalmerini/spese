@@ -40,13 +40,13 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	txns, err := List(r.Context(), h.Store, Filter{}, false)
 	if err != nil {
 		h.Logger.Error("list transactions", "err", err)
-		http.Error(w, "failed to load transactions", http.StatusBadGateway)
+		http.Error(w, "Impossibile caricare i movimenti.", http.StatusBadGateway)
 		return
 	}
 	accs, err := accounts.List(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("list accounts", "err", err)
-		http.Error(w, "failed to load accounts", http.StatusBadGateway)
+		http.Error(w, "Impossibile caricare i conti.", http.StatusBadGateway)
 		return
 	}
 	if err := h.Render.Render(w, "transactions/list", ListView{Transactions: BuildListViewRows(txns, transactionListLimit), Accounts: accs}); err != nil {
@@ -56,23 +56,26 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, "Il modulo inviato non è valido.", http.StatusBadRequest)
 		return
 	}
 	t, err := parseForm(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
 	if err := Append(r.Context(), h.Store, []Transaction{t}); err != nil {
 		h.Logger.Error("append transaction", "err", err)
-		http.Error(w, "failed to write transaction", http.StatusBadGateway)
+		http.Error(w, "Impossibile salvare il movimento. Riprova.", http.StatusBadGateway)
 		return
 	}
-	// Refresh and re-render so HTMX can swap.
-	txns, _ := List(r.Context(), h.Store, Filter{}, true)
-	accs, _ := accounts.List(r.Context(), h.Store, false)
-	_ = h.Render.Render(w, "transactions/list", ListView{Transactions: BuildListViewRows(txns, transactionListLimit), Accounts: accs})
+	w.Header().Set("X-Spese-Success", "Movimento salvato.")
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Redirect", "/transactions")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, "/transactions", http.StatusSeeOther)
 }
 
 // parseForm builds a single-row Transaction from form values. Sign is set
@@ -80,33 +83,36 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 func parseForm(r *http.Request) (Transaction, error) {
 	kind := Kind(strings.TrimSpace(r.FormValue("kind")))
 	if kind != Income && kind != Expense {
-		return Transaction{}, errors.New("kind must be Income or Expense")
+		return Transaction{}, errors.New("Seleziona un tipo di movimento valido.")
 	}
 	account := strings.TrimSpace(r.FormValue("account"))
 	if account == "" {
-		return Transaction{}, errors.New("account is required")
+		return Transaction{}, errors.New("Seleziona un conto.")
 	}
 	dateStr := strings.TrimSpace(r.FormValue("date"))
 	if dateStr == "" {
-		return Transaction{}, errors.New("date is required")
+		return Transaction{}, errors.New("La data è obbligatoria.")
 	}
 	d, err := kernel.ParseDate(dateStr)
 	if err != nil {
-		return Transaction{}, err
+		return Transaction{}, errors.New("Inserisci una data valida.")
 	}
 	amt, err := kernel.ParseMoney(r.FormValue("amount"))
 	if err != nil {
-		return Transaction{}, err
+		return Transaction{}, errors.New("Inserisci un importo valido.")
 	}
 	if amt < 0 {
 		amt = -amt
+	}
+	if amt == 0 {
+		return Transaction{}, errors.New("L'importo deve essere maggiore di zero.")
 	}
 	if kind == Expense {
 		amt = -amt
 	}
 	payee := strings.TrimSpace(r.FormValue("payee"))
 	if payee == "" {
-		return Transaction{}, errors.New("payee/description is required")
+		return Transaction{}, errors.New("La descrizione è obbligatoria.")
 	}
 	return Transaction{
 		Date:        d,

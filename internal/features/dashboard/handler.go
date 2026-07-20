@@ -32,25 +32,25 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	income, err := reports.IncomeStatement(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("income statement", "err", err)
-		http.Error(w, "failed to load dashboard", http.StatusBadGateway)
+		http.Error(w, "Impossibile caricare la dashboard.", http.StatusBadGateway)
 		return
 	}
 	netWorth, err := reports.NwMonthly(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("nw monthly", "err", err)
-		http.Error(w, "failed to load dashboard", http.StatusBadGateway)
+		http.Error(w, "Impossibile caricare la dashboard.", http.StatusBadGateway)
 		return
 	}
 	balances, err := reports.BalanceSheet(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("balance sheet", "err", err)
-		http.Error(w, "failed to load dashboard", http.StatusBadGateway)
+		http.Error(w, "Impossibile caricare la dashboard.", http.StatusBadGateway)
 		return
 	}
 	investments, err := reports.Investments(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("investments", "err", err)
-		http.Error(w, "failed to load dashboard", http.StatusBadGateway)
+		http.Error(w, "Impossibile caricare la dashboard.", http.StatusBadGateway)
 		return
 	}
 	period := dashboardPeriod()
@@ -60,7 +60,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	}, false)
 	if err != nil {
 		h.Logger.Error("transactions", "err", err)
-		http.Error(w, "failed to load dashboard", http.StatusBadGateway)
+		http.Error(w, "Impossibile caricare la dashboard.", http.StatusBadGateway)
 		return
 	}
 

@@ -87,6 +87,37 @@ button {
   outline-offset: 2px;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: fixed;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 200;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border-radius: 6px;
+  background: var(--ink);
+  color: #ffffff;
+  line-height: 44px;
+  transform: translateY(-150%);
+}
+
+.skip-link:focus {
+  color: #ffffff;
+  transform: translateY(0);
+}
+
 .muted {
   color: var(--muted);
 }
@@ -164,7 +195,7 @@ button {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 var(--space-3);
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -173,6 +204,12 @@ button {
   font-size: 0.9rem;
   font-weight: 600;
   box-shadow: var(--shadow-soft);
+}
+
+.nav a[aria-current="page"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
 }
 
 .nav a:hover {
@@ -338,6 +375,46 @@ details.form-card form {
   background: var(--accent-strong);
 }
 
+.form-card button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.form-card .button-secondary {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--accent-strong);
+}
+
+.form-card .button-secondary:hover {
+  background: var(--surface-muted);
+}
+
+.form-error,
+.form-empty {
+  margin: 0;
+  border-radius: 6px;
+  padding: var(--space-3);
+}
+
+.form-error {
+  border: 1px solid rgba(163, 58, 58, 0.35);
+  background: rgba(163, 58, 58, 0.08);
+  color: var(--expense);
+  font-weight: 700;
+}
+
+.form-empty {
+  display: grid;
+  gap: var(--space-3);
+  border: 1px solid var(--line);
+  background: var(--surface-muted);
+}
+
+.form-empty p {
+  margin: 0;
+}
+
 .form-card button {
   grid-column: 1 / -1;
   justify-self: stretch;
@@ -352,7 +429,7 @@ details.form-card form {
 }
 
 .snapshots-form .data-table input {
-  min-height: 40px;
+  min-height: 44px;
 }
 
 .data-table {
@@ -367,7 +444,7 @@ details.form-card form {
   background: var(--surface-muted);
 }
 
-.data-table th,
+.data-table thead th,
 .data-table td {
   padding: 0.75rem 0.85rem;
   border-bottom: 1px solid var(--line);
@@ -375,11 +452,21 @@ details.form-card form {
   vertical-align: top;
 }
 
-.data-table th {
+.data-table thead th {
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.data-table tbody th {
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 650;
+  text-align: left;
+  vertical-align: top;
 }
 
 .data-table th.num,
@@ -387,7 +474,8 @@ details.form-card form {
   text-align: right;
 }
 
-.data-table tbody tr:last-child td {
+.data-table tbody tr:last-child td,
+.data-table tbody tr:last-child th {
   border-bottom: 0;
 }
 
@@ -510,7 +598,7 @@ details.form-card form {
 
 .dashboard-head__link {
   display: inline-flex;
-  min-height: 40px;
+  min-height: 44px;
   align-items: center;
   justify-content: center;
   justify-self: start;
@@ -622,6 +710,49 @@ details.form-card form {
 .dashboard-chart {
   overflow-x: auto;
   scrollbar-width: thin;
+}
+
+.dashboard-chart__hint {
+  display: none;
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.dashboard-chart-data {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+}
+
+.dashboard-chart-data summary {
+  min-height: 44px;
+  color: var(--accent);
+  font-weight: 700;
+  line-height: 44px;
+  cursor: pointer;
+}
+
+.dashboard-chart-data dl {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.dashboard-chart-data dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.dashboard-chart-data dt,
+.dashboard-chart-data dd {
+  margin: 0;
+}
+
+.dashboard-chart-data dd {
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .dashboard-svg {
@@ -916,7 +1047,24 @@ details.form-card form {
   box-shadow: none;
 }
 
-@media (max-width: 720px) {
+.app-status {
+  position: fixed;
+  right: var(--page-pad);
+  bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  left: var(--page-pad);
+  z-index: 160;
+  max-width: 32rem;
+  margin-inline: auto;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-strong);
+  color: #ffffff;
+  padding: var(--space-3) var(--space-4);
+  font-weight: 700;
+  box-shadow: var(--shadow);
+}
+
+@media (max-width: 899px) {
   .data-table,
   .data-table thead,
   .data-table tbody,
@@ -960,7 +1108,8 @@ details.form-card form {
     background: var(--surface);
   }
 
-  .data-table td {
+  .data-table td,
+  .data-table tbody th {
     border: 0;
     padding: 0.45rem 0;
   }
@@ -1013,19 +1162,22 @@ details.form-card form {
     grid-template-areas:
       "primary status"
       "secondary meta"
+      "amount amount"
       "detail detail"
       "extra extra";
     gap: var(--space-2) var(--space-3);
     align-items: start;
   }
 
-  .list-table td[data-label] {
+  .list-table td[data-label],
+  .list-table th[data-label] {
     display: block;
     min-width: 0;
     padding: 0;
   }
 
-  .list-table td[data-label]::before {
+  .list-table td[data-label]::before,
+  .list-table th[data-label]::before {
     content: none;
   }
 
@@ -1091,6 +1243,18 @@ details.form-card form {
     color: var(--muted);
     font-weight: 650;
   }
+
+  .dashboard-chart__hint {
+    display: block;
+  }
+
+  .dashboard-bar__meta strong,
+  .investment-row__head strong,
+  .dashboard-category__meta strong {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
 }
 
 @media (max-width: 420px) {
@@ -1128,8 +1292,8 @@ details.form-card form {
       "extra extra";
   }
 
-  .list-table td.list-cell--amount,
-  .list-table td.list-cell--status {
+  .list-table .list-cell--amount,
+  .list-table .list-cell--status {
     text-align: right;
   }
 }

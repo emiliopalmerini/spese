@@ -6,19 +6,20 @@
     <p class="muted">Entrate, uscite, risparmio per mese.</p>
   </header>
   <table class="data-table list-table list-table--ledger">
+    <caption class="sr-only">Entrate, uscite e risparmio mensili</caption>
     <thead>
       <tr>
-        <th>Mese</th>
-        <th class="num">Entrate</th>
-        <th class="num">Uscite</th>
-        <th class="num">Risparmio</th>
-        <th class="num">Tasso</th>
+        <th scope="col">Mese</th>
+        <th scope="col" class="num">Entrate</th>
+        <th scope="col" class="num">Uscite</th>
+        <th scope="col" class="num">Risparmio</th>
+        <th scope="col" class="num">Tasso</th>
       </tr>
     </thead>
     <tbody>
       {{range .Rows}}
         <tr>
-          <td class="list-cell list-cell--primary" data-label="Mese">{{monthIT .Month}}</td>
+          <th scope="row" class="list-cell list-cell--primary" data-label="Mese">{{monthIT .Month}}</th>
           <td class="list-cell list-cell--secondary num" data-label="Entrate"><span class="list-cell__prefix">Entrate </span>{{money .Revenue}}</td>
           <td class="list-cell list-cell--meta num" data-label="Uscite"><span class="list-cell__prefix">Uscite </span>{{money .Expenses}}</td>
           <td class="list-cell list-cell--amount num" data-label="Risparmio">{{money .NetIncome}}</td>

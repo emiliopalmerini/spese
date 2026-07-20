@@ -3,6 +3,10 @@
   padding-bottom: calc(var(--space-8) + 5.5rem + env(safe-area-inset-bottom));
 }
 
+body.has-open-drawer {
+  overflow: hidden;
+}
+
 .global-actions {
   position: fixed;
   right: var(--page-pad);
@@ -100,6 +104,7 @@
 .global-action-drawer__panel {
   width: min(100%, 1040px);
   max-height: calc(100vh - var(--space-7) - env(safe-area-inset-top));
+  max-height: calc(100dvh - var(--space-7) - env(safe-area-inset-top));
   margin: 0 auto;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -144,8 +149,8 @@
 
 .global-action-drawer__close {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   flex: 0 0 auto;
   place-items: center;
   border: 1px solid var(--line);
@@ -162,10 +167,12 @@
 
 .global-action-drawer__content {
   max-height: calc(100vh - var(--space-7) - 58px - 1.5rem - env(safe-area-inset-top));
+  max-height: calc(100dvh - var(--space-7) - 58px - 1.5rem - env(safe-area-inset-top));
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
+  overscroll-behavior: contain;
 }
 
 .global-action-drawer__content.is-loading {
@@ -219,7 +226,7 @@
 
   .global-action-drawer__content {
     max-height: calc(min(86vh, 780px) - 58px - 1.5rem);
-    padding: var(--space-5);
+    padding: var(--space-5) var(--space-5) calc(var(--space-5) + env(safe-area-inset-bottom));
   }
 
   .global-action-drawer .global-action-form {

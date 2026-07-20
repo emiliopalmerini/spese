@@ -45,10 +45,17 @@
           {{end}}
         </svg>
       </div>
+      <p class="dashboard-chart__hint">Scorri orizzontalmente per vedere tutti i mesi.</p>
       <div class="dashboard-legend" aria-label="Legenda">
         <span><i class="dashboard-legend__swatch dashboard-legend__swatch--income"></i>Entrate</span>
         <span><i class="dashboard-legend__swatch dashboard-legend__swatch--expense"></i>Uscite</span>
       </div>
+      <details class="dashboard-chart-data">
+        <summary>Valori del grafico</summary>
+        <dl>
+          {{range .CashFlow.Bars}}<div><dt>{{.Label}} · {{.Kind}}</dt><dd>{{.ValueFmt}}</dd></div>{{end}}
+        </dl>
+      </details>
     {{end}}
   </section>
 
@@ -114,10 +121,17 @@
             {{end}}
           </svg>
         </div>
+        <p class="dashboard-chart__hint">Scorri orizzontalmente per vedere tutti i mesi.</p>
         <div class="dashboard-range">
           <span>Min {{.NetWorth.MinFmt}}</span>
           <span>Max {{.NetWorth.MaxFmt}}</span>
         </div>
+        <details class="dashboard-chart-data">
+          <summary>Valori del grafico</summary>
+          <dl>
+            {{range .NetWorth.Points}}<div><dt>{{.Label}}</dt><dd>{{.ValueFmt}}</dd></div>{{end}}
+          </dl>
+        </details>
       {{end}}
     </article>
 

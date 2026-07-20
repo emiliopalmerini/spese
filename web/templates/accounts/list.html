@@ -7,27 +7,28 @@
   </header>
 
   <table class="data-table list-table list-table--simple">
+    <caption class="sr-only">Elenco dei conti e relativi saldi</caption>
     <thead>
       <tr>
-        <th>Nome</th>
-        <th>Tipo</th>
-        <th>Classe</th>
-        <th>Valuta</th>
-        <th class="num">Saldo</th>
-        <th>Ultimo aggiornamento</th>
-        <th>Note</th>
+        <th scope="col">Nome</th>
+        <th scope="col">Tipo</th>
+        <th scope="col">Classe</th>
+        <th scope="col">Valuta</th>
+        <th scope="col" class="num">Saldo</th>
+        <th scope="col">Ultimo aggiornamento</th>
+        <th scope="col">Note</th>
       </tr>
     </thead>
     <tbody>
       {{range .Rows}}
         <tr>
-          <td class="list-cell list-cell--primary" data-label="Nome">{{.Account.Name}}</td>
-          <td class="list-cell list-cell--status" data-label="Tipo">{{.Account.Type}}</td>
-          <td class="list-cell list-cell--secondary" data-label="Classe">{{.Account.Class}}</td>
+          <th scope="row" class="list-cell list-cell--primary" data-label="Nome">{{.Account.Name}}</th>
+          <td class="list-cell list-cell--status" data-label="Tipo">{{accountType .Account.Type}}</td>
+          <td class="list-cell list-cell--secondary" data-label="Classe">{{accountClass .Account.Class}}</td>
           <td class="list-cell list-cell--meta" data-label="Valuta">{{.Account.Currency}}</td>
-          <td class="list-cell list-cell--amount num" data-label="Saldo">{{if .LatestMonth.IsZero}}-{{else}}{{money .LatestBalance}}{{end}}</td>
-          <td class="list-cell list-cell--detail muted" data-label="Ultimo aggiornamento">{{if .LatestMonth.IsZero}}Mai{{else}}{{isodate .LatestMonth}}{{end}}</td>
-          <td class="list-cell list-cell--detail muted" data-label="Note">{{.Account.Note}}</td>
+          <td class="list-cell list-cell--amount num" data-label="Saldo"><span class="list-cell__prefix">Saldo </span>{{if .LatestMonth.IsZero}}-{{else}}{{money .LatestBalance}}{{end}}</td>
+          <td class="list-cell list-cell--detail muted" data-label="Ultimo aggiornamento"><span class="list-cell__prefix">Aggiornato </span>{{if .LatestMonth.IsZero}}Mai{{else}}{{isodate .LatestMonth}}{{end}}</td>
+          <td class="list-cell list-cell--extra muted" data-label="Note">{{if .Account.Note}}<span class="list-cell__prefix">Note </span>{{.Account.Note}}{{end}}</td>
         </tr>
       {{else}}
         <tr><td colspan="7" class="muted">Nessun conto.</td></tr>

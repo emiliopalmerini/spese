@@ -44,7 +44,7 @@ func (h *Handler) balanceSheet(w http.ResponseWriter, r *http.Request) {
 	rows, err := BalanceSheet(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("balance sheet", "err", err)
-		http.Error(w, "failed to load balance sheet", http.StatusBadGateway)
+		http.Error(w, "Impossibile caricare lo stato patrimoniale.", http.StatusBadGateway)
 		return
 	}
 	_ = h.Render.Render(w, "reports/balance_sheet", BalanceSheetView{Rows: rows})
@@ -57,7 +57,7 @@ func (h *Handler) incomeStatement(w http.ResponseWriter, r *http.Request) {
 	rows, err := IncomeStatement(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("income statement", "err", err)
-		http.Error(w, "failed to load income statement", http.StatusBadGateway)
+		http.Error(w, "Impossibile caricare il conto economico.", http.StatusBadGateway)
 		return
 	}
 	_ = h.Render.Render(w, "reports/income_statement", IncomeStatementView{Rows: rows})
@@ -70,7 +70,7 @@ func (h *Handler) nwTimeline(w http.ResponseWriter, r *http.Request) {
 	rows, err := NwMonthly(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("nw monthly", "err", err)
-		http.Error(w, "failed to load NW timeline", http.StatusBadGateway)
+		http.Error(w, "Impossibile caricare l'andamento del patrimonio.", http.StatusBadGateway)
 		return
 	}
 	_ = h.Render.Render(w, "reports/nw_timeline", NwTimelineView{Rows: rows})
@@ -83,7 +83,7 @@ func (h *Handler) investments(w http.ResponseWriter, r *http.Request) {
 	rows, err := Investments(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("investments", "err", err)
-		http.Error(w, "failed to load investments", http.StatusBadGateway)
+		http.Error(w, "Impossibile caricare gli investimenti.", http.StatusBadGateway)
 		return
 	}
 	_ = h.Render.Render(w, "reports/investments", InvestmentsView{Rows: rows})

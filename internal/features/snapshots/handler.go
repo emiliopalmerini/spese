@@ -46,19 +46,20 @@ func (h *Handler) redirectToBalanceSheet(w http.ResponseWriter, r *http.Request)
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, "Il modulo inviato non è valido.", http.StatusBadRequest)
 		return
 	}
 	snaps, err := parseForm(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
 	if err := Append(r.Context(), h.Store, snaps); err != nil {
 		h.Logger.Error("append snapshots", "err", err)
-		http.Error(w, "failed to write snapshots", http.StatusBadGateway)
+		http.Error(w, "Impossibile salvare i bilanci. Riprova.", http.StatusBadGateway)
 		return
 	}
+	w.Header().Set("X-Spese-Success", "Bilanci salvati.")
 	redirectAfterCreate(w, r)
 }
 
@@ -77,7 +78,7 @@ func parseForm(r *http.Request) ([]Snapshot, error) {
 	monthStr := strings.TrimSpace(r.FormValue("month"))
 	month, err := kernel.ParseDate(monthStr)
 	if err != nil {
-		return nil, errors.New("invalid month")
+		return nil, errors.New("Inserisci un mese valido.")
 	}
 	month = month.FirstOfMonth()
 
@@ -93,7 +94,7 @@ func parseForm(r *http.Request) ([]Snapshot, error) {
 		}
 		amt, err := kernel.ParseMoney(raw)
 		if err != nil {
-			return nil, errors.New("invalid balance for " + account)
+			return nil, errors.New("Inserisci un saldo valido per " + account + ".")
 		}
 		snaps = append(snaps, Snapshot{
 			Month:   month,
@@ -103,7 +104,7 @@ func parseForm(r *http.Request) ([]Snapshot, error) {
 		})
 	}
 	if len(snaps) == 0 {
-		return nil, errors.New("no balances submitted")
+		return nil, errors.New("Inserisci almeno un saldo.")
 	}
 	return snaps, nil
 }

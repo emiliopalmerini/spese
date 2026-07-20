@@ -44,7 +44,7 @@ func (h *Handler) transactionForm(w http.ResponseWriter, r *http.Request) {
 	view, err := h.accountPickerView(r)
 	if err != nil {
 		h.Logger.Error("build transaction action form", "err", err)
-		http.Error(w, "failed to load transaction form", http.StatusBadGateway)
+		http.Error(w, "Impossibile caricare il modulo del movimento.", http.StatusBadGateway)
 		return
 	}
 	h.renderFragment(w, "action_form_transaction", view)
@@ -54,7 +54,7 @@ func (h *Handler) transferForm(w http.ResponseWriter, r *http.Request) {
 	view, err := h.accountPickerView(r)
 	if err != nil {
 		h.Logger.Error("build transfer action form", "err", err)
-		http.Error(w, "failed to load transfer form", http.StatusBadGateway)
+		http.Error(w, "Impossibile caricare il modulo del trasferimento.", http.StatusBadGateway)
 		return
 	}
 	h.renderFragment(w, "action_form_transfer", view)
@@ -64,7 +64,7 @@ func (h *Handler) snapshotForm(w http.ResponseWriter, r *http.Request) {
 	view, err := snapshots.BuildFormView(r.Context(), h.Store, r.URL.Query().Get("month"), false)
 	if err != nil {
 		h.Logger.Error("build snapshot action form", "err", err)
-		http.Error(w, "failed to load snapshot form", http.StatusBadGateway)
+		http.Error(w, "Impossibile caricare il modulo dei bilanci.", http.StatusBadGateway)
 		return
 	}
 	h.renderFragment(w, "action_form_snapshot", view)
@@ -100,6 +100,6 @@ func (h *Handler) categorySuggestions(r *http.Request) CategorySuggestions {
 func (h *Handler) renderFragment(w http.ResponseWriter, name string, data any) {
 	if err := h.Render.RenderFragment(w, name, data); err != nil {
 		h.Logger.Error("render action fragment", "name", name, "err", err)
-		http.Error(w, "failed to render action form", http.StatusInternalServerError)
+		http.Error(w, "Impossibile visualizzare il modulo.", http.StatusInternalServerError)
 	}
 }

@@ -11,13 +11,15 @@ import (
 
 // funcs is the template function map exposed in every page.
 var funcs = template.FuncMap{
-	"money":    fmtMoney,
-	"pct":      fmtPct,
-	"isodate":  fmtISODate,
-	"monthIT":  fmtMonthIT,
-	"title":    cases.Title,
-	"join":     strings.Join,
-	"nonempty": nonempty,
+	"money":        fmtMoney,
+	"pct":          fmtPct,
+	"isodate":      fmtISODate,
+	"monthIT":      fmtMonthIT,
+	"title":        cases.Title,
+	"join":         strings.Join,
+	"nonempty":     nonempty,
+	"accountType":  accountTypeLabel,
+	"accountClass": accountClassLabel,
 }
 
 func fmtMoney(m any) string {
@@ -82,6 +84,32 @@ func fmtMonthIT(v any) string {
 }
 
 func nonempty(s string) bool { return strings.TrimSpace(s) != "" }
+
+func accountTypeLabel(raw any) string {
+	value := fmt.Sprint(raw)
+	if label := map[string]string{
+		"Asset":     "Attività",
+		"Liability": "Passività",
+	}[value]; label != "" {
+		return label
+	}
+	return value
+}
+
+func accountClassLabel(raw any) string {
+	value := fmt.Sprint(raw)
+	if label := map[string]string{
+		"Cash":       "Liquidità",
+		"Investment": "Investimenti",
+		"Property":   "Immobili",
+		"Tax":        "Imposte",
+		"Credit":     "Credito",
+		"Other":      "Altro",
+	}[value]; label != "" {
+		return label
+	}
+	return value
+}
 
 // cases avoids importing golang.org/x/text/cases for one helper; we just
 // need Italian Title case which is the same as Go's deprecated strings.Title.

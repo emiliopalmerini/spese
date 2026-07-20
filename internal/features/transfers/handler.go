@@ -34,19 +34,20 @@ func (h *Handler) redirectToTransactions(w http.ResponseWriter, r *http.Request)
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, "Il modulo inviato non è valido.", http.StatusBadRequest)
 		return
 	}
 	legs, err := parseTransfer(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
 	if err := transactions.Append(r.Context(), h.Store, legs); err != nil {
 		h.Logger.Error("append transfer", "err", err)
-		http.Error(w, "failed to record transfer", http.StatusBadGateway)
+		http.Error(w, "Impossibile registrare il trasferimento. Riprova.", http.StatusBadGateway)
 		return
 	}
+	w.Header().Set("X-Spese-Success", "Trasferimento registrato.")
 	redirectAfterCreate(w, r)
 }
 
@@ -64,28 +65,28 @@ func parseTransfer(r *http.Request) ([]transactions.Transaction, error) {
 	src := strings.TrimSpace(r.FormValue("source"))
 	dst := strings.TrimSpace(r.FormValue("destination"))
 	if src == "" || dst == "" {
-		return nil, errors.New("source and destination are required")
+		return nil, errors.New("Seleziona il conto di origine e quello di destinazione.")
 	}
 	if src == dst {
-		return nil, errors.New("source and destination must differ")
+		return nil, errors.New("Il conto di origine e quello di destinazione devono essere diversi.")
 	}
 	dateStr := strings.TrimSpace(r.FormValue("date"))
 	if dateStr == "" {
-		return nil, errors.New("date is required")
+		return nil, errors.New("La data è obbligatoria.")
 	}
 	d, err := kernel.ParseDate(dateStr)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("Inserisci una data valida.")
 	}
 	amt, err := kernel.ParseMoney(r.FormValue("amount"))
 	if err != nil {
-		return nil, err
+		return nil, errors.New("Inserisci un importo valido.")
 	}
 	if amt < 0 {
 		amt = -amt
 	}
 	if amt == 0 {
-		return nil, errors.New("amount must be positive")
+		return nil, errors.New("L'importo deve essere maggiore di zero.")
 	}
 	note := strings.TrimSpace(r.FormValue("note"))
 

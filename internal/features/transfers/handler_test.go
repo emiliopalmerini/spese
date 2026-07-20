@@ -3,6 +3,8 @@ package transfers
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -49,5 +51,26 @@ func TestRedirectAfterCreateFallsBackToSeeOther(t *testing.T) {
 	}
 	if got := w.Header().Get("Location"); got != "/transactions" {
 		t.Fatalf("expected redirect to /transactions, got %q", got)
+	}
+}
+
+func TestCreateRejectsSameAccountWithLocalizedMessage(t *testing.T) {
+	form := url.Values{
+		"source":      {"Conto"},
+		"destination": {"Conto"},
+		"date":        {"2026-05-15"},
+		"amount":      {"10,00"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/transfers", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	(&Handler{}).create(w, req)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status %d, got %d", http.StatusUnprocessableEntity, w.Code)
+	}
+	if got := strings.TrimSpace(w.Body.String()); got != "Il conto di origine e quello di destinazione devono essere diversi." {
+		t.Fatalf("unexpected validation message %q", got)
 	}
 }

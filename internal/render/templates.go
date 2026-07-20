@@ -27,7 +27,13 @@ type Templates struct {
 
 // Load parses templates from the given filesystem rooted at "templates/".
 func Load(tfs fs.FS) (*Templates, error) {
-	layoutSet, err := template.New("").Funcs(funcs).ParseFS(tfs, "templates/layouts/*.html")
+	layoutFuncs := template.FuncMap{
+		"currentSection": func() string { return "" },
+	}
+	for name, fn := range funcs {
+		layoutFuncs[name] = fn
+	}
+	layoutSet, err := template.New("").Funcs(layoutFuncs).ParseFS(tfs, "templates/layouts/*.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse layouts: %w", err)
 	}
@@ -54,6 +60,10 @@ func Load(tfs fs.FS) (*Templates, error) {
 		if err != nil {
 			return err
 		}
+		section := strings.SplitN(name, "/", 2)[0]
+		clone.Funcs(template.FuncMap{
+			"currentSection": func() string { return section },
+		})
 		t, err := clone.ParseFS(tfs, path)
 		if err != nil {
 			return fmt.Errorf("parse %s: %w", path, err)

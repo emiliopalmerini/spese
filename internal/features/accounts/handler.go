@@ -36,7 +36,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	rows, err := ListWithLatest(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("list accounts", "err", err)
-		http.Error(w, "failed to load accounts", http.StatusBadGateway)
+		http.Error(w, "Impossibile caricare i conti.", http.StatusBadGateway)
 		return
 	}
 	if err := h.Render.Render(w, "accounts/list", ListView{Rows: rows}); err != nil {
@@ -46,22 +46,26 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, "Il modulo inviato non è valido.", http.StatusBadRequest)
 		return
 	}
 	a, err := parseForm(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
 	if err := Append(r.Context(), h.Store, a); err != nil {
 		h.Logger.Error("append account", "err", err)
-		http.Error(w, "failed to write account", http.StatusBadGateway)
+		http.Error(w, "Impossibile salvare il conto. Riprova.", http.StatusBadGateway)
 		return
 	}
-	// Re-list after write so HTMX can swap the table.
-	rows, _ := ListWithLatest(r.Context(), h.Store, true)
-	_ = h.Render.Render(w, "accounts/list", ListView{Rows: rows})
+	w.Header().Set("X-Spese-Success", "Conto salvato.")
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Redirect", "/accounts")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, "/accounts", http.StatusSeeOther)
 }
 
 // parseForm turns submitted form values into an Account, validating the
@@ -69,15 +73,15 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 func parseForm(r *http.Request) (Account, error) {
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" {
-		return Account{}, errors.New("name is required")
+		return Account{}, errors.New("Il nome del conto è obbligatorio.")
 	}
 	t := Type(strings.TrimSpace(r.FormValue("type")))
 	if t != Asset && t != Liability {
-		return Account{}, errors.New("type must be Asset or Liability")
+		return Account{}, errors.New("Seleziona un tipo di conto valido.")
 	}
 	c := Class(strings.TrimSpace(r.FormValue("class")))
 	if c == "" {
-		return Account{}, errors.New("class is required")
+		return Account{}, errors.New("Seleziona una classe di conto.")
 	}
 	a := Account{
 		Name:     name,
@@ -89,14 +93,14 @@ func parseForm(r *http.Request) (Account, error) {
 	if v := strings.TrimSpace(r.FormValue("active_from")); v != "" {
 		d, err := kernel.ParseDate(v)
 		if err != nil {
-			return Account{}, err
+			return Account{}, errors.New("Inserisci una data di attivazione valida.")
 		}
 		a.ActiveFrom = d
 	}
 	if v := strings.TrimSpace(r.FormValue("active_to")); v != "" {
 		d, err := kernel.ParseDate(v)
 		if err != nil {
-			return Account{}, err
+			return Account{}, errors.New("Inserisci una data di disattivazione valida.")
 		}
 		a.ActiveTo = d
 	}

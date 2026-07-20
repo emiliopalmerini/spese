@@ -147,11 +147,18 @@ func TestTemplatesRender(t *testing.T) {
 				t.Fatalf("render %s: %v", name, err)
 			}
 			body := w.Body.String()
-			if !strings.Contains(body, "<main class=\"container\">") {
+			if !strings.Contains(body, "<main class=\"container\"") {
 				t.Fatalf("render %s did not include the base layout", name)
 			}
 			if !strings.Contains(body, "data-global-action-toggle") {
 				t.Fatalf("render %s did not include global actions", name)
+			}
+			if !strings.Contains(body, `/static/htmx-1.9.12.min.js`) || strings.Contains(body, "unpkg.com") {
+				t.Fatalf("render %s did not use the vendored HTMX asset", name)
+			}
+			section := strings.SplitN(name, "/", 2)[0]
+			if section != "dashboard" && !strings.Contains(body, `data-nav-section="`+section+`" aria-current="page"`) {
+				t.Fatalf("render %s did not identify its current navigation section", name)
 			}
 		})
 	}
@@ -202,6 +209,9 @@ func TestTemplateFragmentsRender(t *testing.T) {
 			if !strings.Contains(body, "data-global-action-form") {
 				t.Fatalf("fragment %s did not render an action form", name)
 			}
+			if !strings.Contains(body, `data-form-error`) || !strings.Contains(body, `role="alert"`) {
+				t.Fatalf("fragment %s did not render an accessible form error target", name)
+			}
 			switch name {
 			case "action_form_transaction":
 				if !strings.Contains(body, `type="text" inputmode="decimal" placeholder="0,00"`) {
@@ -214,9 +224,19 @@ func TestTemplateFragmentsRender(t *testing.T) {
 				if !strings.Contains(body, `type="text" inputmode="decimal" placeholder="0,00"`) {
 					t.Fatalf("fragment %s did not render a comma-friendly decimal amount input", name)
 				}
+				if !strings.Contains(body, `value="" disabled selected`) {
+					t.Fatalf("fragment %s did not require an explicit destination account", name)
+				}
 			case "action_form_snapshot":
 				if !strings.Contains(body, `type="text" inputmode="decimal" placeholder="0,00"`) {
 					t.Fatalf("fragment %s did not render comma-friendly decimal balance inputs", name)
+				}
+				if !strings.Contains(body, `aria-label="Nuovo saldo per Conto corrente principale"`) {
+					t.Fatalf("fragment %s did not identify the account for balance inputs", name)
+				}
+			case "action_form_account":
+				if !strings.Contains(body, `>Attività<`) || !strings.Contains(body, `>Liquidità<`) {
+					t.Fatalf("fragment %s did not localize account classifications", name)
 				}
 			}
 		})
