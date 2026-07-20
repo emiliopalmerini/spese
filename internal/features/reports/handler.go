@@ -1,10 +1,13 @@
 package reports
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 
+	"spese/internal/kernel"
 	"spese/internal/storage"
 )
 
@@ -50,27 +53,109 @@ func (h *Handler) balanceSheet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) incomeStatement(w http.ResponseWriter, r *http.Request) {
+	period, form, err := parseReportPeriod(r.URL.Query())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	rows, err := IncomeStatement(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("income statement", "err", err)
 		http.Error(w, "Impossibile caricare il conto economico.", http.StatusBadGateway)
 		return
 	}
-	if err := h.Render.Render(w, "reports/income_statement", buildIncomeStatementView(rows)); err != nil {
+	view := buildIncomeStatementView(filterIncomeRows(rows, period))
+	view.Period = form
+	if err := h.Render.Render(w, "reports/income_statement", view); err != nil {
 		h.Logger.Error("render income statement", "err", err)
 	}
 }
 
 func (h *Handler) nwTimeline(w http.ResponseWriter, r *http.Request) {
+	period, form, err := parseReportPeriod(r.URL.Query())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	rows, err := NwMonthly(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("nw monthly", "err", err)
 		http.Error(w, "Impossibile caricare l'andamento del patrimonio.", http.StatusBadGateway)
 		return
 	}
-	if err := h.Render.Render(w, "reports/nw_timeline", buildNwTimelineView(rows)); err != nil {
+	view := buildNwTimelineView(filterNwRows(rows, period))
+	view.Period = form
+	if err := h.Render.Render(w, "reports/nw_timeline", view); err != nil {
 		h.Logger.Error("render net worth timeline", "err", err)
 	}
+}
+
+// PeriodFilterView preserves month bounds in historical report forms.
+type PeriodFilterView struct {
+	From string
+	To   string
+}
+
+type reportPeriod struct {
+	From kernel.Date
+	To   kernel.Date
+}
+
+func parseReportPeriod(values url.Values) (reportPeriod, PeriodFilterView, error) {
+	form := PeriodFilterView{
+		From: strings.TrimSpace(values.Get("from")),
+		To:   strings.TrimSpace(values.Get("to")),
+	}
+	period := reportPeriod{}
+	if form.From != "" {
+		if len(form.From) != 7 {
+			return period, form, errors.New("Il mese iniziale non è valido.")
+		}
+		date, err := kernel.ParseDate(form.From)
+		if err != nil {
+			return period, form, errors.New("Il mese iniziale non è valido.")
+		}
+		period.From = date.FirstOfMonth()
+	}
+	if form.To != "" {
+		if len(form.To) != 7 {
+			return period, form, errors.New("Il mese finale non è valido.")
+		}
+		date, err := kernel.ParseDate(form.To)
+		if err != nil {
+			return period, form, errors.New("Il mese finale non è valido.")
+		}
+		period.To = kernel.Date{Time: date.FirstOfMonth().AddDate(0, 1, 0)}
+	}
+	if !period.From.IsZero() && !period.To.IsZero() && !period.From.Before(period.To.Time) {
+		return reportPeriod{}, form, errors.New("Il mese iniziale deve precedere quello finale.")
+	}
+	return period, form, nil
+}
+
+func filterIncomeRows(rows []IncomeRow, period reportPeriod) []IncomeRow {
+	filtered := make([]IncomeRow, 0, len(rows))
+	for _, row := range rows {
+		if reportMonthIncluded(row.Month, period) {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
+}
+
+func filterNwRows(rows []NwRow, period reportPeriod) []NwRow {
+	filtered := make([]NwRow, 0, len(rows))
+	for _, row := range rows {
+		if reportMonthIncluded(row.Month, period) {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
+}
+
+func reportMonthIncluded(month kernel.Date, period reportPeriod) bool {
+	return (period.From.IsZero() || !month.Before(period.From.Time)) &&
+		(period.To.IsZero() || month.Before(period.To.Time))
 }
 
 func (h *Handler) investments(w http.ResponseWriter, r *http.Request) {

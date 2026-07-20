@@ -51,6 +51,7 @@ func buildBalanceSheetView(rows []BalanceRow) BalanceSheetView {
 // IncomeStatementView is the payload for the income-statement report.
 type IncomeStatementView struct {
 	Rows           []IncomeRow
+	Period         PeriodFilterView
 	Revenue        kernel.Money
 	Expenses       kernel.Money
 	NetIncome      kernel.Money
@@ -76,6 +77,7 @@ func buildIncomeStatementView(rows []IncomeRow) IncomeStatementView {
 // NwTimelineView is the payload for the net-worth timeline report.
 type NwTimelineView struct {
 	Rows         []NwRow
+	Period       PeriodFilterView
 	Latest       kernel.Money
 	Change       kernel.Money
 	ChangePct    float64

@@ -1,10 +1,15 @@
 {{define "title"}}Conto economico · Spese{{end}}
 {{define "content"}}
-<section class="page report">
+<section class="page report" id="report-content">
   <header class="page-head">
     <h1>Conto economico</h1>
     <p class="muted">Entrate, uscite e risparmio per mese, dal più recente.</p>
   </header>
+  <form class="form-card report-period" method="get" action="/reports/income-statement" hx-get="/reports/income-statement" hx-target="#report-content" hx-select="#report-content" hx-swap="outerHTML" hx-push-url="true">
+    <label>Dal mese <input type="month" name="from" value="{{.Period.From}}"></label>
+    <label>Al mese <input type="month" name="to" value="{{.Period.To}}"></label>
+    <div class="report-period__actions"><button type="submit">Applica</button><a class="button-secondary" href="/reports/income-statement">Azzera</a></div>
+  </form>
   <div class="dashboard-kpis" aria-label="Totali del periodo">
     <article class="dashboard-kpi dashboard-kpi--positive"><span class="dashboard-kpi__label">Entrate totali</span><strong class="dashboard-kpi__value">{{money .Revenue}}</strong></article>
     <article class="dashboard-kpi dashboard-kpi--negative"><span class="dashboard-kpi__label">Uscite totali</span><strong class="dashboard-kpi__value">{{money .Expenses}}</strong></article>

@@ -421,18 +421,22 @@ details.form-card form {
 }
 
 .transaction-filters__search,
-.transaction-filters__actions {
+.transaction-filters__actions,
+.report-period__actions {
   grid-column: 1 / -1;
 }
 
-.transaction-filters__actions {
+.transaction-filters__actions,
+.report-period__actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
 
 .transaction-filters__actions button,
-.transaction-filters__actions a {
+.transaction-filters__actions a,
+.report-period__actions button,
+.report-period__actions a {
   display: inline-flex;
   min-height: 44px;
   align-items: center;
