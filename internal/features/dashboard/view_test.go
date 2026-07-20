@@ -28,7 +28,7 @@ func TestBuildViewSummarizesLatestReportRows(t *testing.T) {
 			{Account: "Carta", Class: "Credit", Balance: kernel.Money(-150000)},
 		},
 		[]reports.InvestmentRow{
-			{Account: "Broker", CostBasis: kernel.Money(3000000), Value: kernel.Money(3300000), Return: kernel.Money(300000), ReturnPct: 0.10},
+			{Account: "Broker", CostBasis: kernel.Money(3000000), Value: kernel.Money(3300000), Return: kernel.Money(300000), ReturnPct: 0.10, LatestMonth: may},
 		},
 		[]transactions.Transaction{
 			{Date: may, Kind: transactions.Expense, Amount: kernel.Money(-90000), Category: "Casa"},
@@ -41,8 +41,11 @@ func TestBuildViewSummarizesLatestReportRows(t *testing.T) {
 
 	assertKPI(t, view.KPIs, "Patrimonio netto", "45.000,00 €")
 	assertKPI(t, view.KPIs, "Risparmio mese", "2.100,00 €")
-	assertKPI(t, view.KPIs, "Tasso risparmio", "60.0%")
+	assertKPI(t, view.KPIs, "Tasso risparmio", "60,0%")
 	assertKPI(t, view.KPIs, "Investimenti", "33.000,00 €")
+	assertKPIHelp(t, view.KPIs, "Patrimonio netto", "Aggiornato a maggio 2026")
+	assertKPIHelp(t, view.KPIs, "Risparmio mese", "Maggio 2026 · entrate meno uscite")
+	assertKPIHelp(t, view.KPIs, "Investimenti", "Aggiornato a maggio 2026")
 
 	if len(view.CashFlow.Bars) != 4 {
 		t.Fatalf("cashflow bars = %d, want 4", len(view.CashFlow.Bars))
@@ -91,8 +94,8 @@ func TestBuildViewUsesRequestedPeriodForMonthlySummary(t *testing.T) {
 		jun,
 	)
 
-	assertKPI(t, view.KPIs, "Risparmio mese", "0,00 €")
-	assertKPI(t, view.KPIs, "Tasso risparmio", "0.0%")
+	assertKPI(t, view.KPIs, "Risparmio mese", "—")
+	assertKPI(t, view.KPIs, "Tasso risparmio", "—")
 	if view.ExpenseBreakdown.Period != "2026-06" {
 		t.Fatalf("expense period = %q, want 2026-06", view.ExpenseBreakdown.Period)
 	}
@@ -151,10 +154,10 @@ func TestBuildCashFlowChartKeepsLatestTwelveMonths(t *testing.T) {
 func TestBuildViewEmptyRowsUseEmptyStates(t *testing.T) {
 	view := buildView(nil, nil, nil, nil, nil, mustDate(t, "2026-05"))
 
-	assertKPI(t, view.KPIs, "Patrimonio netto", "0,00 €")
-	assertKPI(t, view.KPIs, "Risparmio mese", "0,00 €")
-	assertKPI(t, view.KPIs, "Tasso risparmio", "0.0%")
-	assertKPI(t, view.KPIs, "Investimenti", "0,00 €")
+	assertKPI(t, view.KPIs, "Patrimonio netto", "—")
+	assertKPI(t, view.KPIs, "Risparmio mese", "—")
+	assertKPI(t, view.KPIs, "Tasso risparmio", "—")
+	assertKPI(t, view.KPIs, "Investimenti", "—")
 	if !view.CashFlow.Empty {
 		t.Fatal("cashflow chart should be empty")
 	}
@@ -274,8 +277,8 @@ func TestBuildInvestmentChartUsesWeightedTotalReturn(t *testing.T) {
 	if chart.TotalReturnFmt != "550,00 €" {
 		t.Fatalf("total return = %q, want 550,00 €", chart.TotalReturnFmt)
 	}
-	if chart.ReturnPctFmt != "13.8%" {
-		t.Fatalf("return pct = %q, want 13.8%%", chart.ReturnPctFmt)
+	if chart.ReturnPctFmt != "13,8%" {
+		t.Fatalf("return pct = %q, want 13,8%%", chart.ReturnPctFmt)
 	}
 }
 
@@ -285,6 +288,19 @@ func assertKPI(t *testing.T, kpis []KPI, label, want string) {
 		if kpi.Label == label {
 			if kpi.Value != want {
 				t.Fatalf("%s = %q, want %q", label, kpi.Value, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing KPI %q in %+v", label, kpis)
+}
+
+func assertKPIHelp(t *testing.T, kpis []KPI, label, want string) {
+	t.Helper()
+	for _, kpi := range kpis {
+		if kpi.Label == label {
+			if kpi.Help != want {
+				t.Fatalf("%s help = %q, want %q", label, kpi.Help, want)
 			}
 			return
 		}

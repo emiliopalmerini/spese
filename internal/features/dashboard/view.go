@@ -141,6 +141,8 @@ type AllocationRow struct {
 // InvestmentChart summarizes investment account value and return.
 type InvestmentChart struct {
 	Empty          bool
+	HasValue       bool
+	LatestMonth    kernel.Date
 	TotalValueFmt  string
 	TotalReturnFmt string
 	ReturnPctFmt   string
@@ -166,30 +168,32 @@ func buildView(income []reports.IncomeRow, nw []reports.NwRow, balances []report
 		period = dashboardPeriod()
 	}
 	periodIncome, hasPeriodIncome := incomeRowForPeriod(income, period)
+	hasSavingsRate := hasPeriodIncome && periodIncome.Revenue != 0
+	periodLabel := titleMonthYear(period)
 
 	kpis := []KPI{
 		{
 			Label: "Patrimonio netto",
 			Value: moneyOrEmpty(latestNW.NetWorth, hasNW),
-			Help:  "Ultimo mese disponibile",
+			Help:  updatedAtHelp(latestNW.Month, hasNW),
 			Tone:  moneyTone(latestNW.NetWorth),
 		},
 		{
 			Label: "Risparmio mese",
 			Value: moneyOrEmpty(periodIncome.NetIncome, hasPeriodIncome),
-			Help:  "Entrate meno uscite",
+			Help:  periodLabel + " · entrate meno uscite",
 			Tone:  moneyTone(periodIncome.NetIncome),
 		},
 		{
 			Label: "Tasso risparmio",
-			Value: pctOrEmpty(periodIncome.SavingsRate, hasPeriodIncome),
-			Help:  "Quota del reddito accantonata",
+			Value: pctOrEmpty(periodIncome.SavingsRate, hasSavingsRate),
+			Help:  periodLabel + " · quota del reddito",
 			Tone:  rateTone(periodIncome.SavingsRate),
 		},
 		{
 			Label: "Investimenti",
-			Value: investmentChart.TotalValueFmt,
-			Help:  "Valore corrente",
+			Value: valueOrEmpty(investmentChart.TotalValueFmt, investmentChart.HasValue),
+			Help:  updatedAtHelp(investmentChart.LatestMonth, investmentChart.HasValue),
 			Tone:  "neutral",
 		},
 	}
@@ -503,7 +507,7 @@ func buildAllocationChart(rows []reports.BalanceRow) AllocationChart {
 
 func buildInvestmentChart(rows []reports.InvestmentRow) InvestmentChart {
 	if len(rows) == 0 {
-		return InvestmentChart{Empty: true, TotalValueFmt: moneyFmt(0), TotalReturnFmt: moneyFmt(0), ReturnPctFmt: "0.0%"}
+		return InvestmentChart{Empty: true, TotalValueFmt: "—", TotalReturnFmt: "—", ReturnPctFmt: "—"}
 	}
 
 	rows = append([]reports.InvestmentRow(nil), rows...)
@@ -533,6 +537,15 @@ func buildInvestmentChart(rows []reports.InvestmentRow) InvestmentChart {
 		TotalValueFmt:  moneyFmt(totalValue),
 		TotalReturnFmt: moneyFmt(totalReturn),
 		ReturnPctFmt:   pctFmt(returnRate(totalReturn, totalCost)),
+	}
+	for _, row := range rows {
+		if row.LatestMonth.IsZero() {
+			continue
+		}
+		chart.HasValue = true
+		if chart.LatestMonth.IsZero() || row.LatestMonth.After(chart.LatestMonth.Time) {
+			chart.LatestMonth = row.LatestMonth
+		}
 	}
 	limit := len(rows)
 	if limit > 5 {
@@ -623,20 +636,50 @@ func moneyFmt(m kernel.Money) string {
 
 func moneyOrEmpty(m kernel.Money, ok bool) string {
 	if !ok {
-		return "0,00 €"
+		return "—"
 	}
 	return moneyFmt(m)
 }
 
 func pctFmt(v float64) string {
-	return fmt.Sprintf("%.1f%%", v*100)
+	return strings.Replace(fmt.Sprintf("%.1f%%", v*100), ".", ",", 1)
 }
 
 func pctOrEmpty(v float64, ok bool) string {
 	if !ok {
-		return "0.0%"
+		return "—"
 	}
 	return pctFmt(v)
+}
+
+func valueOrEmpty(value string, ok bool) string {
+	if !ok {
+		return "—"
+	}
+	return value
+}
+
+func updatedAtHelp(month kernel.Date, ok bool) string {
+	if !ok || month.IsZero() {
+		return "Nessun dato disponibile"
+	}
+	return "Aggiornato a " + monthYear(month)
+}
+
+func titleMonthYear(month kernel.Date) string {
+	value := monthYear(month)
+	if value == "" {
+		return value
+	}
+	return strings.ToUpper(value[:1]) + value[1:]
+}
+
+func monthYear(month kernel.Date) string {
+	if month.IsZero() {
+		return ""
+	}
+	months := [...]string{"gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"}
+	return fmt.Sprintf("%s %d", months[month.Time.Month()-1], month.Time.Year())
 }
 
 func returnRate(ret, cost kernel.Money) float64 {
