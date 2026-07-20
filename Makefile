@@ -3,7 +3,7 @@ PKG := ./...
 BIN := bin/$(APP_NAME)
 WORKER_BIN := bin/$(APP_NAME)-worker
 
-.PHONY: all help setup tidy fmt vet lint test build run run-local run-worker run-worker-local smoke-local clean dev nix-build nix-docker
+.PHONY: all help setup tidy fmt vet lint test build run run-demo demo-data run-local run-worker run-worker-local smoke-local clean dev nix-build nix-docker
 
 all: help
 
@@ -23,6 +23,8 @@ help: ## Show this help message
 	@echo ""
 	@echo "Run:"
 	@echo "  run            Run application locally"
+	@echo "  run-demo       Reset demo data and run the local-only application"
+	@echo "  demo-data      Reset tmp/spese-demo.db with rolling example data"
 	@echo "  run-local      Run web app with Rabbit sheet-sync publisher"
 	@echo "  run-worker     Run Rabbit sheet-sync worker"
 	@echo "  run-worker-local Run worker mirroring to tmp/local-sheet.json"
@@ -68,6 +70,12 @@ build: fmt
 
 run:
 	go run ./cmd/spese
+
+demo-data:
+	go run ./cmd/spese-demo -db tmp/spese-demo.db
+
+run-demo: demo-data
+	SPESE_DB_PATH=tmp/spese-demo.db SPESE_SHEET_MIRROR_BACKEND=none go run ./cmd/spese
 
 run-local:
 	mkdir -p tmp

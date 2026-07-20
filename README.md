@@ -49,6 +49,20 @@ SPESE_LOCAL_SHEET_PATH=tmp/local-sheet.json
 
 App available at `http://localhost:8080` (`SPESE_PORT` variable).
 
+### Demo data
+
+To inspect the UI with representative data and no external services:
+
+```bash
+make run-demo
+```
+
+This resets the disposable `tmp/spese-demo.db` database with five accounts,
+twelve rolling months of transactions, transfers, and balance snapshots, then
+starts the app with sheet mirroring disabled. Run `make demo-data` to regenerate
+the database without starting the server. The demo seeder refuses database
+filenames that do not contain `demo`.
+
 To exercise the HTTP write path, SQLite outbox, Rabbit queue, worker, and local mirror output:
 
 ```bash
@@ -87,6 +101,8 @@ Google Service Account:
 - `make tidy`: manage Go modules
 - `make build`: compile binary
 - `make run`: run app locally
+- `make run-demo`: reset rolling demo data and run without external services
+- `make demo-data`: regenerate the disposable demo database
 - `make run-local`: run web app locally with Rabbit publisher enabled
 - `make run-worker-local`: run local Rabbit worker mirroring to `tmp/local-sheet.json`
 - `make smoke-local`: post smoke data and verify the local sheet mirror
