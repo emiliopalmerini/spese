@@ -3,8 +3,14 @@
 <section class="page report">
   <header class="page-head">
     <h1>Conto economico</h1>
-    <p class="muted">Entrate, uscite, risparmio per mese.</p>
+    <p class="muted">Entrate, uscite e risparmio per mese, dal più recente.</p>
   </header>
+  <div class="dashboard-kpis" aria-label="Totali del periodo">
+    <article class="dashboard-kpi dashboard-kpi--positive"><span class="dashboard-kpi__label">Entrate totali</span><strong class="dashboard-kpi__value">{{money .Revenue}}</strong></article>
+    <article class="dashboard-kpi dashboard-kpi--negative"><span class="dashboard-kpi__label">Uscite totali</span><strong class="dashboard-kpi__value">{{money .Expenses}}</strong></article>
+    <article class="dashboard-kpi"><span class="dashboard-kpi__label">Risparmio totale</span><strong class="dashboard-kpi__value">{{money .NetIncome}}</strong></article>
+    <article class="dashboard-kpi"><span class="dashboard-kpi__label">Tasso complessivo</span><strong class="dashboard-kpi__value">{{if .HasSavingsRate}}{{pct .SavingsRate}}{{else}}N/D{{end}}</strong></article>
+  </div>
   <table class="data-table list-table list-table--ledger">
     <caption class="sr-only">Entrate, uscite e risparmio mensili</caption>
     <thead>
@@ -23,7 +29,7 @@
           <td class="list-cell list-cell--secondary num" data-label="Entrate"><span class="list-cell__prefix">Entrate </span>{{money .Revenue}}</td>
           <td class="list-cell list-cell--meta num" data-label="Uscite"><span class="list-cell__prefix">Uscite </span>{{money .Expenses}}</td>
           <td class="list-cell list-cell--amount num" data-label="Risparmio">{{money .NetIncome}}</td>
-          <td class="list-cell list-cell--detail num" data-label="Tasso"><span class="list-cell__prefix">Tasso </span>{{pct .SavingsRate}}</td>
+          <td class="list-cell list-cell--detail num" data-label="Tasso"><span class="list-cell__prefix">Tasso </span>{{if .HasSavingsRate}}{{pct .SavingsRate}}{{else}}N/D{{end}}</td>
         </tr>
       {{else}}
         <tr><td colspan="5" class="muted">Nessun dato.</td></tr>

@@ -40,7 +40,7 @@ func fmtPct(v any) string {
 	if !ok {
 		return ""
 	}
-	return fmt.Sprintf("%.1f%%", f*100)
+	return strings.Replace(fmt.Sprintf("%.1f%%", f*100), ".", ",", 1)
 }
 
 func fmtISODate(v any) string {

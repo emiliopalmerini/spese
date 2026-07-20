@@ -112,14 +112,16 @@ func TestTemplatesRender(t *testing.T) {
 			},
 		},
 		"reports/balance_sheet": reports.BalanceSheetView{
-			Rows: []reports.BalanceRow{
-				{Account: account.Name, Type: "Asset", Class: "Cash", Balance: kernel.Money(1234567), LatestMonth: month},
+			Rows: []reports.BalanceViewRow{
+				{BalanceRow: reports.BalanceRow{Account: account.Name, Type: "Asset", Class: "Cash", Balance: kernel.Money(1234567), LatestMonth: month}},
 			},
+			Assets: kernel.Money(1234567), NetWorth: kernel.Money(1234567), LatestMonth: month,
 		},
 		"reports/income_statement": reports.IncomeStatementView{
 			Rows: []reports.IncomeRow{
-				{Month: month, Revenue: kernel.Money(350000), Expenses: kernel.Money(-140000), NetIncome: kernel.Money(210000), SavingsRate: 0.60},
+				{Month: month, Revenue: kernel.Money(350000), Expenses: kernel.Money(-140000), NetIncome: kernel.Money(210000), SavingsRate: 0.60, HasSavingsRate: true},
 			},
+			Revenue: kernel.Money(350000), Expenses: kernel.Money(-140000), NetIncome: kernel.Money(210000), SavingsRate: 0.60, HasSavingsRate: true,
 		},
 		"reports/index": reports.IndexView{},
 		"reports/investments": reports.InvestmentsView{

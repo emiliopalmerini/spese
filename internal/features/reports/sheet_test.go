@@ -56,3 +56,35 @@ func TestNwMonthlyCarriesBalancesForwardAcrossPartialSnapshots(t *testing.T) {
 		}
 	}
 }
+
+func TestIncomeStatementDistinguishesUndefinedSavingsRate(t *testing.T) {
+	ctx := context.Background()
+	store, err := storage.Open(ctx, filepath.Join(t.TempDir(), "income.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	if _, err := store.DB().ExecContext(ctx, `
+		INSERT INTO accounts (name, type, class, currency) VALUES ('Bank', 'Asset', 'Cash', 'EUR');
+		INSERT INTO transactions (date, kind, account, amount_cents) VALUES
+			('2026-01-10', 'Expense', 'Bank', -5000),
+			('2026-02-10', 'Income', 'Bank', 10000);
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := IncomeStatement(ctx, store, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("len(rows) = %d, want 2", len(rows))
+	}
+	if rows[0].HasSavingsRate {
+		t.Fatal("expense-only month should not have a savings rate")
+	}
+	if !rows[1].HasSavingsRate {
+		t.Fatal("month with revenue should have a savings rate")
+	}
+}

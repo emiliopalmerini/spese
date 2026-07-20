@@ -3,8 +3,12 @@
 <section class="page report">
   <header class="page-head">
     <h1>Patrimonio nel tempo</h1>
-    <p class="muted">Patrimonio netto totale, mese per mese.</p>
+    <p class="muted">Patrimonio netto totale, dal mese più recente.</p>
   </header>
+  <div class="dashboard-kpis" aria-label="Riepilogo patrimonio">
+    <article class="dashboard-kpi"><span class="dashboard-kpi__label">Ultimo patrimonio</span><strong class="dashboard-kpi__value">{{money .Latest}}</strong></article>
+    <article class="dashboard-kpi"><span class="dashboard-kpi__label">Variazione del periodo</span><strong class="dashboard-kpi__value">{{money .Change}}</strong><span class="dashboard-kpi__help">{{if .HasChangePct}}{{pct .ChangePct}}{{else}}N/D{{end}}</span></article>
+  </div>
   <table class="data-table list-table list-table--ledger">
     <caption class="sr-only">Patrimonio netto totale per mese</caption>
     <thead>

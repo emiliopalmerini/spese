@@ -671,6 +671,22 @@ details.form-card form {
   color: var(--expense);
 }
 
+.data-freshness {
+  display: inline-flex;
+  margin-left: var(--space-1);
+  border: 1px solid color-mix(in srgb, var(--expense) 35%, var(--line));
+  border-radius: 999px;
+  color: var(--expense);
+  padding: 0.1rem 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.data-freshness--missing {
+  margin-left: 0;
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1fr;

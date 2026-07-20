@@ -20,11 +20,12 @@ type BalanceRow struct {
 
 // IncomeRow is one row of v_income_statement.
 type IncomeRow struct {
-	Month       kernel.Date
-	Revenue     kernel.Money
-	Expenses    kernel.Money
-	NetIncome   kernel.Money
-	SavingsRate float64 // 0..1; negative possible
+	Month          kernel.Date
+	Revenue        kernel.Money
+	Expenses       kernel.Money
+	NetIncome      kernel.Money
+	SavingsRate    float64 // 0..1; negative possible
+	HasSavingsRate bool
 }
 
 // NwRow is one row of v_nw_monthly (just the total column).
@@ -127,6 +128,7 @@ func IncomeStatement(ctx context.Context, store *storage.Store, _ bool) ([]Incom
 		row.NetIncome = row.Revenue + row.Expenses
 		if row.Revenue != 0 {
 			row.SavingsRate = float64(row.NetIncome) / float64(row.Revenue)
+			row.HasSavingsRate = true
 		}
 		out = append(out, row)
 	}
