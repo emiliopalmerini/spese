@@ -136,8 +136,42 @@ func IncomeStatement(ctx context.Context, store *storage.Store, _ bool) ([]Incom
 // NwMonthly returns net worth per month from canonical snapshots.
 func NwMonthly(ctx context.Context, store *storage.Store, _ bool) ([]NwRow, error) {
 	rows, err := store.DB().QueryContext(ctx, canonicalSnapshotsSQL+`
+		, snapshot_bounds AS (
+			SELECT min(effective_month) AS first_month, max(effective_month) AS last_month
+			FROM canonical_snapshots
+		), months(effective_month) AS (
+			SELECT first_month
+			FROM snapshot_bounds
+			WHERE first_month IS NOT NULL
+			UNION ALL
+			SELECT strftime('%Y-%m', date(effective_month || '-01', '+1 month'))
+			FROM months, snapshot_bounds
+			WHERE effective_month < last_month
+		), monthly_balances AS (
+			SELECT
+				m.effective_month,
+				a.name AS account,
+				(
+					SELECT cs.balance_cents
+					FROM canonical_snapshots cs
+					WHERE cs.account = a.name
+					  AND cs.effective_month <= m.effective_month
+					ORDER BY cs.effective_month DESC
+					LIMIT 1
+				) AS balance_cents
+			FROM months m
+			JOIN accounts a
+			  ON (a.active_from = '' OR substr(a.active_from, 1, 7) <= m.effective_month)
+			 AND (a.active_to = '' OR substr(a.active_to, 1, 7) >= m.effective_month)
+			WHERE EXISTS (
+				SELECT 1
+				FROM canonical_snapshots cs
+				WHERE cs.account = a.name
+				  AND cs.effective_month <= m.effective_month
+			)
+		)
 		SELECT effective_month, sum(balance_cents)
-		FROM canonical_snapshots
+		FROM monthly_balances
 		GROUP BY effective_month
 		ORDER BY effective_month
 	`)
@@ -232,7 +266,7 @@ func Investments(ctx context.Context, store *storage.Store, _ bool) ([]Investmen
 }
 
 const canonicalSnapshotsSQL = `
-	WITH canonical_snapshots AS (
+	WITH RECURSIVE canonical_snapshots AS (
 		SELECT effective_month, account, balance_cents, note
 		FROM (
 			SELECT
