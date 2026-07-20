@@ -27,7 +27,7 @@
         {{range .Accounts}}<option value="{{.Name}}"{{if eq $.Filters.Account .Name}} selected{{end}}>{{.Name}}</option>{{end}}
       </select>
     </label>
-    <label>Categoria <input name="category" value="{{.Filters.Category}}"></label>
+    <label>Categoria <input type="text" name="category" value="{{.Filters.Category}}" autocomplete="off"></label>
     <div class="transaction-filters__actions">
       <button type="submit">Applica filtri</button>
       <a class="button-secondary" href="/transactions">Azzera</a>

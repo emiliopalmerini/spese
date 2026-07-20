@@ -3,6 +3,8 @@ package reports
 import (
 	"net/url"
 	"testing"
+
+	"spese/internal/kernel"
 )
 
 func TestParseReportPeriodBuildsInclusiveMonthRange(t *testing.T) {
@@ -30,5 +32,22 @@ func TestFilterIncomeRowsUsesReportPeriod(t *testing.T) {
 	}, period)
 	if len(rows) != 1 || rows[0].Month.Month() != "2026-02" {
 		t.Fatalf("rows = %+v, want only February", rows)
+	}
+}
+
+func TestResolveReportPeriodSuggestsLatestTwelveAvailableMonths(t *testing.T) {
+	period, form := resolveReportPeriod(reportPeriod{}, PeriodFilterView{}, []kernel.Date{
+		reportDate(t, "2025-01"),
+		reportDate(t, "2026-06"),
+	})
+
+	if form.From != "2025-07" || form.To != "2026-06" {
+		t.Fatalf("suggested range = %q to %q, want latest twelve months", form.From, form.To)
+	}
+	if form.Min != "2025-01" || form.Max != "2026-06" {
+		t.Fatalf("available range = %q to %q", form.Min, form.Max)
+	}
+	if period.From.Month() != "2025-07" || period.To.Month() != "2026-07" {
+		t.Fatalf("filter period = %q to %q", period.From.Month(), period.To.Month())
 	}
 }

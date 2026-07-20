@@ -6,8 +6,8 @@
     <p class="muted">Patrimonio netto totale, dal mese più recente.</p>
   </header>
   <form class="form-card report-period" method="get" action="/reports/nw-timeline" hx-get="/reports/nw-timeline" hx-target="#report-content" hx-select="#report-content" hx-swap="outerHTML" hx-push-url="true">
-    <label>Dal mese <input type="month" name="from" value="{{.Period.From}}"></label>
-    <label>Al mese <input type="month" name="to" value="{{.Period.To}}"></label>
+    <label>Dal mese <input type="month" name="from" value="{{.Period.From}}"{{if .Period.Min}} min="{{.Period.Min}}"{{end}}{{if .Period.Max}} max="{{.Period.Max}}"{{end}}></label>
+    <label>Al mese <input type="month" name="to" value="{{.Period.To}}"{{if .Period.Min}} min="{{.Period.Min}}"{{end}}{{if .Period.Max}} max="{{.Period.Max}}"{{end}}></label>
     <div class="report-period__actions"><button type="submit">Applica</button><a class="button-secondary" href="/reports/nw-timeline">Azzera</a></div>
   </form>
   <div class="dashboard-kpis" aria-label="Riepilogo patrimonio">

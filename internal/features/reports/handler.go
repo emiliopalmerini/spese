@@ -64,6 +64,11 @@ func (h *Handler) incomeStatement(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Impossibile caricare il conto economico.", http.StatusBadGateway)
 		return
 	}
+	months := make([]kernel.Date, 0, len(rows))
+	for _, row := range rows {
+		months = append(months, row.Month)
+	}
+	period, form = resolveReportPeriod(period, form, months)
 	view := buildIncomeStatementView(filterIncomeRows(rows, period))
 	view.Period = form
 	if err := h.Render.Render(w, "reports/income_statement", view); err != nil {
@@ -83,6 +88,11 @@ func (h *Handler) nwTimeline(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Impossibile caricare l'andamento del patrimonio.", http.StatusBadGateway)
 		return
 	}
+	months := make([]kernel.Date, 0, len(rows))
+	for _, row := range rows {
+		months = append(months, row.Month)
+	}
+	period, form = resolveReportPeriod(period, form, months)
 	view := buildNwTimelineView(filterNwRows(rows, period))
 	view.Period = form
 	if err := h.Render.Render(w, "reports/nw_timeline", view); err != nil {
@@ -94,6 +104,43 @@ func (h *Handler) nwTimeline(w http.ResponseWriter, r *http.Request) {
 type PeriodFilterView struct {
 	From string
 	To   string
+	Min  string
+	Max  string
+}
+
+func resolveReportPeriod(period reportPeriod, form PeriodFilterView, months []kernel.Date) (reportPeriod, PeriodFilterView) {
+	var first, last kernel.Date
+	for _, month := range months {
+		if month.IsZero() {
+			continue
+		}
+		month = month.FirstOfMonth()
+		if first.IsZero() || month.Before(first.Time) {
+			first = month
+		}
+		if last.IsZero() || month.After(last.Time) {
+			last = month
+		}
+	}
+	if first.IsZero() {
+		last = kernel.Today().FirstOfMonth()
+		first = kernel.Date{Time: last.AddDate(0, -11, 0)}
+	}
+	form.Min = first.Month()
+	form.Max = last.Month()
+	if form.From != "" || form.To != "" {
+		return period, form
+	}
+
+	suggestedFrom := kernel.Date{Time: last.AddDate(0, -11, 0)}
+	if first.After(suggestedFrom.Time) {
+		suggestedFrom = first
+	}
+	period.From = suggestedFrom
+	period.To = kernel.Date{Time: last.AddDate(0, 1, 0)}
+	form.From = suggestedFrom.Month()
+	form.To = last.Month()
+	return period, form
 }
 
 type reportPeriod struct {

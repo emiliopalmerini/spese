@@ -11,20 +11,20 @@
   <label>Data <input name="date" type="date" value="{{isodate .Today}}" required></label>
   <label>Conto
     <select name="account" required>
-      {{range .Accounts}}<option>{{.Name}}</option>{{end}}
+      {{range .Accounts}}<option value="{{.Name}}">{{.Name}}</option>{{end}}
     </select>
   </label>
-  <label>Importo <input name="amount" type="text" inputmode="decimal" placeholder="0,00" required></label>
-  <label>Descrizione <input name="payee" required></label>
-  <label>Categoria <input name="category" list="transaction-category-options" autocomplete="off"></label>
-  <label>Sottocategoria <input name="subcategory" list="transaction-subcategory-options" autocomplete="off"></label>
+  <label>Importo <input name="amount" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" required></label>
+  <label>Descrizione <input name="payee" type="text" autocomplete="off" required></label>
+  <label>Categoria <input name="category" type="text" list="transaction-category-options" autocomplete="off"></label>
+  <label>Sottocategoria <input name="subcategory" type="text" list="transaction-subcategory-options" autocomplete="off"></label>
   <datalist id="transaction-category-options">
     {{range .CategorySuggestions.Categories}}<option value="{{.}}"></option>{{end}}
   </datalist>
   <datalist id="transaction-subcategory-options">
     {{range .CategorySuggestions.Subcategories}}<option value="{{.}}"></option>{{end}}
   </datalist>
-  <label class="full">Note <input name="note"></label>
+  <label class="full">Note <input name="note" type="text" autocomplete="off"></label>
   <button type="submit"{{if not .Accounts}} disabled{{end}}>Salva</button>
 </form>
 {{end}}
@@ -36,17 +36,17 @@
   <label>Data <input name="date" type="date" value="{{isodate .Today}}" required></label>
   <label>Da
     <select name="source" required>
-      {{range .Accounts}}<option>{{.Name}}</option>{{end}}
+      {{range .Accounts}}<option value="{{.Name}}">{{.Name}}</option>{{end}}
     </select>
   </label>
   <label>A
     <select name="destination" required>
       <option value="" disabled selected>Seleziona un conto</option>
-      {{range .Accounts}}<option>{{.Name}}</option>{{end}}
+      {{range .Accounts}}<option value="{{.Name}}">{{.Name}}</option>{{end}}
     </select>
   </label>
-  <label>Importo <input name="amount" type="text" inputmode="decimal" placeholder="0,00" required></label>
-  <label class="full">Note <input name="note"></label>
+  <label>Importo <input name="amount" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" required></label>
+  <label class="full">Note <input name="note" type="text" autocomplete="off"></label>
   <button type="submit"{{if lt (len .Accounts) 2}} disabled{{end}}>Registra</button>
 </form>
 {{end}}
@@ -76,10 +76,10 @@
             {{if not .LastMonth.IsZero}}{{money .LastBalance}} <span class="hint">({{isodate .LastMonth}})</span>{{end}}
           </td>
           <td class="num" data-label="Nuovo saldo (€)">
-            <input name="balance[{{.Account.Name}}]" type="text" inputmode="decimal" placeholder="0,00" aria-label="Nuovo saldo per {{.Account.Name}}">
+            <input name="balance[{{.Account.Name}}]" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" aria-label="Nuovo saldo per {{.Account.Name}}">
           </td>
           <td data-label="Note">
-            <input name="note[{{.Account.Name}}]" placeholder="-" aria-label="Note per {{.Account.Name}}">
+            <input name="note[{{.Account.Name}}]" type="text" autocomplete="off" placeholder="-" aria-label="Note per {{.Account.Name}}">
           </td>
         </tr>
       {{else}}
@@ -95,7 +95,7 @@
 {{define "action_form_account"}}
 <form method="post" action="/accounts" class="form-card global-action-form" data-global-action-form hx-post="/accounts">
   <p class="form-error full" role="alert" tabindex="-1" data-form-error hidden></p>
-  <label>Nome <input name="name" required></label>
+  <label>Nome <input name="name" type="text" autocomplete="off" required></label>
   <label>Tipo
     <select name="type" required>
       <option value="Asset">Attività</option>
@@ -113,12 +113,12 @@
     </select>
   </label>
   <label>Valuta
-    <input name="currency" value="EUR" readonly aria-describedby="account-currency-help">
+    <input name="currency" type="text" value="EUR" readonly aria-describedby="account-currency-help">
     <small id="account-currency-help" class="muted">La valuta base supportata è EUR.</small>
   </label>
   <label>Attivo da <input name="active_from" type="month"></label>
   <label>Attivo a <input name="active_to" type="month"></label>
-  <label>Note <input name="note"></label>
+  <label>Note <input name="note" type="text" autocomplete="off"></label>
   <button type="submit">Salva</button>
 </form>
 {{end}}

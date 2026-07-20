@@ -2,6 +2,7 @@ package render_test
 
 import (
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -133,6 +134,7 @@ func TestTemplatesRender(t *testing.T) {
 			Rows: []reports.NwRow{
 				{Month: month, NetWorth: kernel.Money(4200000)},
 			},
+			Period: reports.PeriodFilterView{From: "2025-06", To: "2026-05", Min: "2025-01", Max: "2026-05"},
 		},
 		"transactions/list": transactions.ListView{
 			Transactions: []transactions.Transaction{
@@ -149,6 +151,7 @@ func TestTemplatesRender(t *testing.T) {
 				t.Fatalf("render %s: %v", name, err)
 			}
 			body := w.Body.String()
+			assertExplicitInputTypes(t, body)
 			if !strings.Contains(body, "<main class=\"container\"") {
 				t.Fatalf("render %s did not include the base layout", name)
 			}
@@ -161,6 +164,9 @@ func TestTemplatesRender(t *testing.T) {
 			section := strings.SplitN(name, "/", 2)[0]
 			if section != "dashboard" && !strings.Contains(body, `data-nav-section="`+section+`" aria-current="page"`) {
 				t.Fatalf("render %s did not identify its current navigation section", name)
+			}
+			if name == "reports/nw_timeline" && (!strings.Contains(body, `value="2025-06" min="2025-01" max="2026-05"`) || !strings.Contains(body, `value="2026-05" min="2025-01" max="2026-05"`)) {
+				t.Fatalf("render %s did not suggest the available period", name)
 			}
 		})
 	}
@@ -208,6 +214,7 @@ func TestTemplateFragmentsRender(t *testing.T) {
 				t.Fatalf("render fragment %s: %v", name, err)
 			}
 			body := w.Body.String()
+			assertExplicitInputTypes(t, body)
 			if !strings.Contains(body, "data-global-action-form") {
 				t.Fatalf("fragment %s did not render an action form", name)
 			}
@@ -332,4 +339,13 @@ func mustDate(t *testing.T, value string) kernel.Date {
 		t.Fatalf("parse date %q: %v", value, err)
 	}
 	return d
+}
+
+func assertExplicitInputTypes(t *testing.T, body string) {
+	t.Helper()
+	for _, input := range regexp.MustCompile(`<input\b[^>]*>`).FindAllString(body, -1) {
+		if !regexp.MustCompile(`\stype="[^"]+"`).MatchString(input) {
+			t.Errorf("input has no explicit type: %s", input)
+		}
+	}
 }
