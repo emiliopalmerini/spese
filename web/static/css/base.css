@@ -908,6 +908,32 @@ details.form-card form {
   fill: var(--expense);
 }
 
+.dashboard-svg__net-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.dashboard-svg__net-point {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.dashboard-svg__net-point--positive {
+  fill: var(--income);
+}
+
+.dashboard-svg__net-point--negative {
+  fill: var(--expense);
+}
+
+.dashboard-svg__net-point--neutral {
+  fill: var(--muted);
+}
+
 .dashboard-svg__line {
   fill: none;
   stroke: var(--accent);
@@ -923,7 +949,8 @@ details.form-card form {
 }
 
 .dashboard-svg__bar:focus,
-.dashboard-svg__point:focus {
+.dashboard-svg__point:focus,
+.dashboard-svg__net-point:focus {
   outline: none;
   stroke: var(--focus);
   stroke-width: 3;
@@ -976,6 +1003,13 @@ details.form-card form {
 
 .dashboard-legend__swatch--expense {
   background: var(--expense);
+}
+
+.dashboard-legend__swatch--net {
+  width: 1rem;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 .dashboard-empty {

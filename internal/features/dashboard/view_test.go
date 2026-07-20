@@ -237,6 +237,34 @@ func TestBuildCategoryChartGroupsAndSortsTransactions(t *testing.T) {
 	}
 }
 
+func TestBuildWaterfallChartExplainsMonthlySavings(t *testing.T) {
+	may := mustDate(t, "2026-05")
+	chart := buildWaterfallChart([]transactions.Transaction{
+		{Date: may, Kind: transactions.Income, Amount: 300000, Category: "Stipendio"},
+		{Date: may, Kind: transactions.Expense, Amount: -100000, Category: "Casa"},
+		{Date: may, Kind: transactions.Expense, Amount: -50000, Category: "Cibo"},
+	}, may)
+
+	if chart.Empty {
+		t.Fatal("waterfall chart unexpectedly empty")
+	}
+	if len(chart.Bars) != 4 {
+		t.Fatalf("bars = %d, want income, two expense categories and savings", len(chart.Bars))
+	}
+	if chart.Bars[0].Label != "Entrate" || chart.Bars[0].ValueFmt != "+3.000,00 €" {
+		t.Fatalf("income bar = %+v", chart.Bars[0])
+	}
+	if chart.Bars[1].Label != "Casa" || chart.Bars[1].ValueFmt != "-1.000,00 €" {
+		t.Fatalf("first expense bar = %+v", chart.Bars[1])
+	}
+	if last := chart.Bars[len(chart.Bars)-1]; last.Label != "Risparmio" || last.ValueFmt != "+1.500,00 €" || last.Tone != "positive" {
+		t.Fatalf("savings bar = %+v", last)
+	}
+	if len(chart.Connectors) != 2 {
+		t.Fatalf("connectors = %d, want 2", len(chart.Connectors))
+	}
+}
+
 func TestBuildCashFlowChartAllZeroValuesDoesNotDivideByZero(t *testing.T) {
 	chart := buildCashFlowChart([]reports.IncomeRow{
 		{Month: mustDate(t, "2026-05")},
@@ -255,6 +283,29 @@ func TestBuildCashFlowChartAllZeroValuesDoesNotDivideByZero(t *testing.T) {
 		if bar.Y != chart.Baseline {
 			t.Fatalf("zero-value bar y = %d, want baseline %d", bar.Y, chart.Baseline)
 		}
+	}
+}
+
+func TestBuildCashFlowChartDivergesAroundZeroAndPlotsSavings(t *testing.T) {
+	chart := buildCashFlowChart([]reports.IncomeRow{
+		{Month: mustDate(t, "2026-05"), Revenue: 300000, Expenses: -180000, NetIncome: 120000},
+	})
+
+	if len(chart.Bars) != 2 {
+		t.Fatalf("bars = %d, want 2", len(chart.Bars))
+	}
+	income, expense := chart.Bars[0], chart.Bars[1]
+	if income.Y >= chart.Baseline || income.Y+income.Height != chart.Baseline {
+		t.Fatalf("income bar = y %d height %d around baseline %d", income.Y, income.Height, chart.Baseline)
+	}
+	if expense.Y != chart.Baseline || expense.Height == 0 {
+		t.Fatalf("expense bar = y %d height %d, want it below baseline %d", expense.Y, expense.Height, chart.Baseline)
+	}
+	if len(chart.NetPoints) != 1 || chart.NetPoints[0].Y >= chart.Baseline {
+		t.Fatalf("net points = %+v, want positive savings above zero", chart.NetPoints)
+	}
+	if chart.NetPoints[0].ValueFmt != "+1.200,00 €" || chart.NetPoints[0].Tone != "positive" {
+		t.Fatalf("net point = %+v", chart.NetPoints[0])
 	}
 }
 
