@@ -1197,6 +1197,57 @@ details.form-card form {
   height: 6px;
 }
 
+.dashboard-donut {
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.dashboard-donut__chart {
+  display: block;
+  width: 100%;
+  max-width: 160px;
+  margin-inline: auto;
+}
+
+.dashboard-donut__rail,
+.dashboard-donut__segment {
+  fill: none;
+  stroke-width: 18;
+}
+
+.dashboard-donut__rail {
+  stroke: var(--surface-muted);
+}
+
+.dashboard-donut__segment {
+  cursor: pointer;
+}
+
+.dashboard-donut__segment:focus {
+  outline: none;
+  stroke-width: 21;
+}
+
+.dashboard-donut__label {
+  fill: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.dashboard-donut__value {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.dashboard-donut__legend {
+  display: grid;
+  gap: var(--space-3);
+}
+
 .dashboard-category__segment--1,
 .dashboard-category__bar-fill--1 {
   fill: var(--accent);
@@ -1267,6 +1318,52 @@ details.form-card form {
 
 .dashboard-category__dot--8 {
   background: #2ac3de;
+}
+
+.dashboard-donut__segment.dashboard-category__segment--1 {
+  fill: none;
+  stroke: var(--accent);
+}
+
+.dashboard-donut__segment.dashboard-category__segment--2 {
+  fill: none;
+  stroke: var(--expense);
+}
+
+.dashboard-donut__segment.dashboard-category__segment--3 {
+  fill: none;
+  stroke: var(--focus);
+}
+
+.dashboard-donut__segment.dashboard-category__segment--4 {
+  fill: none;
+  stroke: var(--warning);
+}
+
+.dashboard-donut__segment.dashboard-category__segment--5 {
+  fill: none;
+  stroke: #bb9af7;
+}
+
+.dashboard-donut__segment.dashboard-category__segment--6 {
+  fill: none;
+  stroke: #73daca;
+}
+
+.dashboard-donut__segment.dashboard-category__segment--7 {
+  fill: none;
+  stroke: #ff9e64;
+}
+
+.dashboard-donut__segment.dashboard-category__segment--8 {
+  fill: none;
+  stroke: #2ac3de;
+}
+
+@media (max-width: 420px) {
+  .dashboard-donut {
+    grid-template-columns: 1fr;
+  }
 }
 
 .dashboard-notes {

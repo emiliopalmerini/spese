@@ -179,6 +179,9 @@ func TestTemplatesRender(t *testing.T) {
 			if name == "dashboard/home" && (!strings.Contains(body, `waterfall__bar--income`) || !strings.Contains(body, `waterfall__bar--expense`) || !strings.Contains(body, `waterfall__bar--positive`)) {
 				t.Fatalf("render %s did not classify waterfall bars by tone", name)
 			}
+			if name == "dashboard/home" && (!strings.Contains(body, `class="dashboard-donut"`) || !strings.Contains(body, `dashboard-income-bars`)) {
+				t.Fatalf("render %s did not use distinct category charts", name)
+			}
 		})
 	}
 }
@@ -338,7 +341,7 @@ func TestDashboardTemplateEscapesChartLabels(t *testing.T) {
 	if !strings.Contains(body, "dashboard-svg--bars") || !strings.Contains(body, "dashboard-svg--line") {
 		t.Fatalf("dashboard did not render chart SVGs:\n%s", body)
 	}
-	if !strings.Contains(body, `rx="4"`) || !strings.Contains(body, `rx="5"`) {
+	if !strings.Contains(body, `rx="4"`) {
 		t.Fatalf("dashboard did not render rounded chart bars:\n%s", body)
 	}
 }
