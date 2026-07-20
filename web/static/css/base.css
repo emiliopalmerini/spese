@@ -1,23 +1,25 @@
 /* Mobile-first interface primitives for the server-rendered HTMX app. */
 :root {
-  --bg: #f4f6f4;
-  --surface: #ffffff;
-  --surface-muted: #eef2ee;
-  --surface-raised: #fbfcfb;
-  --ink: #1f2421;
-  --muted: #65706a;
-  --line: #d9dfd9;
-  --line-strong: #c2cbc3;
-  --accent: #255b4d;
-  --accent-strong: #183f36;
-  --accent-soft: #e3eee9;
-  --focus: #334f7c;
-  --income: #24754d;
-  --expense: #a33a3a;
-  --warning: #8a6418;
+  color-scheme: dark;
+  --bg: #24283b;
+  --surface: #1f2335;
+  --surface-muted: #292e42;
+  --surface-raised: #24283b;
+  --ink: #c0caf5;
+  --muted: #a9b1d6;
+  --line: #3b4261;
+  --line-strong: #565f89;
+  --accent: #7aa2f7;
+  --accent-strong: #bb9af7;
+  --accent-soft: #343b58;
+  --accent-contrast: #1a1b26;
+  --focus: #7dcfff;
+  --income: #9ece6a;
+  --expense: #f7768e;
+  --warning: #e0af68;
   --radius: 8px;
-  --shadow: 0 1px 2px rgba(31, 36, 33, 0.06), 0 10px 24px rgba(31, 36, 33, 0.07);
-  --shadow-soft: 0 1px 2px rgba(31, 36, 33, 0.05);
+  --shadow: 0 1px 2px rgba(15, 17, 26, 0.35), 0 10px 24px rgba(15, 17, 26, 0.3);
+  --shadow-soft: 0 1px 2px rgba(15, 17, 26, 0.28);
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -83,7 +85,7 @@ button {
 }
 
 :focus-visible {
-  outline: 3px solid rgba(51, 79, 124, 0.7);
+  outline: 3px solid rgba(125, 207, 255, 0.72);
   outline-offset: 2px;
 }
 
@@ -107,14 +109,14 @@ button {
   min-height: 44px;
   padding: 0 var(--space-4);
   border-radius: 6px;
-  background: var(--ink);
-  color: #ffffff;
+  background: var(--accent);
+  color: var(--accent-contrast);
   line-height: 44px;
   transform: translateY(-150%);
 }
 
 .skip-link:focus {
-  color: #ffffff;
+  color: var(--accent-contrast);
   transform: translateY(0);
 }
 
@@ -137,7 +139,7 @@ button {
   top: 0;
   z-index: 20;
   border-bottom: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(31, 35, 53, 0.94);
   backdrop-filter: blur(12px);
 }
 
@@ -342,7 +344,7 @@ details.form-card form {
   background: var(--surface-raised);
   color: var(--ink);
   padding: 0.55rem 0.7rem;
-  box-shadow: inset 0 1px 1px rgba(31, 36, 33, 0.03);
+  box-shadow: inset 0 1px 1px rgba(15, 17, 26, 0.25);
 }
 
 .form-card input[type="checkbox"] {
@@ -355,7 +357,7 @@ details.form-card form {
 .form-card select:focus,
 .form-card textarea:focus {
   border-color: var(--focus);
-  outline: 3px solid rgba(51, 79, 124, 0.18);
+  outline: 3px solid rgba(125, 207, 255, 0.22);
 }
 
 .form-card button,
@@ -364,7 +366,7 @@ details.form-card form {
   border: 0;
   border-radius: 6px;
   background: var(--accent);
-  color: #ffffff;
+  color: var(--accent-contrast);
   padding: 0 var(--space-5);
   font-weight: 750;
   box-shadow: var(--shadow-soft);
@@ -398,8 +400,8 @@ details.form-card form {
 }
 
 .form-error {
-  border: 1px solid rgba(163, 58, 58, 0.35);
-  background: rgba(163, 58, 58, 0.08);
+  border: 1px solid rgba(247, 118, 142, 0.45);
+  background: rgba(247, 118, 142, 0.12);
   color: var(--expense);
   font-weight: 700;
 }
@@ -533,7 +535,7 @@ details.form-card form {
 }
 
 .data-table tbody tr:hover {
-  background: rgba(37, 91, 77, 0.06);
+  background: rgba(122, 162, 247, 0.09);
 }
 
 .data-table td {
@@ -717,7 +719,7 @@ details.form-card form {
 
 .dashboard-period button {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--accent-contrast);
   font-weight: 750;
 }
 
@@ -1154,38 +1156,38 @@ details.form-card form {
 
 .dashboard-category__segment--5,
 .dashboard-category__bar-fill--5 {
-  fill: #6a4c93;
+  fill: #bb9af7;
 }
 
 .dashboard-category__dot--5 {
-  background: #6a4c93;
+  background: #bb9af7;
 }
 
 .dashboard-category__segment--6,
 .dashboard-category__bar-fill--6 {
-  fill: #2f6f8f;
+  fill: #73daca;
 }
 
 .dashboard-category__dot--6 {
-  background: #2f6f8f;
+  background: #73daca;
 }
 
 .dashboard-category__segment--7,
 .dashboard-category__bar-fill--7 {
-  fill: #8b5e34;
+  fill: #ff9e64;
 }
 
 .dashboard-category__dot--7 {
-  background: #8b5e34;
+  background: #ff9e64;
 }
 
 .dashboard-category__segment--8,
 .dashboard-category__bar-fill--8 {
-  fill: #5d6b52;
+  fill: #2ac3de;
 }
 
 .dashboard-category__dot--8 {
-  background: #5d6b52;
+  background: #2ac3de;
 }
 
 .dashboard-notes {
@@ -1206,7 +1208,7 @@ details.form-card form {
   border: 1px solid var(--accent);
   border-radius: var(--radius);
   background: var(--accent-strong);
-  color: #ffffff;
+  color: var(--accent-contrast);
   padding: var(--space-3) var(--space-4);
   font-weight: 700;
   box-shadow: var(--shadow);

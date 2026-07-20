@@ -24,7 +24,7 @@ body.has-open-drawer {
   border: 0;
   border-radius: 50%;
   background: var(--accent);
-  color: #ffffff;
+  color: var(--accent-contrast);
   box-shadow: var(--shadow);
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
@@ -84,7 +84,7 @@ body.has-open-drawer {
   inset: 0;
   z-index: 70;
   border: 0;
-  background: rgba(31, 36, 33, 0.34);
+  background: rgba(15, 17, 26, 0.66);
   padding: 0;
 }
 
@@ -111,7 +111,7 @@ body.has-open-drawer {
   border-bottom: 0;
   border-radius: var(--radius) var(--radius) 0 0;
   background: var(--surface);
-  box-shadow: 0 -16px 42px rgba(31, 36, 33, 0.22);
+  box-shadow: 0 -16px 42px rgba(15, 17, 26, 0.5);
   transform: translateY(100%);
 }
 
