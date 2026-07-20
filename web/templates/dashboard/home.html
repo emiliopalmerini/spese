@@ -47,11 +47,11 @@
           <desc>Entrate sopra lo zero, uscite sotto lo zero e risparmio netto collegato da una linea. I mesi senza movimenti sono mostrati a zero.</desc>
           {{range .CashFlow.YTicks}}
             <line class="dashboard-svg__grid" x1="{{$.CashFlow.AxisStart}}" y1="{{.Y}}" x2="{{$.CashFlow.AxisEnd}}" y2="{{.Y}}"></line>
-            <text class="dashboard-svg__tick" x="{{$.CashFlow.AxisStart}}" y="{{.Y}}" dy="-5">{{.ValueFmt}}</text>
+            <text class="dashboard-svg__tick" x="{{$.CashFlow.AxisStart}}" y="{{.Y}}" dx="-8" dy="-5" text-anchor="end">{{.ValueFmt}}</text>
           {{end}}
           <line class="dashboard-svg__axis" x1="{{.CashFlow.AxisStart}}" y1="{{.CashFlow.Baseline}}" x2="{{.CashFlow.AxisEnd}}" y2="{{.CashFlow.Baseline}}"></line>
           {{range .CashFlow.Bars}}
-            <rect class="dashboard-svg__bar dashboard-svg__bar--{{.Class}}" x="{{.X}}" y="{{.Y}}" width="{{.Width}}" height="{{.Height}}" rx="8" tabindex="0" aria-label="{{.Label}}, {{.Kind}}: {{.ValueFmt}}">
+            <rect class="dashboard-svg__bar dashboard-svg__bar--{{.Class}}" x="{{.X}}" y="{{.Y}}" width="{{.Width}}" height="{{.Height}}" rx="4" tabindex="0" aria-label="{{.Label}}, {{.Kind}}: {{.ValueFmt}}">
               <title>{{.Label}} · {{.Kind}} {{.ValueFmt}}</title>
             </rect>
           {{end}}
@@ -100,12 +100,12 @@
           <desc>Il grafico parte dalle entrate, sottrae progressivamente le categorie di spesa e termina con il risparmio netto.</desc>
           {{range .Waterfall.YTicks}}
             <line class="dashboard-svg__grid" x1="{{$.Waterfall.AxisStart}}" y1="{{.Y}}" x2="{{$.Waterfall.AxisEnd}}" y2="{{.Y}}"></line>
-            <text class="dashboard-svg__tick" x="{{$.Waterfall.AxisStart}}" y="{{.Y}}" dy="-5">{{.ValueFmt}}</text>
+            <text class="dashboard-svg__tick" x="{{$.Waterfall.AxisStart}}" y="{{.Y}}" dx="-8" dy="-5" text-anchor="end">{{.ValueFmt}}</text>
           {{end}}
           <line class="dashboard-svg__axis" x1="{{.Waterfall.AxisStart}}" y1="{{.Waterfall.Baseline}}" x2="{{.Waterfall.AxisEnd}}" y2="{{.Waterfall.Baseline}}"></line>
           {{range .Waterfall.Connectors}}<line class="waterfall__connector" x1="{{.X1}}" y1="{{.Y}}" x2="{{.X2}}" y2="{{.Y}}"></line>{{end}}
           {{range .Waterfall.Bars}}
-            <rect class="waterfall__bar waterfall__bar--{{.Tone}}" x="{{.X}}" y="{{.Y}}" width="{{.Width}}" height="{{.Height}}" rx="8" tabindex="0" aria-label="{{.Label}}: {{.ValueFmt}}; saldo risultante {{.BalanceFmt}}">
+            <rect class="waterfall__bar waterfall__bar--{{.Tone}}" x="{{.X}}" y="{{.Y}}" width="{{.Width}}" height="{{.Height}}" rx="4" tabindex="0" aria-label="{{.Label}}: {{.ValueFmt}}; saldo risultante {{.BalanceFmt}}">
               <title>{{.Label}} · {{.ValueFmt}} · saldo {{.BalanceFmt}}</title>
             </rect>
             <text class="dashboard-svg__label waterfall__label" x="{{.LabelX}}" y="{{.LabelY}}" text-anchor="middle">{{.Label}}</text>
@@ -173,7 +173,7 @@
             <desc>Andamento mensile con scala in euro e variazione calcolata fra il primo e l'ultimo mese visibile.</desc>
             {{range .NetWorth.YTicks}}
               <line class="dashboard-svg__grid" x1="{{$.NetWorth.AxisStart}}" y1="{{.Y}}" x2="{{$.NetWorth.AxisEnd}}" y2="{{.Y}}"></line>
-              <text class="dashboard-svg__tick" x="{{$.NetWorth.AxisStart}}" y="{{.Y}}" dy="-5">{{.ValueFmt}}</text>
+              <text class="dashboard-svg__tick" x="{{$.NetWorth.AxisStart}}" y="{{.Y}}" dx="-8" dy="-5" text-anchor="end">{{.ValueFmt}}</text>
             {{end}}
             <line class="dashboard-svg__axis" x1="{{.NetWorth.AxisStart}}" y1="{{.NetWorth.Baseline}}" x2="{{.NetWorth.AxisEnd}}" y2="{{.NetWorth.Baseline}}"></line>
             <polyline class="dashboard-svg__line" points="{{.NetWorth.PointsAttr}}"></polyline>

@@ -275,7 +275,7 @@ func buildView(income []reports.IncomeRow, nw []reports.NwRow, balances []report
 
 func buildWaterfallChart(txns []transactions.Transaction, period kernel.Date) WaterfallChart {
 	const (
-		left           = 48
+		left           = 96
 		right          = 18
 		top            = 18
 		bottom         = 62
@@ -425,7 +425,7 @@ func buildWaterfallChart(txns []transactions.Transaction, period kernel.Date) Wa
 
 func buildCashFlowChart(rows []reports.IncomeRow) CashFlowChart {
 	const (
-		left     = 32
+		left     = 96
 		right    = 18
 		top      = 18
 		bottom   = 46
@@ -633,7 +633,7 @@ func categoryAmount(txn transactions.Transaction, kind transactions.Kind) kernel
 
 func buildNetWorthChart(rows []reports.NwRow) LineChart {
 	const (
-		left   = 32
+		left   = 96
 		right  = 18
 		top    = 18
 		bottom = 44

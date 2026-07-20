@@ -57,6 +57,14 @@ func TestTemplatesRender(t *testing.T) {
 					{X: 162, Y: 126, Width: 16, Height: 58, Class: "expense", Label: "Mag", Kind: "Uscite", ValueFmt: "1.400,00 €"},
 				},
 			},
+			Waterfall: dashboard.WaterfallChart{
+				Width: 720, Height: 260, AxisStart: 96, AxisEnd: 702, Baseline: 190, Period: "Maggio 2026", SavingsFmt: "+2.100,00 €", SavingsTone: "positive",
+				Bars: []dashboard.WaterfallBar{
+					{X: 100, Y: 30, Width: 54, Height: 150, LabelX: 127, LabelY: 242, Label: "Entrate", ValueFmt: "+3.500,00 €", BalanceFmt: "3.500,00 €", Tone: "income"},
+					{X: 220, Y: 80, Width: 54, Height: 50, LabelX: 247, LabelY: 242, Label: "Casa", ValueFmt: "-1.400,00 €", BalanceFmt: "2.100,00 €", Tone: "expense"},
+					{X: 340, Y: 90, Width: 54, Height: 90, LabelX: 367, LabelY: 242, Label: "Risparmio", ValueFmt: "+2.100,00 €", BalanceFmt: "2.100,00 €", Tone: "positive"},
+				},
+			},
 			ExpenseBreakdown: dashboard.CategoryChart{
 				Period:   "2026-05",
 				TotalFmt: "1.400,00 €",
@@ -167,6 +175,9 @@ func TestTemplatesRender(t *testing.T) {
 			}
 			if name == "reports/nw_timeline" && (!strings.Contains(body, `value="2025-06" min="2025-01" max="2026-05"`) || !strings.Contains(body, `value="2026-05" min="2025-01" max="2026-05"`)) {
 				t.Fatalf("render %s did not suggest the available period", name)
+			}
+			if name == "dashboard/home" && (!strings.Contains(body, `waterfall__bar--income`) || !strings.Contains(body, `waterfall__bar--expense`) || !strings.Contains(body, `waterfall__bar--positive`)) {
+				t.Fatalf("render %s did not classify waterfall bars by tone", name)
 			}
 		})
 	}
@@ -327,7 +338,7 @@ func TestDashboardTemplateEscapesChartLabels(t *testing.T) {
 	if !strings.Contains(body, "dashboard-svg--bars") || !strings.Contains(body, "dashboard-svg--line") {
 		t.Fatalf("dashboard did not render chart SVGs:\n%s", body)
 	}
-	if !strings.Contains(body, `rx="8"`) || !strings.Contains(body, `rx="5"`) {
+	if !strings.Contains(body, `rx="4"`) || !strings.Contains(body, `rx="5"`) {
 		t.Fatalf("dashboard did not render rounded chart bars:\n%s", body)
 	}
 }

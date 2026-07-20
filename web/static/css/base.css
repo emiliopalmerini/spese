@@ -906,6 +906,7 @@ details.form-card form {
   fill: var(--muted);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
+  pointer-events: none;
 }
 
 .dashboard-svg__bar--income {
@@ -949,6 +950,7 @@ details.form-card form {
 }
 
 .waterfall__bar {
+  fill: var(--muted);
   stroke: var(--surface);
   stroke-width: 2;
 }

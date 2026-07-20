@@ -249,6 +249,9 @@ func TestBuildWaterfallChartExplainsMonthlySavings(t *testing.T) {
 	if chart.Empty {
 		t.Fatal("waterfall chart unexpectedly empty")
 	}
+	if chart.AxisStart < 90 {
+		t.Fatalf("axis start = %d, want room for y-axis labels", chart.AxisStart)
+	}
 	if len(chart.Bars) != 5 {
 		t.Fatalf("bars = %d, want income, three deductions and savings", len(chart.Bars))
 	}
@@ -295,6 +298,9 @@ func TestBuildCashFlowChartDivergesAroundZeroAndPlotsSavings(t *testing.T) {
 	if len(chart.Bars) != 2 {
 		t.Fatalf("bars = %d, want 2", len(chart.Bars))
 	}
+	if chart.AxisStart < 90 {
+		t.Fatalf("axis start = %d, want room for y-axis labels", chart.AxisStart)
+	}
 	income, expense := chart.Bars[0], chart.Bars[1]
 	if income.Y >= chart.Baseline || income.Y+income.Height != chart.Baseline {
 		t.Fatalf("income bar = y %d height %d around baseline %d", income.Y, income.Height, chart.Baseline)
@@ -321,6 +327,9 @@ func TestBuildNetWorthChartProducesPolylinePoints(t *testing.T) {
 
 	if chart.Empty {
 		t.Fatal("net worth chart unexpectedly empty")
+	}
+	if chart.AxisStart < 90 {
+		t.Fatalf("axis start = %d, want room for y-axis labels", chart.AxisStart)
 	}
 	if got := strings.Count(chart.PointsAttr, " "); got != 2 {
 		t.Fatalf("point separators = %d, want 2 in %q", got, chart.PointsAttr)
