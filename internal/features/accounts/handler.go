@@ -83,11 +83,15 @@ func parseForm(r *http.Request) (Account, error) {
 	if c == "" {
 		return Account{}, errors.New("Seleziona una classe di conto.")
 	}
+	currency := strings.ToUpper(defaultStr(r.FormValue("currency"), "EUR"))
+	if currency != "EUR" {
+		return Account{}, errors.New("Al momento sono supportati solo conti in EUR.")
+	}
 	a := Account{
 		Name:     name,
 		Type:     t,
 		Class:    c,
-		Currency: defaultStr(r.FormValue("currency"), "EUR"),
+		Currency: currency,
 		Note:     strings.TrimSpace(r.FormValue("note")),
 	}
 	if v := strings.TrimSpace(r.FormValue("active_from")); v != "" {

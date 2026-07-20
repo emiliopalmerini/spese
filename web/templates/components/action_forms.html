@@ -112,7 +112,10 @@
       <option value="Other">Altro</option>
     </select>
   </label>
-  <label>Valuta <input name="currency" value="EUR"></label>
+  <label>Valuta
+    <input name="currency" value="EUR" readonly aria-describedby="account-currency-help">
+    <small id="account-currency-help" class="muted">La valuta base supportata è EUR.</small>
+  </label>
   <label>Attivo da <input name="active_from" type="month"></label>
   <label>Attivo a <input name="active_to" type="month"></label>
   <label>Note <input name="note"></label>
