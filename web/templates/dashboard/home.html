@@ -35,7 +35,7 @@
         <h2 id="cashflow-heading">Entrate e uscite</h2>
         <p class="muted">Ultimi 12 mesi disponibili dal conto economico.</p>
       </div>
-      {{if .CashFlow.MaxFmt}}<span class="dashboard-panel__metric">Picco {{.CashFlow.MaxFmt}}</span>{{end}}
+      {{if .CashFlow.MaxFmt}}<span class="dashboard-panel__metric">Scala ± {{.CashFlow.MaxFmt}}</span>{{end}}
     </header>
 
     {{if .CashFlow.Empty}}
@@ -44,7 +44,7 @@
       <div class="dashboard-chart">
         <svg class="dashboard-svg dashboard-svg--bars" viewBox="0 0 {{.CashFlow.Width}} {{.CashFlow.Height}}" role="img" aria-labelledby="cashflow-title">
           <title id="cashflow-title">Entrate e uscite mensili degli ultimi 12 mesi</title>
-          <desc>Grafico a barre con scala in euro. I mesi senza movimenti sono mostrati a zero.</desc>
+          <desc>Entrate sopra lo zero, uscite sotto lo zero e risparmio netto collegato da una linea. I mesi senza movimenti sono mostrati a zero.</desc>
           {{range .CashFlow.YTicks}}
             <line class="dashboard-svg__grid" x1="{{$.CashFlow.AxisStart}}" y1="{{.Y}}" x2="{{$.CashFlow.AxisEnd}}" y2="{{.Y}}"></line>
             <text class="dashboard-svg__tick" x="{{$.CashFlow.AxisStart}}" y="{{.Y}}" dy="-5">{{.ValueFmt}}</text>
@@ -55,6 +55,12 @@
               <title>{{.Label}} · {{.Kind}} {{.ValueFmt}}</title>
             </rect>
           {{end}}
+          <polyline class="dashboard-svg__net-line" points="{{.CashFlow.NetPointsAttr}}"></polyline>
+          {{range .CashFlow.NetPoints}}
+            <circle class="dashboard-svg__net-point dashboard-svg__net-point--{{.Tone}}" cx="{{.X}}" cy="{{.Y}}" r="4" tabindex="0" aria-label="{{.Label}}, risparmio netto: {{.ValueFmt}}">
+              <title>{{.Label}} · Risparmio netto {{.ValueFmt}}</title>
+            </circle>
+          {{end}}
           {{range .CashFlow.Months}}
             <text class="dashboard-svg__label" x="{{.X}}" y="{{.Y}}" text-anchor="middle">{{.Label}}</text>
           {{end}}
@@ -64,12 +70,52 @@
       <div class="dashboard-legend" aria-label="Legenda">
         <span><i class="dashboard-legend__swatch dashboard-legend__swatch--income"></i>Entrate</span>
         <span><i class="dashboard-legend__swatch dashboard-legend__swatch--expense"></i>Uscite</span>
+        <span><i class="dashboard-legend__swatch dashboard-legend__swatch--net"></i>Risparmio netto</span>
       </div>
       <details class="dashboard-chart-data">
         <summary>Valori del grafico</summary>
         <dl>
           {{range .CashFlow.Bars}}<div><dt>{{.Label}} · {{.Kind}}</dt><dd>{{.ValueFmt}}</dd></div>{{end}}
+          {{range .CashFlow.NetPoints}}<div><dt>{{.Label}} · Risparmio netto</dt><dd>{{.ValueFmt}}</dd></div>{{end}}
         </dl>
+      </details>
+    {{end}}
+  </section>
+
+  <section class="dashboard-panel dashboard-panel--wide" aria-labelledby="waterfall-heading">
+    <header class="dashboard-panel__head">
+      <div>
+        <h2 id="waterfall-heading">Come si forma il risparmio</h2>
+        <p class="muted">Entrate meno categorie di spesa · {{.Waterfall.Period}}.</p>
+      </div>
+      {{if .Waterfall.SavingsFmt}}<span class="dashboard-panel__metric dashboard-panel__metric--{{.Waterfall.SavingsTone}}">{{.Waterfall.SavingsFmt}}</span>{{end}}
+    </header>
+
+    {{if .Waterfall.Empty}}
+      <p class="dashboard-empty">Nessun movimento nel mese selezionato.</p>
+    {{else}}
+      <div class="dashboard-chart">
+        <svg class="dashboard-svg dashboard-svg--waterfall" viewBox="0 0 {{.Waterfall.Width}} {{.Waterfall.Height}}" role="img" aria-labelledby="waterfall-title">
+          <title id="waterfall-title">Formazione del risparmio per {{.Waterfall.Period}}</title>
+          <desc>Il grafico parte dalle entrate, sottrae progressivamente le categorie di spesa e termina con il risparmio netto.</desc>
+          {{range .Waterfall.YTicks}}
+            <line class="dashboard-svg__grid" x1="{{$.Waterfall.AxisStart}}" y1="{{.Y}}" x2="{{$.Waterfall.AxisEnd}}" y2="{{.Y}}"></line>
+            <text class="dashboard-svg__tick" x="{{$.Waterfall.AxisStart}}" y="{{.Y}}" dy="-5">{{.ValueFmt}}</text>
+          {{end}}
+          <line class="dashboard-svg__axis" x1="{{.Waterfall.AxisStart}}" y1="{{.Waterfall.Baseline}}" x2="{{.Waterfall.AxisEnd}}" y2="{{.Waterfall.Baseline}}"></line>
+          {{range .Waterfall.Connectors}}<line class="waterfall__connector" x1="{{.X1}}" y1="{{.Y}}" x2="{{.X2}}" y2="{{.Y}}"></line>{{end}}
+          {{range .Waterfall.Bars}}
+            <rect class="waterfall__bar waterfall__bar--{{.Tone}}" x="{{.X}}" y="{{.Y}}" width="{{.Width}}" height="{{.Height}}" rx="8" tabindex="0" aria-label="{{.Label}}: {{.ValueFmt}}; saldo risultante {{.BalanceFmt}}">
+              <title>{{.Label}} · {{.ValueFmt}} · saldo {{.BalanceFmt}}</title>
+            </rect>
+            <text class="dashboard-svg__label waterfall__label" x="{{.LabelX}}" y="{{.LabelY}}" text-anchor="middle">{{.Label}}</text>
+          {{end}}
+        </svg>
+      </div>
+      <p class="dashboard-chart__hint">Scorri orizzontalmente per vedere tutte le categorie.</p>
+      <details class="dashboard-chart-data">
+        <summary>Valori del grafico</summary>
+        <dl>{{range .Waterfall.Bars}}<div><dt>{{.Label}}</dt><dd>{{.ValueFmt}}</dd></div>{{end}}</dl>
       </details>
     {{end}}
   </section>

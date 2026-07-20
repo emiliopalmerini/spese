@@ -13,10 +13,12 @@ import (
 )
 
 const (
-	cashFlowWidth  = 720
-	cashFlowHeight = 230
-	lineWidth      = 720
-	lineHeight     = 220
+	cashFlowWidth   = 720
+	cashFlowHeight  = 230
+	waterfallWidth  = 720
+	waterfallHeight = 260
+	lineWidth       = 720
+	lineHeight      = 220
 )
 
 // View is the template payload for the charted dashboard.
@@ -26,6 +28,7 @@ type View struct {
 	NextPeriodURL     string
 	KPIs              []KPI
 	CashFlow          CashFlowChart
+	Waterfall         WaterfallChart
 	ExpenseBreakdown  CategoryChart
 	IncomeComposition CategoryChart
 	NetWorth          LineChart
@@ -43,16 +46,18 @@ type KPI struct {
 
 // CashFlowChart is a grouped monthly bar chart.
 type CashFlowChart struct {
-	Width     int
-	Height    int
-	AxisStart int
-	AxisEnd   int
-	Baseline  int
-	Empty     bool
-	Months    []MonthTick
-	Bars      []CashFlowBar
-	YTicks    []AxisTick
-	MaxFmt    string
+	Width         int
+	Height        int
+	AxisStart     int
+	AxisEnd       int
+	Baseline      int
+	Empty         bool
+	Months        []MonthTick
+	Bars          []CashFlowBar
+	NetPoints     []LinePoint
+	NetPointsAttr string
+	YTicks        []AxisTick
+	MaxFmt        string
 }
 
 // AxisTick is a labelled horizontal guide in an SVG chart.
@@ -71,6 +76,43 @@ type CashFlowBar struct {
 	Label    string
 	Kind     string
 	ValueFmt string
+}
+
+// WaterfallChart explains how monthly income becomes savings after expenses.
+type WaterfallChart struct {
+	Width       int
+	Height      int
+	AxisStart   int
+	AxisEnd     int
+	Baseline    int
+	Empty       bool
+	Period      string
+	SavingsFmt  string
+	SavingsTone string
+	Bars        []WaterfallBar
+	Connectors  []WaterfallConnector
+	YTicks      []AxisTick
+}
+
+// WaterfallBar is one cumulative step or total in a waterfall chart.
+type WaterfallBar struct {
+	X          int
+	Y          int
+	Width      int
+	Height     int
+	LabelX     int
+	LabelY     int
+	Label      string
+	ValueFmt   string
+	BalanceFmt string
+	Tone       string
+}
+
+// WaterfallConnector joins the cumulative balance between adjacent steps.
+type WaterfallConnector struct {
+	X1 int
+	X2 int
+	Y  int
 }
 
 // MonthTick is a chart x-axis label.
@@ -135,6 +177,7 @@ type LinePoint struct {
 	Y        int
 	Label    string
 	ValueFmt string
+	Tone     string
 }
 
 // AllocationChart shows current balance-sheet exposure by class or type.
@@ -221,12 +264,163 @@ func buildView(income []reports.IncomeRow, nw []reports.NwRow, balances []report
 		NextPeriodURL:     periodURL(nextMonth(period)),
 		KPIs:              kpis,
 		CashFlow:          buildCashFlowChart(income),
+		Waterfall:         buildWaterfallChart(txns, period),
 		ExpenseBreakdown:  buildCategoryChart(txns, transactions.Expense, period),
 		IncomeComposition: buildCategoryChart(txns, transactions.Income, period),
 		NetWorth:          buildNetWorthChart(nw),
 		Allocation:        buildAllocationChart(balances),
 		Investments:       investmentChart,
 	}
+}
+
+func buildWaterfallChart(txns []transactions.Transaction, period kernel.Date) WaterfallChart {
+	const (
+		left           = 48
+		right          = 18
+		top            = 18
+		bottom         = 62
+		labelY         = waterfallHeight - 18
+		maxExpenseBars = 5
+	)
+	type expenseGroup struct {
+		label string
+		value kernel.Money
+	}
+	type step struct {
+		label string
+		value kernel.Money
+		start kernel.Money
+		end   kernel.Money
+		tone  string
+	}
+
+	period = period.FirstOfMonth()
+	revenue := kernel.Money(0)
+	expenseGroups := make(map[string]kernel.Money)
+	for _, txn := range txns {
+		if !txn.Date.FirstOfMonth().Equal(period.Time) {
+			continue
+		}
+		switch txn.Kind {
+		case transactions.Income:
+			if txn.Amount > 0 {
+				revenue += txn.Amount
+			} else if txn.Amount < 0 {
+				label := strings.TrimSpace(txn.Category)
+				if label == "" {
+					label = "Rettifiche entrate"
+				}
+				expenseGroups[label] += absMoney(txn.Amount)
+			}
+		case transactions.Expense:
+			label := strings.TrimSpace(txn.Category)
+			if label == "" {
+				label = "Senza categoria"
+			}
+			expenseGroups[label] += absMoney(txn.Amount)
+		}
+	}
+	chart := WaterfallChart{
+		Width:     waterfallWidth,
+		Height:    waterfallHeight,
+		AxisStart: left,
+		AxisEnd:   waterfallWidth - right,
+		Empty:     revenue == 0 && len(expenseGroups) == 0,
+		Period:    titleMonthYear(period),
+	}
+	if chart.Empty {
+		return chart
+	}
+
+	groups := make([]expenseGroup, 0, len(expenseGroups))
+	for label, value := range expenseGroups {
+		groups = append(groups, expenseGroup{label: label, value: value})
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		if groups[i].value == groups[j].value {
+			return groups[i].label < groups[j].label
+		}
+		return groups[i].value > groups[j].value
+	})
+	if len(groups) > maxExpenseBars {
+		other := expenseGroup{label: "Altre spese"}
+		for _, group := range groups[maxExpenseBars-1:] {
+			other.value += group.value
+		}
+		groups = append(groups[:maxExpenseBars-1], other)
+	}
+
+	steps := []step{{label: "Entrate", value: revenue, start: 0, end: revenue, tone: "income"}}
+	running := revenue
+	for _, group := range groups {
+		end := running - group.value
+		steps = append(steps, step{label: group.label, value: -group.value, start: running, end: end, tone: "expense"})
+		running = end
+	}
+	steps = append(steps, step{label: "Risparmio", value: running, start: 0, end: running, tone: moneyTone(running)})
+	chart.SavingsFmt = signedMoneyFmt(running)
+	chart.SavingsTone = moneyTone(running)
+
+	domainMin, domainMax := kernel.Money(0), kernel.Money(0)
+	for _, item := range steps {
+		domainMin = minMoney(domainMin, minMoney(item.start, item.end))
+		domainMax = maxMoney(domainMax, maxMoney(item.start, item.end))
+	}
+	domainRange := domainMax - domainMin
+	padding := domainRange / 10
+	if padding == 0 {
+		padding = 1
+	}
+	domainMin -= padding
+	domainMax += padding
+	plotBottom := waterfallHeight - bottom
+	plotHeight := plotBottom - top
+	mapY := func(value kernel.Money) int {
+		position := float64(domainMax-value) / float64(domainMax-domainMin)
+		return top + roundFloat(position*float64(plotHeight))
+	}
+	chart.Baseline = mapY(0)
+	for i := 0; i < 5; i++ {
+		value := domainMax - kernel.Money(roundFloat(float64(domainMax-domainMin)*float64(i)/4))
+		chart.YTicks = append(chart.YTicks, AxisTick{Y: top + roundFloat(float64(plotHeight)*float64(i)/4), ValueFmt: moneyFmt(value)})
+	}
+
+	plotWidth := waterfallWidth - left - right
+	stepWidth := float64(plotWidth) / float64(len(steps))
+	barWidth := 54
+	if candidate := roundFloat(stepWidth * 0.58); candidate < barWidth {
+		barWidth = candidate
+	}
+	for i, item := range steps {
+		center := left + roundFloat((float64(i)+0.5)*stepWidth)
+		startY, endY := mapY(item.start), mapY(item.end)
+		y := min(startY, endY)
+		height := absInt(endY - startY)
+		if item.value != 0 && height == 0 {
+			height = 1
+		}
+		chart.Bars = append(chart.Bars, WaterfallBar{
+			X:          center - barWidth/2,
+			Y:          y,
+			Width:      barWidth,
+			Height:     height,
+			LabelX:     center,
+			LabelY:     labelY,
+			Label:      item.label,
+			ValueFmt:   signedMoneyFmt(item.value),
+			BalanceFmt: moneyFmt(item.end),
+			Tone:       item.tone,
+		})
+		if i < len(steps)-2 {
+			nextCenter := left + roundFloat((float64(i+1)+0.5)*stepWidth)
+			chart.Connectors = append(chart.Connectors, WaterfallConnector{
+				X1: center + barWidth/2,
+				X2: nextCenter - barWidth/2,
+				Y:  endY,
+			})
+		}
+	}
+	return chart
 }
 
 func buildCashFlowChart(rows []reports.IncomeRow) CashFlowChart {
@@ -239,7 +433,8 @@ func buildCashFlowChart(rows []reports.IncomeRow) CashFlowChart {
 		labelY   = cashFlowHeight - 16
 		barWidth = 16
 	)
-	baseline := cashFlowHeight - bottom
+	plotBottom := cashFlowHeight - bottom
+	baseline := top + (plotBottom-top)/2
 	chart := CashFlowChart{
 		Width:     cashFlowWidth,
 		Height:    cashFlowHeight,
@@ -257,19 +452,21 @@ func buildCashFlowChart(rows []reports.IncomeRow) CashFlowChart {
 	for _, row := range rows {
 		maxValue = maxMoney(maxValue, absMoney(row.Revenue))
 		maxValue = maxMoney(maxValue, absMoney(row.Expenses))
+		maxValue = maxMoney(maxValue, absMoney(row.NetIncome))
 	}
 	if maxValue == 0 {
 		maxValue = 1
 	}
 	chart.MaxFmt = moneyFmt(maxValue)
-	for i := 0; i < 4; i++ {
-		value := kernel.Money(roundFloat(float64(maxValue) * float64(i) / 3))
-		y := baseline - roundFloat(float64(baseline-top)*float64(i)/3)
+	for i := 0; i < 5; i++ {
+		value := maxValue - kernel.Money(roundFloat(float64(maxValue*2)*float64(i)/4))
+		y := top + roundFloat(float64(plotBottom-top)*float64(i)/4)
 		chart.YTicks = append(chart.YTicks, AxisTick{Y: y, ValueFmt: moneyFmt(value)})
 	}
 
 	plotWidth := cashFlowWidth - left - right
 	step := float64(plotWidth) / float64(len(rows))
+	netPointsAttr := make([]string, 0, len(rows))
 	for i, row := range rows {
 		center := left + roundFloat((float64(i)+0.5)*step)
 		chart.Months = append(chart.Months, MonthTick{
@@ -280,7 +477,7 @@ func buildCashFlowChart(rows []reports.IncomeRow) CashFlowChart {
 		})
 		monthLabel := monthShort(row.Month)
 		incomeHeight := scaledHeight(absMoney(row.Revenue), maxValue, baseline-top)
-		expenseHeight := scaledHeight(absMoney(row.Expenses), maxValue, baseline-top)
+		expenseHeight := scaledHeight(absMoney(row.Expenses), maxValue, plotBottom-baseline)
 		chart.Bars = append(chart.Bars,
 			CashFlowBar{
 				X:        center - barWidth - barGap/2,
@@ -294,7 +491,7 @@ func buildCashFlowChart(rows []reports.IncomeRow) CashFlowChart {
 			},
 			CashFlowBar{
 				X:        center + barGap/2,
-				Y:        baseline - expenseHeight,
+				Y:        baseline,
 				Width:    barWidth,
 				Height:   expenseHeight,
 				Class:    "expense",
@@ -303,7 +500,23 @@ func buildCashFlowChart(rows []reports.IncomeRow) CashFlowChart {
 				ValueFmt: moneyFmt(absMoney(row.Expenses)),
 			},
 		)
+		netY := baseline
+		if row.NetIncome > 0 {
+			netY -= scaledHeight(row.NetIncome, maxValue, baseline-top)
+		} else if row.NetIncome < 0 {
+			netY += scaledHeight(absMoney(row.NetIncome), maxValue, plotBottom-baseline)
+		}
+		point := LinePoint{
+			X:        center,
+			Y:        netY,
+			Label:    monthLabel,
+			ValueFmt: signedMoneyFmt(row.NetIncome),
+			Tone:     moneyTone(row.NetIncome),
+		}
+		chart.NetPoints = append(chart.NetPoints, point)
+		netPointsAttr = append(netPointsAttr, fmt.Sprintf("%d,%d", point.X, point.Y))
 	}
+	chart.NetPointsAttr = strings.Join(netPointsAttr, " ")
 	return chart
 }
 
@@ -832,6 +1045,13 @@ func absMoney(m kernel.Money) kernel.Money {
 		return -m
 	}
 	return m
+}
+
+func absInt(value int) int {
+	if value < 0 {
+		return -value
+	}
+	return value
 }
 
 func minMoney(a, b kernel.Money) kernel.Money {
