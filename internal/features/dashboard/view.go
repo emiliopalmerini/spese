@@ -21,6 +21,9 @@ const (
 
 // View is the template payload for the charted dashboard.
 type View struct {
+	Period            string
+	PreviousPeriodURL string
+	NextPeriodURL     string
 	KPIs              []KPI
 	CashFlow          CashFlowChart
 	ExpenseBreakdown  CategoryChart
@@ -213,6 +216,9 @@ func buildView(income []reports.IncomeRow, nw []reports.NwRow, balances []report
 	}
 
 	return View{
+		Period:            period.Month(),
+		PreviousPeriodURL: periodURL(kernel.Date{Time: period.AddDate(0, -1, 0)}),
+		NextPeriodURL:     periodURL(nextMonth(period)),
 		KPIs:              kpis,
 		CashFlow:          buildCashFlowChart(income),
 		ExpenseBreakdown:  buildCategoryChart(txns, transactions.Expense, period),

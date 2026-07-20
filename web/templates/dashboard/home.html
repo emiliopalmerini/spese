@@ -1,6 +1,6 @@
 {{define "title"}}Dashboard · Spese{{end}}
 {{define "content"}}
-<section class="page dashboard dashboard-charts">
+<section class="page dashboard dashboard-charts" id="dashboard-content">
   <header class="page-head dashboard-head">
     <div>
       <h1>Dashboard</h1>
@@ -8,6 +8,16 @@
     </div>
     <a class="dashboard-head__link" href="/reports">Report</a>
   </header>
+
+  <nav class="dashboard-period" aria-label="Periodo dashboard">
+    <a href="{{.PreviousPeriodURL}}" hx-get="{{.PreviousPeriodURL}}" hx-target="#dashboard-content" hx-select="#dashboard-content" hx-swap="outerHTML" hx-push-url="true">Mese precedente</a>
+    <form method="get" action="/" hx-get="/" hx-target="#dashboard-content" hx-select="#dashboard-content" hx-swap="outerHTML" hx-push-url="true">
+      <label for="dashboard-month">Mese</label>
+      <input id="dashboard-month" type="month" name="month" value="{{.Period}}">
+      <button type="submit">Mostra</button>
+    </form>
+    <a href="{{.NextPeriodURL}}" hx-get="{{.NextPeriodURL}}" hx-target="#dashboard-content" hx-select="#dashboard-content" hx-swap="outerHTML" hx-push-url="true">Mese successivo</a>
+  </nav>
 
   <div class="dashboard-kpis" aria-label="Indicatori principali">
     {{range .KPIs}}

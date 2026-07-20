@@ -46,6 +46,9 @@ func TestBuildViewSummarizesLatestReportRows(t *testing.T) {
 	assertKPIHelp(t, view.KPIs, "Patrimonio netto", "Aggiornato a maggio 2026")
 	assertKPIHelp(t, view.KPIs, "Risparmio mese", "Maggio 2026 · entrate meno uscite")
 	assertKPIHelp(t, view.KPIs, "Investimenti", "Aggiornato a maggio 2026")
+	if view.Period != "2026-05" || view.PreviousPeriodURL != "/?month=2026-04" || view.NextPeriodURL != "/?month=2026-06" {
+		t.Fatalf("period navigation = %q, %q, %q", view.Period, view.PreviousPeriodURL, view.NextPeriodURL)
+	}
 
 	if len(view.CashFlow.Bars) != 4 {
 		t.Fatalf("cashflow bars = %d, want 4", len(view.CashFlow.Bars))

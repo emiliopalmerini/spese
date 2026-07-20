@@ -3,11 +3,15 @@
 package dashboard
 
 import (
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"spese/internal/features/reports"
 	"spese/internal/features/transactions"
+	"spese/internal/kernel"
 	"spese/internal/storage"
 )
 
@@ -29,6 +33,11 @@ func (h *Handler) Mount(mux *http.ServeMux, prefix string) {
 }
 
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
+	period, err := parseDashboardPeriod(r.URL.Query().Get("month"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	income, err := reports.IncomeStatement(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("income statement", "err", err)
@@ -53,7 +62,6 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Impossibile caricare la dashboard.", http.StatusBadGateway)
 		return
 	}
-	period := dashboardPeriod()
 	txns, err := transactions.List(r.Context(), h.Store, transactions.Filter{
 		From: period,
 		To:   nextMonth(period),
@@ -64,5 +72,26 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.Render.Render(w, "dashboard/home", buildView(income, netWorth, balances, investments, txns, period))
+	if err := h.Render.Render(w, "dashboard/home", buildView(income, netWorth, balances, investments, txns, period)); err != nil {
+		h.Logger.Error("render dashboard", "err", err)
+	}
+}
+
+func parseDashboardPeriod(raw string) (kernel.Date, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return dashboardPeriod(), nil
+	}
+	if len(raw) != 7 {
+		return kernel.Date{}, errors.New("Il mese richiesto non è valido.")
+	}
+	period, err := kernel.ParseDate(raw)
+	if err != nil {
+		return kernel.Date{}, errors.New("Il mese richiesto non è valido.")
+	}
+	return period.FirstOfMonth(), nil
+}
+
+func periodURL(period kernel.Date) string {
+	return fmt.Sprintf("/?month=%s", period.Month())
 }
