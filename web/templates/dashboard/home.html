@@ -149,9 +149,9 @@
       <header class="dashboard-panel__head">
         <div>
           <h2 id="allocation-heading">Allocazione</h2>
-          <p class="muted">Saldo corrente per classe di conto.</p>
+          <p class="muted">Quota di ogni classe sull'esposizione lorda di {{.Allocation.GrossFmt}}.</p>
         </div>
-        {{if .Allocation.TotalFmt}}<span class="dashboard-panel__metric">{{.Allocation.TotalFmt}}</span>{{end}}
+        {{if .Allocation.TotalFmt}}<span class="dashboard-panel__metric">Netto {{.Allocation.TotalFmt}}</span>{{end}}
       </header>
 
       {{if .Allocation.Empty}}
@@ -179,9 +179,9 @@
     <header class="dashboard-panel__head">
       <div>
         <h2 id="investments-heading">Investimenti</h2>
-        <p class="muted">Valore attuale rispetto al costo cumulato.</p>
+        <p class="muted">Valore attuale rispetto ai flussi netti registrati.</p>
       </div>
-      <span class="dashboard-panel__metric">{{.Investments.TotalReturnFmt}} · {{.Investments.ReturnPctFmt}}</span>
+      <span class="dashboard-panel__metric">Differenza {{.Investments.TotalReturnFmt}} · {{.Investments.ReturnPctFmt}}</span>
     </header>
 
     {{if .Investments.Empty}}
@@ -195,8 +195,8 @@
               <span class="investment-row__return investment-row__return--{{.ReturnTone}}">{{.ReturnFmt}} · {{.ReturnPctFmt}}</span>
             </header>
             <div class="investment-row__bars">
-              <span>Costo {{.CostFmt}}</span>
-              <svg class="investment-row__track" viewBox="0 0 100 8" preserveAspectRatio="none" role="img" aria-label="Costo {{.CostFmt}}">
+              <span>Flussi netti {{.CostFmt}}</span>
+              <svg class="investment-row__track" viewBox="0 0 100 8" preserveAspectRatio="none" role="img" aria-label="Flussi netti {{.CostFmt}}">
                 <rect class="dashboard-bar__rail" x="0" y="0" width="100" height="8" rx="4"></rect>
                 <rect class="investment-row__fill investment-row__fill--cost" x="0" y="0" width="{{.CostWidth}}" height="8" rx="4"></rect>
               </svg>
@@ -209,6 +209,7 @@
           </article>
         {{end}}
       </div>
+      {{if .Investments.Truncated}}<a href="/reports/investments">Vedi tutti gli investimenti</a>{{end}}
     {{end}}
   </section>
 </section>

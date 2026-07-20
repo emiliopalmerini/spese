@@ -136,6 +136,7 @@ type LinePoint struct {
 type AllocationChart struct {
 	Empty    bool
 	TotalFmt string
+	GrossFmt string
 	Rows     []AllocationRow
 }
 
@@ -152,6 +153,7 @@ type AllocationRow struct {
 type InvestmentChart struct {
 	Empty          bool
 	HasValue       bool
+	Truncated      bool
 	LatestMonth    kernel.Date
 	TotalValueFmt  string
 	TotalReturnFmt string
@@ -524,7 +526,7 @@ func buildAllocationChart(rows []reports.BalanceRow) AllocationChart {
 		return grouped[i].size > grouped[j].size
 	})
 
-	chart := AllocationChart{TotalFmt: moneyFmt(totalValue)}
+	chart := AllocationChart{TotalFmt: moneyFmt(totalValue), GrossFmt: moneyFmt(totalSize)}
 	if totalSize == 0 {
 		chart.Empty = true
 		return chart
@@ -532,7 +534,7 @@ func buildAllocationChart(rows []reports.BalanceRow) AllocationChart {
 	for _, group := range grouped {
 		pct := float64(group.size) / float64(totalSize)
 		chart.Rows = append(chart.Rows, AllocationRow{
-			Label:      group.label,
+			Label:      allocationLabel(group.label),
 			ValueFmt:   moneyFmt(group.value),
 			PercentFmt: fmt.Sprintf("%.0f%%", pct*100),
 			Width:      clampPercent(roundFloat(pct * 100)),
@@ -587,6 +589,7 @@ func buildInvestmentChart(rows []reports.InvestmentRow) InvestmentChart {
 	limit := len(rows)
 	if limit > 5 {
 		limit = 5
+		chart.Truncated = true
 	}
 	for _, row := range rows[:limit] {
 		chart.Rows = append(chart.Rows, InvestmentChartRow{
@@ -763,6 +766,22 @@ func axisMonthLabel(month kernel.Date, includeYear bool) string {
 		return fmt.Sprintf("%s %02d", label, month.Time.Year()%100)
 	}
 	return label
+}
+
+func allocationLabel(value string) string {
+	if label := map[string]string{
+		"Cash":       "Liquidità",
+		"Investment": "Investimenti",
+		"Property":   "Immobili",
+		"Tax":        "Imposte",
+		"Credit":     "Credito",
+		"Other":      "Altro",
+		"Asset":      "Attività",
+		"Liability":  "Passività",
+	}[value]; label != "" {
+		return label
+	}
+	return value
 }
 
 func returnRate(ret, cost kernel.Money) float64 {

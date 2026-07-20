@@ -24,7 +24,7 @@ func TestBuildViewSummarizesLatestReportRows(t *testing.T) {
 		},
 		[]reports.BalanceRow{
 			{Account: "Conto", Class: "Cash", Balance: kernel.Money(1200000)},
-			{Account: "Broker", Class: "Investments", Balance: kernel.Money(3300000)},
+			{Account: "Broker", Class: "Investment", Balance: kernel.Money(3300000)},
 			{Account: "Carta", Class: "Credit", Balance: kernel.Money(-150000)},
 		},
 		[]reports.InvestmentRow{
@@ -58,6 +58,12 @@ func TestBuildViewSummarizesLatestReportRows(t *testing.T) {
 	}
 	if len(view.Allocation.Rows) != 3 {
 		t.Fatalf("allocation rows = %d, want 3", len(view.Allocation.Rows))
+	}
+	if view.Allocation.Rows[0].Label != "Investimenti" {
+		t.Fatalf("first allocation label = %q, want Investimenti", view.Allocation.Rows[0].Label)
+	}
+	if view.Allocation.TotalFmt != "43.500,00 €" || view.Allocation.GrossFmt != "46.500,00 €" {
+		t.Fatalf("allocation totals = %q net, %q gross", view.Allocation.TotalFmt, view.Allocation.GrossFmt)
 	}
 	if len(view.Investments.Rows) != 1 {
 		t.Fatalf("investment rows = %d, want 1", len(view.Investments.Rows))
@@ -305,6 +311,19 @@ func TestBuildInvestmentChartUsesWeightedTotalReturn(t *testing.T) {
 	}
 	if chart.ReturnPctFmt != "13,8%" {
 		t.Fatalf("return pct = %q, want 13,8%%", chart.ReturnPctFmt)
+	}
+}
+
+func TestBuildInvestmentChartReportsWhenRowsAreTruncated(t *testing.T) {
+	rows := make([]reports.InvestmentRow, 6)
+	for i := range rows {
+		rows[i] = reports.InvestmentRow{Account: string(rune('A' + i)), Value: kernel.Money(1000 + i)}
+	}
+
+	chart := buildInvestmentChart(rows)
+
+	if !chart.Truncated || len(chart.Rows) != 5 {
+		t.Fatalf("truncated = %t with %d rows, want true with 5 rows", chart.Truncated, len(chart.Rows))
 	}
 }
 

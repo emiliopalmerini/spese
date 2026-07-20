@@ -3,16 +3,16 @@
 <section class="page report">
   <header class="page-head">
     <h1>Investimenti</h1>
-    <p class="muted">Costo cumulato (somma dei trasferimenti) vs valore attuale (ultimo bilancio).</p>
+    <p class="muted">Flussi netti registrati rispetto all'ultimo valore disponibile. Non è un rendimento finanziario.</p>
   </header>
   <table class="data-table list-table list-table--ledger">
-    <caption class="sr-only">Costo, valore e rendimento degli investimenti</caption>
+    <caption class="sr-only">Flussi netti, valore e differenza degli investimenti</caption>
     <thead>
       <tr>
         <th scope="col">Conto</th>
-        <th scope="col" class="num">Costo</th>
+        <th scope="col" class="num">Flussi netti</th>
         <th scope="col" class="num">Valore</th>
-        <th scope="col" class="num">Rendimento</th>
+        <th scope="col" class="num">Differenza</th>
         <th scope="col" class="num">%</th>
         <th scope="col">Ultimo aggiornamento</th>
       </tr>
@@ -21,9 +21,9 @@
       {{range .Rows}}
         <tr>
           <th scope="row" class="list-cell list-cell--primary" data-label="Conto">{{.Account}}</th>
-          <td class="list-cell list-cell--secondary num" data-label="Costo"><span class="list-cell__prefix">Costo </span>{{money .CostBasis}}</td>
+          <td class="list-cell list-cell--secondary num" data-label="Flussi netti"><span class="list-cell__prefix">Flussi </span>{{money .CostBasis}}</td>
           <td class="list-cell list-cell--meta num" data-label="Valore"><span class="list-cell__prefix">Valore </span>{{money .Value}}</td>
-          <td class="list-cell list-cell--amount num" data-label="Rendimento">{{money .Return}}</td>
+          <td class="list-cell list-cell--amount num" data-label="Differenza">{{money .Return}}</td>
           <td class="list-cell list-cell--status num" data-label="%">{{pct .ReturnPct}}</td>
           <td class="list-cell list-cell--detail muted" data-label="Ultimo aggiornamento"><span class="list-cell__prefix">Aggiornato </span>{{isodate .LatestMonth}}</td>
         </tr>

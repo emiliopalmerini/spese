@@ -199,7 +199,7 @@ func NwMonthly(ctx context.Context, store *storage.Store, _ bool) ([]NwRow, erro
 	return out, rows.Err()
 }
 
-// Investments compares latest investment balances with cumulative transfers.
+// Investments compares latest investment balances with net recorded transfers.
 func Investments(ctx context.Context, store *storage.Store, _ bool) ([]InvestmentRow, error) {
 	rows, err := store.DB().QueryContext(ctx, canonicalSnapshotsSQL+`
 		, latest AS (
