@@ -990,7 +990,7 @@ func monthYear(month kernel.Date) string {
 func axisMonthLabel(month kernel.Date, includeYear bool) string {
 	label := monthShort(month)
 	if includeYear || month.Time.Month() == 1 {
-		return fmt.Sprintf("%s %02d", label, month.Time.Year()%100)
+		return fmt.Sprintf("%s %d", label, month.Time.Year())
 	}
 	return label
 }

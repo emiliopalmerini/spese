@@ -144,8 +144,8 @@ func TestBuildCashFlowChartKeepsLatestTwelveMonths(t *testing.T) {
 	if len(chart.Months) != 12 {
 		t.Fatalf("months = %d, want 12", len(chart.Months))
 	}
-	if chart.Months[0].Label != "Mar 25" {
-		t.Fatalf("first month label = %q, want Mar 25", chart.Months[0].Label)
+	if chart.Months[0].Label != "Mar 2025" {
+		t.Fatalf("first month label = %q, want Mar 2025", chart.Months[0].Label)
 	}
 	if chart.Months[11].Label != "Feb" {
 		t.Fatalf("last month label = %q, want Feb", chart.Months[11].Label)
