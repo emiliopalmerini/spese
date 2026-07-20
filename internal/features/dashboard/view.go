@@ -47,7 +47,14 @@ type CashFlowChart struct {
 	Empty     bool
 	Months    []MonthTick
 	Bars      []CashFlowBar
+	YTicks    []AxisTick
 	MaxFmt    string
+}
+
+// AxisTick is a labelled horizontal guide in an SVG chart.
+type AxisTick struct {
+	Y        int
+	ValueFmt string
 }
 
 // CashFlowBar is one SVG rect in the cash-flow chart.
@@ -100,18 +107,21 @@ type CategoryRow struct {
 
 // LineChart is the net-worth trend chart.
 type LineChart struct {
-	Width      int
-	Height     int
-	AxisStart  int
-	AxisEnd    int
-	Baseline   int
-	Empty      bool
-	Points     []LinePoint
-	PointsAttr string
-	Labels     []MonthTick
-	LatestFmt  string
-	MinFmt     string
-	MaxFmt     string
+	Width        int
+	Height       int
+	AxisStart    int
+	AxisEnd      int
+	Baseline     int
+	Empty        bool
+	Points       []LinePoint
+	PointsAttr   string
+	Labels       []MonthTick
+	YTicks       []AxisTick
+	LatestFmt    string
+	MinFmt       string
+	MaxFmt       string
+	ChangeFmt    string
+	ChangePctFmt string
 }
 
 // LinePoint is one plotted point in a line chart.
@@ -232,7 +242,7 @@ func buildCashFlowChart(rows []reports.IncomeRow) CashFlowChart {
 		return chart
 	}
 
-	rows = latestIncomeRows(rows, 12)
+	rows = latestIncomeRows(fillIncomeMonths(rows), 12)
 	maxValue := kernel.Money(0)
 	for _, row := range rows {
 		maxValue = maxMoney(maxValue, absMoney(row.Revenue))
@@ -242,6 +252,11 @@ func buildCashFlowChart(rows []reports.IncomeRow) CashFlowChart {
 		maxValue = 1
 	}
 	chart.MaxFmt = moneyFmt(maxValue)
+	for i := 0; i < 4; i++ {
+		value := kernel.Money(roundFloat(float64(maxValue) * float64(i) / 3))
+		y := baseline - roundFloat(float64(baseline-top)*float64(i)/3)
+		chart.YTicks = append(chart.YTicks, AxisTick{Y: y, ValueFmt: moneyFmt(value)})
+	}
 
 	plotWidth := cashFlowWidth - left - right
 	step := float64(plotWidth) / float64(len(rows))
@@ -250,7 +265,7 @@ func buildCashFlowChart(rows []reports.IncomeRow) CashFlowChart {
 		chart.Months = append(chart.Months, MonthTick{
 			X:      center,
 			Y:      labelY,
-			Label:  monthShort(row.Month),
+			Label:  axisMonthLabel(row.Month, i == 0),
 			Detail: row.Month.Month(),
 		})
 		monthLabel := monthShort(row.Month)
@@ -417,20 +432,42 @@ func buildNetWorthChart(rows []reports.NwRow) LineChart {
 	chart.MinFmt = moneyFmt(minValue)
 	chart.MaxFmt = moneyFmt(maxValue)
 	chart.LatestFmt = moneyFmt(rows[len(rows)-1].NetWorth)
+	change := rows[len(rows)-1].NetWorth - rows[0].NetWorth
+	chart.ChangeFmt = signedMoneyFmt(change)
+	if rows[0].NetWorth != 0 {
+		chart.ChangePctFmt = signedPctFmt(float64(change) / float64(absMoney(rows[0].NetWorth)))
+	} else {
+		chart.ChangePctFmt = "—"
+	}
 
 	plotWidth := lineWidth - left - right
 	plotHeight := baseline - top
+	domainRange := maxValue - minValue
+	padding := domainRange / 10
+	if padding == 0 {
+		padding = absMoney(maxValue) / 20
+		if padding == 0 {
+			padding = 1
+		}
+	}
+	domainMin := minValue - padding
+	domainMax := maxValue + padding
+	if minValue >= 0 && domainMin < 0 {
+		domainMin = 0
+	}
+	for i := 0; i < 4; i++ {
+		value := domainMin + kernel.Money(roundFloat(float64(domainMax-domainMin)*float64(i)/3))
+		y := baseline - roundFloat(float64(plotHeight)*float64(i)/3)
+		chart.YTicks = append(chart.YTicks, AxisTick{Y: y, ValueFmt: moneyFmt(value)})
+	}
 	pointsAttr := make([]string, 0, len(rows))
 	for i, row := range rows {
 		x := left + plotWidth/2
 		if len(rows) > 1 {
 			x = left + roundFloat(float64(i)*float64(plotWidth)/float64(len(rows)-1))
 		}
-		y := top + plotHeight/2
-		if maxValue != minValue {
-			position := float64(row.NetWorth-minValue) / float64(maxValue-minValue)
-			y = baseline - roundFloat(position*float64(plotHeight))
-		}
+		position := float64(row.NetWorth-domainMin) / float64(domainMax-domainMin)
+		y := baseline - roundFloat(position*float64(plotHeight))
 		point := LinePoint{
 			X:        x,
 			Y:        y,
@@ -442,7 +479,7 @@ func buildNetWorthChart(rows []reports.NwRow) LineChart {
 		chart.Labels = append(chart.Labels, MonthTick{
 			X:      x,
 			Y:      labelY,
-			Label:  monthShort(row.Month),
+			Label:  axisMonthLabel(row.Month, i == 0),
 			Detail: row.Month.Month(),
 		})
 	}
@@ -610,6 +647,30 @@ func latestIncomeRows(rows []reports.IncomeRow, limit int) []reports.IncomeRow {
 	return latestRows(rows, limit)
 }
 
+func fillIncomeMonths(rows []reports.IncomeRow) []reports.IncomeRow {
+	if len(rows) < 2 {
+		return rows
+	}
+	rows = append([]reports.IncomeRow(nil), rows...)
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Month.Before(rows[j].Month.Time) })
+	byMonth := make(map[string]reports.IncomeRow, len(rows))
+	for _, row := range rows {
+		byMonth[row.Month.Month()] = row
+	}
+
+	first := rows[0].Month.FirstOfMonth()
+	last := rows[len(rows)-1].Month.FirstOfMonth()
+	continuous := make([]reports.IncomeRow, 0, len(rows))
+	for month := first; !month.After(last.Time); month = nextMonth(month) {
+		row, ok := byMonth[month.Month()]
+		if !ok {
+			row.Month = month
+		}
+		continuous = append(continuous, row)
+	}
+	return continuous
+}
+
 func latestNwRows(rows []reports.NwRow, limit int) []reports.NwRow {
 	rows = append([]reports.NwRow(nil), rows...)
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Month.Before(rows[j].Month.Time) })
@@ -652,6 +713,20 @@ func pctOrEmpty(v float64, ok bool) string {
 	return pctFmt(v)
 }
 
+func signedMoneyFmt(value kernel.Money) string {
+	if value > 0 {
+		return "+" + moneyFmt(value)
+	}
+	return moneyFmt(value)
+}
+
+func signedPctFmt(value float64) string {
+	if value > 0 {
+		return "+" + pctFmt(value)
+	}
+	return pctFmt(value)
+}
+
 func valueOrEmpty(value string, ok bool) string {
 	if !ok {
 		return "—"
@@ -680,6 +755,14 @@ func monthYear(month kernel.Date) string {
 	}
 	months := [...]string{"gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"}
 	return fmt.Sprintf("%s %d", months[month.Time.Month()-1], month.Time.Year())
+}
+
+func axisMonthLabel(month kernel.Date, includeYear bool) string {
+	label := monthShort(month)
+	if includeYear || month.Time.Month() == 1 {
+		return fmt.Sprintf("%s %02d", label, month.Time.Year()%100)
+	}
+	return label
 }
 
 func returnRate(ret, cost kernel.Money) float64 {

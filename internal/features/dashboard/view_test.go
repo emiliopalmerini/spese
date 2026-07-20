@@ -135,8 +135,8 @@ func TestBuildCashFlowChartKeepsLatestTwelveMonths(t *testing.T) {
 	if len(chart.Months) != 12 {
 		t.Fatalf("months = %d, want 12", len(chart.Months))
 	}
-	if chart.Months[0].Label != "Mar" {
-		t.Fatalf("first month label = %q, want Mar", chart.Months[0].Label)
+	if chart.Months[0].Label != "Mar 25" {
+		t.Fatalf("first month label = %q, want Mar 25", chart.Months[0].Label)
 	}
 	if chart.Months[11].Label != "Feb" {
 		t.Fatalf("last month label = %q, want Feb", chart.Months[11].Label)
@@ -148,6 +148,23 @@ func TestBuildCashFlowChartKeepsLatestTwelveMonths(t *testing.T) {
 		if bar.Height < 0 {
 			t.Fatalf("bar height must not be negative: %+v", bar)
 		}
+	}
+}
+
+func TestBuildCashFlowChartFillsMissingMonths(t *testing.T) {
+	chart := buildCashFlowChart([]reports.IncomeRow{
+		{Month: mustDate(t, "2026-01"), Revenue: 100000},
+		{Month: mustDate(t, "2026-03"), Revenue: 120000},
+	})
+
+	if len(chart.Months) != 3 {
+		t.Fatalf("months = %d, want 3", len(chart.Months))
+	}
+	if chart.Months[1].Detail != "2026-02" {
+		t.Fatalf("middle month = %q, want 2026-02", chart.Months[1].Detail)
+	}
+	if len(chart.Bars) != 6 || chart.Bars[2].Height != 0 || chart.Bars[3].Height != 0 {
+		t.Fatalf("missing month bars = %+v, want two zero bars", chart.Bars[2:4])
 	}
 }
 
@@ -249,6 +266,15 @@ func TestBuildNetWorthChartProducesPolylinePoints(t *testing.T) {
 	}
 	if chart.MaxFmt != "12.000,00 €" {
 		t.Fatalf("max = %q, want 12.000,00 €", chart.MaxFmt)
+	}
+	if len(chart.YTicks) != 4 {
+		t.Fatalf("y ticks = %d, want 4", len(chart.YTicks))
+	}
+	if chart.Points[0].Y == 18 || chart.Points[0].Y == chart.Baseline {
+		t.Fatalf("first point y = %d, want padded away from chart edges", chart.Points[0].Y)
+	}
+	if chart.ChangeFmt != "+1.000,00 €" || chart.ChangePctFmt != "+10,0%" {
+		t.Fatalf("change = %q (%q), want +1.000,00 € (+10,0%%)", chart.ChangeFmt, chart.ChangePctFmt)
 	}
 }
 

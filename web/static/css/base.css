@@ -767,6 +767,18 @@ details.form-card form {
   stroke-width: 1;
 }
 
+.dashboard-svg__grid {
+  stroke: var(--line);
+  stroke-dasharray: 3 5;
+  stroke-width: 1;
+}
+
+.dashboard-svg__tick {
+  fill: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
 .dashboard-svg__bar--income {
   fill: var(--income);
 }
