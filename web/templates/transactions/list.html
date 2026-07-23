@@ -27,7 +27,10 @@
         {{range .Accounts}}<option value="{{.Name}}"{{if eq $.Filters.Account .Name}} selected{{end}}>{{.Name}}</option>{{end}}
       </select>
     </label>
-    <label>Categoria <input type="text" name="category" value="{{.Filters.Category}}" autocomplete="off"></label>
+    <label>Categoria <input type="text" name="category" value="{{.Filters.Category}}" list="transaction-category-suggestions" autocomplete="off"></label>
+    <datalist id="transaction-category-suggestions">
+      {{range .CategorySuggestions}}<option value="{{.Name}}">{{.Name}} ({{.Count}})</option>{{end}}
+    </datalist>
     <div class="transaction-filters__actions">
       <button type="submit">Applica filtri</button>
       <a class="button-secondary" href="/transactions">Azzera</a>

@@ -55,6 +55,10 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := Append(r.Context(), h.Store, a); err != nil {
+		if errors.Is(err, ErrAccountNameExists) {
+			http.Error(w, "Esiste già un conto con questo nome.", http.StatusUnprocessableEntity)
+			return
+		}
 		h.Logger.Error("append account", "err", err)
 		http.Error(w, "Impossibile salvare il conto. Riprova.", http.StatusBadGateway)
 		return
@@ -68,8 +72,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/accounts", http.StatusSeeOther)
 }
 
-// parseForm turns submitted form values into an Account, validating the
-// minimum (name + type + class).
+// parseForm turns submitted form values into a validated Account.
 func parseForm(r *http.Request) (Account, error) {
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" {
@@ -80,8 +83,12 @@ func parseForm(r *http.Request) (Account, error) {
 		return Account{}, errors.New("Seleziona un tipo di conto valido.")
 	}
 	c := Class(strings.TrimSpace(r.FormValue("class")))
-	if c == "" {
+	switch c {
+	case Cash, Investment, Property, Tax, Credit, Other:
+	case "":
 		return Account{}, errors.New("Seleziona una classe di conto.")
+	default:
+		return Account{}, errors.New("Seleziona una classe di conto valida.")
 	}
 	currency := strings.ToUpper(defaultStr(r.FormValue("currency"), "EUR"))
 	if currency != "EUR" {
@@ -107,6 +114,9 @@ func parseForm(r *http.Request) (Account, error) {
 			return Account{}, errors.New("Inserisci una data di disattivazione valida.")
 		}
 		a.ActiveTo = d
+	}
+	if !a.ActiveFrom.IsZero() && !a.ActiveTo.IsZero() && a.ActiveFrom.After(a.ActiveTo.Time) {
+		return Account{}, errors.New("La data di attivazione non può essere successiva alla data di disattivazione.")
 	}
 	return a, nil
 }

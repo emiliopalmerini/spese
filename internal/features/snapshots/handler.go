@@ -54,6 +54,27 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
+	accs, err := accounts.List(r.Context(), h.Store, false)
+	if err != nil {
+		h.Logger.Error("validate snapshot accounts", "err", err)
+		http.Error(w, "Impossibile verificare i conti. Riprova.", http.StatusBadGateway)
+		return
+	}
+	accountsByName := make(map[string]accounts.Account, len(accs))
+	for _, account := range accs {
+		accountsByName[account.Name] = account
+	}
+	for _, snap := range snaps {
+		account, ok := accountsByName[snap.Account]
+		if !ok {
+			http.Error(w, "Il conto "+snap.Account+" non esiste.", http.StatusUnprocessableEntity)
+			return
+		}
+		if !account.IsActive(snap.Month) {
+			http.Error(w, "Il conto "+snap.Account+" non è attivo per il mese selezionato.", http.StatusUnprocessableEntity)
+			return
+		}
+	}
 	if err := Append(r.Context(), h.Store, snaps); err != nil {
 		h.Logger.Error("append snapshots", "err", err)
 		http.Error(w, "Impossibile salvare i bilanci. Riprova.", http.StatusBadGateway)
@@ -123,15 +144,15 @@ func defaultMonth(s string) kernel.Date {
 // BuildFormView prepares the month entry model shared by the page and the
 // global action drawer.
 func BuildFormView(ctx context.Context, store *storage.Store, monthParam string, force bool) (FormView, error) {
+	month := defaultMonth(monthParam)
 	accs, err := accounts.List(ctx, store, false)
 	if err != nil {
 		return FormView{}, err
 	}
-	latest, err := LatestPerAccount(ctx, store, force)
+	latest, err := LatestPerAccountBefore(ctx, store, month, force)
 	if err != nil {
 		return FormView{}, err
 	}
-	month := defaultMonth(monthParam)
 	rows := make([]Row, 0, len(accs))
 	for _, a := range accs {
 		if !a.IsActive(month) {

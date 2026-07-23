@@ -207,8 +207,11 @@ func TestTemplateFragmentsRender(t *testing.T) {
 		Currency: "EUR",
 	}
 	accountPicker := actions.AccountPickerView{
-		Accounts: []accounts.Account{account},
-		Today:    day,
+		Accounts: []accounts.Account{
+			account,
+			{Name: "Carta", Type: accounts.Asset, Class: accounts.Cash, Currency: "EUR"},
+		},
+		Today: day,
 		CategorySuggestions: actions.CategorySuggestions{
 			Expense: []actions.CategorySuggestion{
 				{
@@ -218,6 +221,15 @@ func TestTemplateFragmentsRender(t *testing.T) {
 				},
 			},
 			Income: []actions.CategorySuggestion{{Name: "Stipendio", Count: 2}},
+		},
+		PayeeSuggestions: []actions.PayeeSuggestion{
+			{
+				Name:       "Bar Centrale",
+				TotalCount: 3,
+				Contexts: []actions.PayeeContext{
+					{Kind: transactions.Expense, Account: account.Name, Category: "Casa", Subcategory: "Generale", Count: 3},
+				},
+			},
 		},
 	}
 
@@ -252,6 +264,12 @@ func TestTemplateFragmentsRender(t *testing.T) {
 				if !strings.Contains(body, `type="text" inputmode="decimal" placeholder="0,00"`) {
 					t.Fatalf("fragment %s did not render a comma-friendly decimal amount input", name)
 				}
+				if !strings.Contains(body, `name="payee" type="text" list="transaction-payee-suggestions" autocomplete="off" required`) {
+					t.Fatalf("fragment %s did not render a free-text payee with historical suggestions", name)
+				}
+				if !strings.Contains(body, `id="transaction-payee-suggestions" data-transaction-payee-suggestions`) || !strings.Contains(body, `value="Bar Centrale" data-payee-total="3" data-payee-contexts=`) {
+					t.Fatalf("fragment %s did not render deduplicated contextual payee metadata", name)
+				}
 				if !strings.Contains(body, `data-transaction-category`) || !strings.Contains(body, `value="Casa" data-transaction-kind="Expense">Casa (4)</option>`) {
 					t.Fatalf("fragment %s did not render ranked expense categories", name)
 				}
@@ -268,8 +286,14 @@ func TestTemplateFragmentsRender(t *testing.T) {
 				if !strings.Contains(body, `type="text" inputmode="decimal" placeholder="0,00"`) {
 					t.Fatalf("fragment %s did not render a comma-friendly decimal amount input", name)
 				}
+				if !strings.Contains(body, `name="source" required data-transfer-source`) || !strings.Contains(body, `name="destination" required data-transfer-destination`) {
+					t.Fatalf("fragment %s did not render transfer account synchronization hooks", name)
+				}
 				if !strings.Contains(body, `value="" disabled selected`) {
 					t.Fatalf("fragment %s did not require an explicit destination account", name)
+				}
+				if !strings.Contains(body, `value="Conto corrente principale" hidden disabled>Conto corrente principale</option>`) {
+					t.Fatalf("fragment %s allowed the initial source as a destination", name)
 				}
 			case "action_form_snapshot":
 				if !strings.Contains(body, `type="text" inputmode="decimal" placeholder="0,00"`) {
@@ -277,6 +301,9 @@ func TestTemplateFragmentsRender(t *testing.T) {
 				}
 				if !strings.Contains(body, `aria-label="Nuovo saldo per Conto corrente principale"`) {
 					t.Fatalf("fragment %s did not identify the account for balance inputs", name)
+				}
+				if !strings.Contains(body, `hx-get="/actions/new/snapshot"`) || !strings.Contains(body, `hx-trigger="change"`) || !strings.Contains(body, `hx-target="closest form"`) {
+					t.Fatalf("fragment %s did not reload account rows when the month changes", name)
 				}
 			case "action_form_account":
 				if !strings.Contains(body, `>Attività<`) || !strings.Contains(body, `>Liquidità<`) {

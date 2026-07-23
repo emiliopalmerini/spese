@@ -164,6 +164,11 @@
       return element && element.closest ? element.closest('[data-global-action-form]') : null;
     }
 
+    function isFormSubmission(event) {
+      var element = requestElement(event);
+      return element && element.matches && element.matches('form[data-global-action-form]');
+    }
+
     function setCustomValue(select, field, name, active) {
       var input = field ? field.querySelector('input') : null;
       if (!input) {
@@ -243,9 +248,110 @@
       syncTransactionSubcategories(form, true);
     }
 
+    function transactionChoice(form, name) {
+      var field = form.elements[name];
+      return field && typeof field.value === 'string' ? field.value.trim().toLowerCase() : '';
+    }
+
+    function payeeContextRank(option, selected) {
+      var contexts;
+      try {
+        contexts = JSON.parse(option.dataset.payeeContexts || '[]');
+      } catch (_error) {
+        contexts = [];
+      }
+
+      var bestScore = 0;
+      var contextCount = 0;
+      contexts.forEach(function (context) {
+        var score = 0;
+        if (selected.kind && String(context.kind).toLowerCase() === selected.kind) {
+          score += 8;
+        }
+        if (selected.account && String(context.account).toLowerCase() === selected.account) {
+          score += 4;
+        }
+        if (selected.category && String(context.category).toLowerCase() === selected.category) {
+          score += 2;
+        }
+        if (selected.subcategory && String(context.subcategory).toLowerCase() === selected.subcategory) {
+          score += 1;
+        }
+        if (score > bestScore) {
+          bestScore = score;
+          contextCount = Number(context.count) || 0;
+        } else if (score === bestScore) {
+          contextCount += Number(context.count) || 0;
+        }
+      });
+      return { score: bestScore, contextCount: contextCount };
+    }
+
+    function syncTransactionPayees(form) {
+      var datalist = form.querySelector('[data-transaction-payee-suggestions]');
+      if (!datalist) {
+        return;
+      }
+      var selected = {
+        kind: transactionChoice(form, 'kind'),
+        account: transactionChoice(form, 'account'),
+        category: transactionChoice(form, 'category'),
+        subcategory: transactionChoice(form, 'subcategory')
+      };
+      var options = Array.prototype.slice.call(datalist.querySelectorAll('option'));
+      options.sort(function (left, right) {
+        var leftRank = payeeContextRank(left, selected);
+        var rightRank = payeeContextRank(right, selected);
+        if (leftRank.score !== rightRank.score) {
+          return rightRank.score - leftRank.score;
+        }
+        if (leftRank.contextCount !== rightRank.contextCount) {
+          return rightRank.contextCount - leftRank.contextCount;
+        }
+        var totalDifference = Number(right.dataset.payeeTotal) - Number(left.dataset.payeeTotal);
+        if (totalDifference) {
+          return totalDifference;
+        }
+        var leftName = left.value.toLowerCase();
+        var rightName = right.value.toLowerCase();
+        if (leftName !== rightName) {
+          return leftName < rightName ? -1 : 1;
+        }
+        return left.value < right.value ? -1 : left.value > right.value ? 1 : 0;
+      });
+      options.forEach(function (option) {
+        datalist.appendChild(option);
+      });
+    }
+
     function initializeTransactionForm(form) {
       if (form && form.querySelector('[data-transaction-category]')) {
         syncTransactionCategories(form, false);
+        syncTransactionPayees(form);
+      }
+    }
+
+    function syncTransferAccounts(form) {
+      var source = form.querySelector('[data-transfer-source]');
+      var destination = form.querySelector('[data-transfer-destination]');
+      if (!source || !destination) {
+        return;
+      }
+
+      if (destination.value === source.value) {
+        destination.value = '';
+      }
+      destination.querySelectorAll('option[value]:not([value=""])').forEach(function (option) {
+        var matchesSource = option.value === source.value;
+        option.hidden = matchesSource;
+        option.disabled = matchesSource;
+      });
+    }
+
+    function initializeActionForm(form) {
+      initializeTransactionForm(form);
+      if (form) {
+        syncTransferAccounts(form);
       }
     }
 
@@ -341,12 +447,17 @@
       if (!form) {
         return;
       }
-      if (event.target.matches('[name="kind"]')) {
+      if (event.target.matches('[data-transfer-source]')) {
+        syncTransferAccounts(form);
+      } else if (event.target.matches('[name="kind"]')) {
         syncTransactionCategories(form, true);
       } else if (event.target.matches('[data-transaction-category]')) {
         syncTransactionCategories(form, false);
       } else if (event.target.matches('[data-transaction-subcategory]')) {
         syncTransactionSubcategories(form, false);
+      }
+      if (event.target.matches('[name="kind"], [name="account"], [name="category"], [name="subcategory"], [data-transaction-category], [data-transaction-subcategory]')) {
+        syncTransactionPayees(form);
       }
     });
 
@@ -420,7 +531,9 @@
           error.hidden = true;
           error.textContent = '';
         }
-        setFormPending(form, true);
+        if (isFormSubmission(event)) {
+          setFormPending(form, true);
+        }
       }
     });
 
@@ -431,7 +544,7 @@
       }
       drawerContent.classList.remove('is-loading');
       drawerContent.removeAttribute('aria-busy');
-      initializeTransactionForm(drawerContent.querySelector('[data-global-action-form]'));
+      initializeActionForm(drawerContent.querySelector('[data-global-action-form]'));
       var firstField = drawerContent.querySelector('input, select, textarea, button');
       if (firstField && typeof firstField.focus === 'function') {
         firstField.focus({ preventScroll: true });
@@ -450,6 +563,9 @@
     document.body.addEventListener('htmx:afterRequest', function (event) {
       var form = requestForm(event);
       if (!form) {
+        return;
+      }
+      if (!isFormSubmission(event)) {
         return;
       }
       setFormPending(form, false);

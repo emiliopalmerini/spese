@@ -1,10 +1,37 @@
 package transactions
 
 import (
+	"reflect"
 	"testing"
 
 	"spese/internal/kernel"
 )
+
+func TestBuildCategorySuggestionsRanksHistoricalIncomeAndExpenses(t *testing.T) {
+	txns := []Transaction{
+		{Kind: Expense, Category: "tempo Libero"},
+		{Kind: Income, Category: "STIPENDIO"},
+		{Kind: Expense, Category: "Casa"},
+		{Kind: Expense, Category: "Tempo libero"},
+		{Kind: Income, Category: "stipendio"},
+		{Kind: Expense, Category: "casa"},
+		{Kind: Expense, Category: "Spesa"},
+		{Kind: Transfer, Category: "Transfer"},
+		{Kind: Adjustment, Category: "Rettifica"},
+		{Kind: Expense, Category: "  "},
+	}
+
+	got := BuildCategorySuggestions(txns)
+	want := []CategorySuggestion{
+		{Name: "Casa", Count: 2},
+		{Name: "STIPENDIO", Count: 2},
+		{Name: "tempo Libero", Count: 2},
+		{Name: "Spesa", Count: 1},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("suggestions = %+v, want %+v", got, want)
+	}
+}
 
 func TestBuildListViewRowsCombinesTransferLegs(t *testing.T) {
 	day := mustDate(t, "2026-05-15")

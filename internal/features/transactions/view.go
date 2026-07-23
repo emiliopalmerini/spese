@@ -1,10 +1,51 @@
 package transactions
 
 import (
+	"sort"
 	"strings"
 
 	"spese/internal/kernel"
 )
+
+// CategorySuggestion is a historical category label and its frequency.
+type CategorySuggestion struct {
+	Name  string
+	Count int
+}
+
+// BuildCategorySuggestions ranks income and expense categories from
+// transactions ordered newest first.
+func BuildCategorySuggestions(txns []Transaction) []CategorySuggestion {
+	byName := make(map[string]CategorySuggestion)
+	for _, txn := range txns {
+		if txn.Kind != Income && txn.Kind != Expense {
+			continue
+		}
+		name := strings.TrimSpace(txn.Category)
+		if name == "" {
+			continue
+		}
+		key := strings.ToLower(name)
+		suggestion := byName[key]
+		if suggestion.Count == 0 {
+			suggestion.Name = name
+		}
+		suggestion.Count++
+		byName[key] = suggestion
+	}
+
+	out := make([]CategorySuggestion, 0, len(byName))
+	for _, suggestion := range byName {
+		out = append(out, suggestion)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count != out[j].Count {
+			return out[i].Count > out[j].Count
+		}
+		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
+	})
+	return out
+}
 
 // BuildListViewRows returns transactions as they should appear in the
 // movements list. Transfer legs remain separate in the sheet, but matching

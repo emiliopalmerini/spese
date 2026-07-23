@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	"spese/internal/features/accounts"
 	"spese/internal/features/transactions"
 	"spese/internal/kernel"
 	"spese/internal/storage"
@@ -40,6 +41,24 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	legs, err := parseTransfer(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
+	accs, err := accounts.List(r.Context(), h.Store, false)
+	if err != nil {
+		h.Logger.Error("validate transfer accounts", "err", err)
+		http.Error(w, "Impossibile verificare i conti. Riprova.", http.StatusBadGateway)
+		return
+	}
+	exists := make(map[string]bool, len(accs))
+	for _, account := range accs {
+		exists[account.Name] = true
+	}
+	if !exists[legs[0].Account] {
+		http.Error(w, "Il conto di origine non esiste.", http.StatusUnprocessableEntity)
+		return
+	}
+	if !exists[legs[1].Account] {
+		http.Error(w, "Il conto di destinazione non esiste.", http.StatusUnprocessableEntity)
 		return
 	}
 	if err := transactions.Append(r.Context(), h.Store, legs); err != nil {

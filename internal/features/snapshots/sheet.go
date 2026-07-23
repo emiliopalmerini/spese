@@ -36,15 +36,18 @@ func List(ctx context.Context, store *storage.Store, _ bool) ([]Snapshot, error)
 	return out, rows.Err()
 }
 
-// LatestPerAccount returns the most recent snapshot per account, keyed by
-// account name.
-func LatestPerAccount(ctx context.Context, store *storage.Store, force bool) (map[string]Snapshot, error) {
+// LatestPerAccountBefore returns the most recent snapshot strictly before
+// month per account, keyed by account name.
+func LatestPerAccountBefore(ctx context.Context, store *storage.Store, month kernel.Date, force bool) (map[string]Snapshot, error) {
 	all, err := List(ctx, store, force)
 	if err != nil {
 		return nil, err
 	}
 	latest := make(map[string]Snapshot)
 	for _, s := range all {
+		if !s.Month.Before(month.Time) {
+			continue
+		}
 		cur, ok := latest[s.Account]
 		if !ok || s.Month.After(cur.Month.Time) {
 			latest[s.Account] = s

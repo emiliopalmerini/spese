@@ -2,6 +2,7 @@ package accounts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"spese/internal/kernel"
@@ -10,6 +11,8 @@ import (
 
 // Tab is the sheet tab name this slice mirrors to.
 const Tab = "accounts"
+
+var ErrAccountNameExists = errors.New("account name already exists")
 
 // List reads every account row from the local database.
 func List(ctx context.Context, store *storage.Store, _ bool) ([]Account, error) {
@@ -153,6 +156,16 @@ func listWithLatest(ctx context.Context, db storage.SQLRunner) ([]AccountRow, er
 
 // Append writes a new account locally and enqueues a sheet mirror refresh.
 func Append(ctx context.Context, store *storage.Store, a Account) error {
+	var exists bool
+	if err := store.DB().QueryRowContext(ctx, `
+		SELECT EXISTS(SELECT 1 FROM accounts WHERE name = ?)
+	`, a.Name).Scan(&exists); err != nil {
+		return fmt.Errorf("check %s name: %w", Tab, err)
+	}
+	if exists {
+		return ErrAccountNameExists
+	}
+
 	tx, err := store.Begin(ctx)
 	if err != nil {
 		return err

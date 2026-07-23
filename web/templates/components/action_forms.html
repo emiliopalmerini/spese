@@ -15,7 +15,10 @@
     </select>
   </label>
   <label>Importo <input name="amount" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" required></label>
-  <label>Descrizione <input name="payee" type="text" autocomplete="off" required></label>
+  <label>Descrizione <input name="payee" type="text" list="transaction-payee-suggestions" autocomplete="off" required></label>
+  <datalist id="transaction-payee-suggestions" data-transaction-payee-suggestions>
+    {{range .PayeeSuggestions}}<option value="{{.Name}}" data-payee-total="{{.TotalCount}}" data-payee-contexts="{{.ContextJSON}}"></option>{{end}}
+  </datalist>
   <label>Categoria
     <select name="category" data-transaction-category>
       <option value="">Nessuna categoria</option>
@@ -49,14 +52,14 @@
   {{if lt (len .Accounts) 2}}<div class="form-empty full"><p>Per registrare un trasferimento servono almeno due conti.</p><button type="button" class="button-secondary" data-open-global-action="account">Crea un conto</button></div>{{end}}
   <label>Data <input name="date" type="date" value="{{isodate .Today}}" required></label>
   <label>Da
-    <select name="source" required>
+    <select name="source" required data-transfer-source>
       {{range .Accounts}}<option value="{{.Name}}">{{.Name}}</option>{{end}}
     </select>
   </label>
   <label>A
-    <select name="destination" required>
+    <select name="destination" required data-transfer-destination>
       <option value="" disabled selected>Seleziona un conto</option>
-      {{range .Accounts}}<option value="{{.Name}}">{{.Name}}</option>{{end}}
+      {{range $index, $account := .Accounts}}<option value="{{$account.Name}}"{{if eq $index 0}} hidden disabled{{end}}>{{$account.Name}}</option>{{end}}
     </select>
   </label>
   <label>Importo <input name="amount" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" required></label>
@@ -68,7 +71,7 @@
 {{define "action_form_snapshot"}}
 <form method="post" action="/snapshots" class="form-card snapshots-form global-action-form" data-global-action-form hx-post="/snapshots">
   <p class="form-error full" role="alert" tabindex="-1" data-form-error hidden></p>
-  <label class="full">Mese <input name="month" type="month" value="{{.Month.Month}}" required></label>
+  <label class="full">Mese <input name="month" type="month" value="{{.Month.Month}}" required hx-get="/actions/new/snapshot" hx-trigger="change" hx-target="closest form" hx-swap="outerHTML" hx-include="this"></label>
 
   <table class="data-table">
     <caption class="sr-only">Inserimento dei saldi mensili per conto</caption>

@@ -1,12 +1,66 @@
 package transactions
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"spese/internal/storage"
 )
+
+type captureRenderer struct {
+	data any
+}
+
+func (r *captureRenderer) Render(_ http.ResponseWriter, _ string, data any) error {
+	r.data = data
+	return nil
+}
+
+func TestListProvidesUnfilteredHistoricalCategorySuggestions(t *testing.T) {
+	ctx := context.Background()
+	store, err := storage.Open(ctx, filepath.Join(t.TempDir(), "transactions.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	if _, err := store.DB().ExecContext(ctx, `
+		INSERT INTO accounts (name, type, class, currency) VALUES
+			('Bank', 'Asset', 'Cash', 'EUR');
+		INSERT INTO transactions (date, kind, account, amount_cents, category, subcategory, payee, note) VALUES
+			('2026-01-04', 'Expense', 'Bank', -1000, 'CIBO', '', 'Cafe', ''),
+			('2026-01-03', 'Income', 'Bank', 2000, 'Stipendio', '', 'Employer', ''),
+			('2026-01-02', 'Expense', 'Bank', -1000, 'cibo', '', 'Market', ''),
+			('2026-01-01', 'Transfer', 'Bank', -500, 'Transfer', '', 'Wallet', '');
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	renderer := &captureRenderer{}
+	handler := &Handler{Store: store, Render: renderer}
+	req := httptest.NewRequest(http.MethodGet, "/transactions?category=Imported", nil)
+	w := httptest.NewRecorder()
+
+	handler.list(w, req)
+
+	view, ok := renderer.data.(ListView)
+	if !ok {
+		t.Fatalf("rendered data = %T, want ListView", renderer.data)
+	}
+	if view.Filters.Category != "Imported" {
+		t.Fatalf("category filter = %q, want Imported", view.Filters.Category)
+	}
+	want := []CategorySuggestion{{Name: "CIBO", Count: 2}, {Name: "Stipendio", Count: 1}}
+	if !reflect.DeepEqual(view.CategorySuggestions, want) {
+		t.Fatalf("suggestions = %+v, want %+v", view.CategorySuggestions, want)
+	}
+}
 
 func TestCreateRejectsInvalidTransactionWithLocalizedMessage(t *testing.T) {
 	form := url.Values{

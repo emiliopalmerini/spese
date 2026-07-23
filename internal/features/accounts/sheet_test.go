@@ -3,6 +3,8 @@ package accounts
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"path/filepath"
 	"testing"
 
 	"spese/internal/kernel"
@@ -69,5 +71,35 @@ func TestListWithLatestReturnsLatestCanonicalSnapshotPerAccount(t *testing.T) {
 	}
 	if !wallet.LatestMonth.IsZero() {
 		t.Fatalf("Wallet latest month = %q, want zero", wallet.LatestMonth.ISO())
+	}
+}
+
+func TestAppendDetectsDuplicateNamesUsingDatabaseSemantics(t *testing.T) {
+	ctx := context.Background()
+	store, err := storage.Open(ctx, filepath.Join(t.TempDir(), "accounts.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	wallet := Account{Name: "Wallet", Type: Asset, Class: Cash, Currency: "EUR"}
+	if err := Append(ctx, store, wallet); err != nil {
+		t.Fatal(err)
+	}
+	if err := Append(ctx, store, wallet); !errors.Is(err, ErrAccountNameExists) {
+		t.Fatalf("duplicate Append error = %v, want ErrAccountNameExists", err)
+	}
+
+	wallet.Name = "wallet"
+	if err := Append(ctx, store, wallet); err != nil {
+		t.Fatalf("case-distinct Append error = %v", err)
+	}
+
+	var count int
+	if err := store.DB().QueryRowContext(ctx, "SELECT count(*) FROM accounts").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Fatalf("account count = %d, want 2", count)
 	}
 }

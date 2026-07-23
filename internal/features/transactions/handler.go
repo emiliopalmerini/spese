@@ -35,16 +35,17 @@ func (h *Handler) Mount(mux *http.ServeMux, prefix string) {
 
 // ListView is the payload for the list page.
 type ListView struct {
-	Transactions []Transaction
-	Accounts     []accounts.Account
-	Filters      ListFilterView
-	Total        int
-	First        int
-	Last         int
-	HasPrevious  bool
-	HasNext      bool
-	PreviousURL  string
-	NextURL      string
+	Transactions        []Transaction
+	Accounts            []accounts.Account
+	CategorySuggestions []CategorySuggestion
+	Filters             ListFilterView
+	Total               int
+	First               int
+	Last                int
+	HasPrevious         bool
+	HasNext             bool
+	PreviousURL         string
+	NextURL             string
 }
 
 // ListFilterView preserves filter values in the GET form.
@@ -71,6 +72,12 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Impossibile caricare i movimenti.", http.StatusBadGateway)
 		return
 	}
+	history, err := List(r.Context(), h.Store, Filter{}, false)
+	if err != nil {
+		h.Logger.Error("list transaction categories", "err", err)
+		http.Error(w, "Impossibile caricare i movimenti.", http.StatusBadGateway)
+		return
+	}
 	accs, err := accounts.List(r.Context(), h.Store, false)
 	if err != nil {
 		h.Logger.Error("list accounts", "err", err)
@@ -92,14 +99,15 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	}
 	visible := rows[start:end]
 	view := ListView{
-		Transactions: visible,
-		Accounts:     accs,
-		Filters:      form,
-		Total:        total,
-		HasPrevious:  page > 1,
-		HasNext:      end < total,
-		PreviousURL:  paginationURL(r.URL.Query(), page-1),
-		NextURL:      paginationURL(r.URL.Query(), page+1),
+		Transactions:        visible,
+		Accounts:            accs,
+		CategorySuggestions: BuildCategorySuggestions(history),
+		Filters:             form,
+		Total:               total,
+		HasPrevious:         page > 1,
+		HasNext:             end < total,
+		PreviousURL:         paginationURL(r.URL.Query(), page-1),
+		NextURL:             paginationURL(r.URL.Query(), page+1),
 	}
 	if total > 0 {
 		view.First = start + 1

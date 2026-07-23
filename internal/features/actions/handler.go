@@ -38,6 +38,7 @@ type AccountPickerView struct {
 	Accounts            []accounts.Account
 	Today               kernel.Date
 	CategorySuggestions CategorySuggestions
+	PayeeSuggestions    []PayeeSuggestion
 }
 
 func (h *Handler) transactionForm(w http.ResponseWriter, r *http.Request) {
@@ -79,22 +80,24 @@ func (h *Handler) accountPickerView(r *http.Request) (AccountPickerView, error) 
 	if err != nil {
 		return AccountPickerView{}, err
 	}
+	categories, payees := h.transactionSuggestions(r)
 	return AccountPickerView{
 		Accounts:            accs,
 		Today:               kernel.Today(),
-		CategorySuggestions: h.categorySuggestions(r),
+		CategorySuggestions: categories,
+		PayeeSuggestions:    payees,
 	}, nil
 }
 
-func (h *Handler) categorySuggestions(r *http.Request) CategorySuggestions {
+func (h *Handler) transactionSuggestions(r *http.Request) (CategorySuggestions, []PayeeSuggestion) {
 	txns, err := transactions.List(r.Context(), h.Store, transactions.Filter{}, false)
 	if err != nil {
 		if h.Logger != nil {
-			h.Logger.Warn("load transaction category suggestions", "err", err)
+			h.Logger.Warn("load transaction suggestions", "err", err)
 		}
 	}
 
-	return buildCategorySuggestions(txns)
+	return buildCategorySuggestions(txns), buildPayeeSuggestions(txns)
 }
 
 func (h *Handler) renderFragment(w http.ResponseWriter, name string, data any) {
