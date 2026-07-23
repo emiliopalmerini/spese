@@ -164,6 +164,91 @@
       return element && element.closest ? element.closest('[data-global-action-form]') : null;
     }
 
+    function setCustomValue(select, field, name, active) {
+      var input = field ? field.querySelector('input') : null;
+      if (!input) {
+        return;
+      }
+      field.hidden = !active;
+      input.disabled = !active;
+      input.required = active;
+      if (active) {
+        select.removeAttribute('name');
+        input.name = name;
+      } else {
+        select.name = name;
+        input.removeAttribute('name');
+        input.value = '';
+      }
+    }
+
+    function syncTransactionSubcategories(form, reset) {
+      var kind = form.querySelector('[name="kind"]');
+      var category = form.querySelector('[data-transaction-category]');
+      var select = form.querySelector('[data-transaction-subcategory]');
+      var field = form.querySelector('[data-transaction-subcategory-field]');
+      var customField = form.querySelector('[data-transaction-new-subcategory]');
+      if (!kind || !category || !select || !field || !customField) {
+        return;
+      }
+
+      var categoryValue = category.value;
+      var visible = categoryValue !== '';
+      field.hidden = !visible;
+      select.disabled = !visible;
+      select.querySelectorAll('[data-transaction-kind]').forEach(function (option) {
+        var active = option.dataset.transactionKind === kind.value &&
+          option.dataset.transactionCategory === categoryValue;
+        option.hidden = !active;
+        option.disabled = !active;
+      });
+
+      if (reset || !visible) {
+        select.value = '';
+      }
+      var selected = select.options[select.selectedIndex];
+      if (selected && selected.dataset.transactionKind && selected.disabled) {
+        select.value = '';
+      }
+
+      var custom = visible && select.value === '__new__';
+      setCustomValue(select, customField, 'subcategory', custom);
+      if (!visible) {
+        select.disabled = true;
+      }
+    }
+
+    function syncTransactionCategories(form, reset) {
+      var kind = form.querySelector('[name="kind"]');
+      var select = form.querySelector('[data-transaction-category]');
+      var customField = form.querySelector('[data-transaction-new-category]');
+      if (!kind || !select || !customField) {
+        return;
+      }
+
+      select.querySelectorAll('[data-transaction-kind]').forEach(function (option) {
+        var active = option.dataset.transactionKind === kind.value;
+        option.hidden = !active;
+        option.disabled = !active;
+      });
+      if (reset) {
+        select.value = '';
+      }
+      var selected = select.options[select.selectedIndex];
+      if (selected && selected.dataset.transactionKind && selected.disabled) {
+        select.value = '';
+      }
+
+      setCustomValue(select, customField, 'category', select.value === '__new__');
+      syncTransactionSubcategories(form, true);
+    }
+
+    function initializeTransactionForm(form) {
+      if (form && form.querySelector('[data-transaction-category]')) {
+        syncTransactionCategories(form, false);
+      }
+    }
+
     function setFormPending(form, pending) {
       if (!form) {
         return;
@@ -251,6 +336,20 @@
       choices[next].focus();
     });
 
+    drawerContent.addEventListener('change', function (event) {
+      var form = event.target.closest('[data-global-action-form]');
+      if (!form) {
+        return;
+      }
+      if (event.target.matches('[name="kind"]')) {
+        syncTransactionCategories(form, true);
+      } else if (event.target.matches('[data-transaction-category]')) {
+        syncTransactionCategories(form, false);
+      } else if (event.target.matches('[data-transaction-subcategory]')) {
+        syncTransactionSubcategories(form, false);
+      }
+    });
+
     document.addEventListener('click', function (event) {
       var trigger = event.target.closest('[data-open-global-action]');
       if (!trigger) {
@@ -332,6 +431,7 @@
       }
       drawerContent.classList.remove('is-loading');
       drawerContent.removeAttribute('aria-busy');
+      initializeTransactionForm(drawerContent.querySelector('[data-global-action-form]'));
       var firstField = drawerContent.querySelector('input, select, textarea, button');
       if (firstField && typeof firstField.focus === 'function') {
         firstField.focus({ preventScroll: true });

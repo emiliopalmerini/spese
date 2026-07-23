@@ -16,14 +16,28 @@
   </label>
   <label>Importo <input name="amount" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" required></label>
   <label>Descrizione <input name="payee" type="text" autocomplete="off" required></label>
-  <label>Categoria <input name="category" type="text" list="transaction-category-options" autocomplete="off"></label>
-  <label>Sottocategoria <input name="subcategory" type="text" list="transaction-subcategory-options" autocomplete="off"></label>
-  <datalist id="transaction-category-options">
-    {{range .CategorySuggestions.Categories}}<option value="{{.}}"></option>{{end}}
-  </datalist>
-  <datalist id="transaction-subcategory-options">
-    {{range .CategorySuggestions.Subcategories}}<option value="{{.}}"></option>{{end}}
-  </datalist>
+  <label>Categoria
+    <select name="category" data-transaction-category>
+      <option value="">Nessuna categoria</option>
+      {{range .CategorySuggestions.Expense}}<option value="{{.Name}}" data-transaction-kind="Expense">{{.Name}} ({{.Count}})</option>{{end}}
+      {{range .CategorySuggestions.Income}}<option value="{{.Name}}" data-transaction-kind="Income" hidden disabled>{{.Name}} ({{.Count}})</option>{{end}}
+      <option value="__new__">Nuova categoria...</option>
+    </select>
+  </label>
+  <label data-transaction-new-category hidden>Nuova categoria
+    <input type="text" autocomplete="off" disabled>
+  </label>
+  <label data-transaction-subcategory-field hidden>Sottocategoria
+    <select name="subcategory" data-transaction-subcategory disabled>
+      <option value="">Nessuna sottocategoria</option>
+      {{range .CategorySuggestions.Expense}}{{ $category := .Name }}{{range .Subcategories}}<option value="{{.Name}}" data-transaction-kind="Expense" data-transaction-category="{{$category}}">{{.Name}} ({{.Count}})</option>{{end}}{{end}}
+      {{range .CategorySuggestions.Income}}{{ $category := .Name }}{{range .Subcategories}}<option value="{{.Name}}" data-transaction-kind="Income" data-transaction-category="{{$category}}">{{.Name}} ({{.Count}})</option>{{end}}{{end}}
+      <option value="__new__">Nuova sottocategoria...</option>
+    </select>
+  </label>
+  <label data-transaction-new-subcategory hidden>Nuova sottocategoria
+    <input type="text" autocomplete="off" disabled>
+  </label>
   <label class="full">Note <input name="note" type="text" autocomplete="off"></label>
   <button type="submit"{{if not .Accounts}} disabled{{end}}>Salva</button>
 </form>

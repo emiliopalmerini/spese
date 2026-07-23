@@ -210,8 +210,14 @@ func TestTemplateFragmentsRender(t *testing.T) {
 		Accounts: []accounts.Account{account},
 		Today:    day,
 		CategorySuggestions: actions.CategorySuggestions{
-			Categories:    []string{"Casa"},
-			Subcategories: []string{"Generale"},
+			Expense: []actions.CategorySuggestion{
+				{
+					Name:          "Casa",
+					Count:         4,
+					Subcategories: []actions.ValueSuggestion{{Name: "Generale", Count: 3}},
+				},
+			},
+			Income: []actions.CategorySuggestion{{Name: "Stipendio", Count: 2}},
 		},
 	}
 
@@ -246,8 +252,17 @@ func TestTemplateFragmentsRender(t *testing.T) {
 				if !strings.Contains(body, `type="text" inputmode="decimal" placeholder="0,00"`) {
 					t.Fatalf("fragment %s did not render a comma-friendly decimal amount input", name)
 				}
-				if !strings.Contains(body, `list="`) || !strings.Contains(body, `<option value="Casa">`) {
-					t.Fatalf("fragment %s did not render category suggestions", name)
+				if !strings.Contains(body, `data-transaction-category`) || !strings.Contains(body, `value="Casa" data-transaction-kind="Expense">Casa (4)</option>`) {
+					t.Fatalf("fragment %s did not render ranked expense categories", name)
+				}
+				if !strings.Contains(body, `value="Stipendio" data-transaction-kind="Income"`) {
+					t.Fatalf("fragment %s did not render kind-specific income categories", name)
+				}
+				if !strings.Contains(body, `value="Generale" data-transaction-kind="Expense" data-transaction-category="Casa">Generale (3)</option>`) {
+					t.Fatalf("fragment %s did not render category-specific subcategories", name)
+				}
+				if !strings.Contains(body, `data-transaction-new-category`) || !strings.Contains(body, `data-transaction-new-subcategory`) {
+					t.Fatalf("fragment %s did not render custom category controls", name)
 				}
 			case "action_form_transfer":
 				if !strings.Contains(body, `type="text" inputmode="decimal" placeholder="0,00"`) {
