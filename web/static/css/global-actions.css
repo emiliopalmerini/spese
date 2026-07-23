@@ -197,6 +197,10 @@ body.has-open-drawer {
   min-width: 0;
 }
 
+.global-action-drawer .global-action-form [hidden] {
+  display: none;
+}
+
 .global-action-drawer .global-action-form {
   grid-template-columns: 1fr;
 }
