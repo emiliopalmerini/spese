@@ -56,7 +56,7 @@ func TestOpenCodeClientSessionLifecycleAndExtraction(t *testing.T) {
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"info": map[string]any{
-					"structured_output": map[string]any{
+					"structured": map[string]any{
 						"movements": []map[string]any{{
 							"id": "", "kind": "Expense", "date": "2026-07-26", "account": "Fineco",
 							"amount": "12,50", "payee": "Conad", "category": "Spesa",

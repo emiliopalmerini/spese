@@ -97,7 +97,7 @@ func (c *OpenCodeClient) Extract(ctx context.Context, sessionID string, input Ex
 	}
 	var response struct {
 		Info struct {
-			StructuredOutput json.RawMessage `json:"structured_output"`
+			StructuredOutput json.RawMessage `json:"structured"`
 			Error            json.RawMessage `json:"error"`
 		} `json:"info"`
 	}
