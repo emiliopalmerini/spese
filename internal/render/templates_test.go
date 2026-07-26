@@ -207,6 +207,7 @@ func TestTemplateFragmentsRender(t *testing.T) {
 		Currency: "EUR",
 	}
 	accountPicker := actions.AccountPickerView{
+		DictationEnabled: true,
 		Accounts: []accounts.Account{
 			account,
 			{Name: "Carta", Type: accounts.Asset, Class: accounts.Cash, Currency: "EUR"},
@@ -261,6 +262,9 @@ func TestTemplateFragmentsRender(t *testing.T) {
 			}
 			switch name {
 			case "action_form_transaction":
+				if !strings.Contains(body, `data-dictation`) || !strings.Contains(body, `data-dictation-start`) {
+					t.Fatalf("fragment %s did not render voice dictation controls", name)
+				}
 				if !strings.Contains(body, `type="text" inputmode="decimal" placeholder="0,00"`) {
 					t.Fatalf("fragment %s did not render a comma-friendly decimal amount input", name)
 				}

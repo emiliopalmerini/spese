@@ -4,18 +4,21 @@ import (
 	"context"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/emiliopalmerini/elevenlabs-go/elevenlabs"
 	"github.com/joho/godotenv"
 
 	"spese/internal/config"
 	"spese/internal/features/accounts"
 	"spese/internal/features/actions"
 	"spese/internal/features/dashboard"
+	"spese/internal/features/dictation"
 	"spese/internal/features/reports"
 	"spese/internal/features/snapshots"
 	"spese/internal/features/transactions"
@@ -73,12 +76,28 @@ func main() {
 	})
 
 	(&dashboard.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/")
-	(&actions.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/actions")
+	(&actions.Handler{Store: store, Logger: logger, Render: tmpl, DictationEnabled: cfg.DictationEnabled}).Mount(mux, "/actions")
 	(&accounts.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/accounts")
 	(&transactions.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/transactions")
 	(&transfers.Handler{Store: store, Logger: logger}).Mount(mux, "/transfers")
 	(&snapshots.Handler{Store: store, Logger: logger}).Mount(mux, "/snapshots")
 	(&reports.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/reports")
+	if cfg.DictationEnabled {
+		elevenClient, err := elevenlabs.NewClient(
+			elevenlabs.WithAuthToken(cfg.ElevenLabsAPIKey),
+			elevenlabs.WithTimeout(60*time.Second),
+		)
+		if err != nil {
+			logger.Error("elevenlabs client", "err", err)
+			os.Exit(1)
+		}
+		openCodeClient := dictation.NewOpenCodeClient(dictation.OpenCodeConfig{
+			BaseURL: cfg.OpenCodeURL, Username: cfg.OpenCodeUsername, Password: cfg.OpenCodePassword,
+			ProviderID: cfg.OpenCodeProvider, ModelID: cfg.OpenCodeModel, Agent: cfg.OpenCodeAgent,
+		}, &http.Client{Timeout: 60 * time.Second})
+		dictation.NewHandler(store, openCodeClient, dictation.NewElevenLabsTranscriber(elevenClient), logger).Mount(mux, "/dictation")
+		logger.Info("movement dictation enabled", "opencode", cfg.OpenCodeURL, "model", cfg.OpenCodeProvider+"/"+cfg.OpenCodeModel)
+	}
 
 	staticFS, err := fs.Sub(web.StaticFS, "static")
 	if err != nil {
@@ -88,7 +107,7 @@ func main() {
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
 	srv := &http.Server{
-		Addr:              ":" + cfg.Port,
+		Addr:              net.JoinHostPort(cfg.Host, cfg.Port),
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
@@ -98,7 +117,7 @@ func main() {
 
 	// HTTP server lifecycle.
 	go func() {
-		logger.Info("listening", "port", cfg.Port)
+		logger.Info("listening", "address", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("listen", "err", err)
 			cancel()

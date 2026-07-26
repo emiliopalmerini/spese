@@ -118,6 +118,7 @@
     }
 
     function closeDrawer() {
+      document.dispatchEvent(new CustomEvent('spese:drawer-close'));
       drawer.classList.remove('is-open');
       setPageInert(false);
       window.setTimeout(function () {

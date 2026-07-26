@@ -83,6 +83,7 @@ make smoke-local
 
 See `.env.example` for defaults. Main variables:
 - `SPESE_PORT`: HTTP port (default: 8080)
+- `SPESE_HOST`: optional listen address; use `127.0.0.1` behind a local reverse proxy
 - `SPESE_DB_PATH`: SQLite database path (default: `./spese.db`)
 - `SPESE_SHEET_MIRROR_BACKEND`: `auto`, `google`, `local`, or `none` (default: `auto`)
 - `SPESE_LOCAL_SHEET_PATH`: JSON output path for `local` mirror mode (default: `tmp/local-sheet.json`)
@@ -91,6 +92,18 @@ See `.env.example` for defaults. Main variables:
 - `SPESE_WORKER_MODE`: `daemon` to keep consuming, or `once` to drain currently queued messages and exit (default: `daemon`)
 - `SPESE_SHEETS_WRITE_RATE_PER_MINUTE`: Google Sheets write request limit in the worker; `10` spaces writes 6 seconds apart, `0` disables it (default: `10`)
 - `GOOGLE_SPREADSHEET_ID`: Google Sheets document ID
+
+Voice movement capture is optional and requires:
+- `SPESE_DICTATION_ENABLED=true`
+- `ELEVENLABS_API_KEY`: restricted to Speech to Text
+- `SPESE_OPENCODE_URL`: local OpenCode server URL
+- `SPESE_OPENCODE_USERNAME` and `SPESE_OPENCODE_PASSWORD`: OpenCode Basic Auth
+- `SPESE_OPENCODE_PROVIDER`, `SPESE_OPENCODE_MODEL`, and `SPESE_OPENCODE_AGENT`: extraction routing, for example `openai`, `gpt-5.5`, and `dictation`
+
+The browser streams microphone audio to Spese, never the ElevenLabs API key.
+OpenCode must run with a tool-denied agent and should bind to loopback only.
+Remote browser microphone access requires HTTPS; the ThinkPad deployment uses
+Tailscale Serve for TLS termination.
 
 Google Service Account:
 - `GOOGLE_SERVICE_ACCOUNT_FILE`: Path to service account credentials file

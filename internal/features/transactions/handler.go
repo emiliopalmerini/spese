@@ -200,50 +200,15 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/transactions", http.StatusSeeOther)
 }
 
-// parseForm builds a single-row Transaction from form values. Sign is set
-// based on Kind so the caller only enters the positive amount.
 func parseForm(r *http.Request) (Transaction, error) {
-	kind := Kind(strings.TrimSpace(r.FormValue("kind")))
-	if kind != Income && kind != Expense {
-		return Transaction{}, errors.New("Seleziona un tipo di movimento valido.")
-	}
-	account := strings.TrimSpace(r.FormValue("account"))
-	if account == "" {
-		return Transaction{}, errors.New("Seleziona un conto.")
-	}
-	dateStr := strings.TrimSpace(r.FormValue("date"))
-	if dateStr == "" {
-		return Transaction{}, errors.New("La data è obbligatoria.")
-	}
-	d, err := kernel.ParseDate(dateStr)
-	if err != nil {
-		return Transaction{}, errors.New("Inserisci una data valida.")
-	}
-	amt, err := kernel.ParseMoney(r.FormValue("amount"))
-	if err != nil {
-		return Transaction{}, errors.New("Inserisci un importo valido.")
-	}
-	if amt < 0 {
-		amt = -amt
-	}
-	if amt == 0 {
-		return Transaction{}, errors.New("L'importo deve essere maggiore di zero.")
-	}
-	if kind == Expense {
-		amt = -amt
-	}
-	payee := strings.TrimSpace(r.FormValue("payee"))
-	if payee == "" {
-		return Transaction{}, errors.New("La descrizione è obbligatoria.")
-	}
-	return Transaction{
-		Date:        d,
-		Kind:        kind,
-		Account:     account,
-		Amount:      amt,
-		Category:    strings.TrimSpace(r.FormValue("category")),
-		Subcategory: strings.TrimSpace(r.FormValue("subcategory")),
-		Payee:       payee,
-		Note:        strings.TrimSpace(r.FormValue("note")),
-	}, nil
+	return ValidateInput(Input{
+		Kind:        r.FormValue("kind"),
+		Date:        r.FormValue("date"),
+		Account:     r.FormValue("account"),
+		Amount:      r.FormValue("amount"),
+		Category:    r.FormValue("category"),
+		Subcategory: r.FormValue("subcategory"),
+		Payee:       r.FormValue("payee"),
+		Note:        r.FormValue("note"),
+	})
 }

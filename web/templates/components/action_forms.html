@@ -1,7 +1,28 @@
 {{define "action_form_transaction"}}
 <form method="post" action="/transactions" class="form-card global-action-form" data-global-action-form hx-post="/transactions">
   <p class="form-error full" role="alert" tabindex="-1" data-form-error hidden></p>
+  {{if .DictationEnabled}}
+  <section class="dictation-capture full" data-dictation data-realtime-url="/dictation/realtime" data-fallback-url="/dictation/fallback" aria-labelledby="dictation-title">
+    <div class="dictation-capture__intro">
+      <div>
+        <p class="eyebrow">Inserimento vocale</p>
+        <h3 id="dictation-title">Racconta le tue spese</h3>
+        <p class="muted">Puoi aggiungere più movimenti e correggerti mentre parli.</p>
+      </div>
+      <div class="dictation-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+    <div class="dictation-capture__actions">
+      <button type="button" class="button-secondary" data-dictation-start>Inizia a dettare</button>
+      <button type="button" data-dictation-stop hidden>Termina</button>
+      <button type="button" class="button-secondary" data-dictation-cancel hidden>Annulla dettatura</button>
+    </div>
+    <p class="dictation-status" role="status" aria-live="polite" data-dictation-status hidden></p>
+    <p class="dictation-partial" aria-live="polite" data-dictation-partial hidden></p>
+    <div class="dictation-drafts" data-dictation-drafts></div>
+  </section>
+  {{end}}
   {{if not .Accounts}}<div class="form-empty full"><p>Per registrare un movimento serve almeno un conto.</p><button type="button" class="button-secondary" data-open-global-action="account">Crea il primo conto</button></div>{{end}}
+  <fieldset class="transaction-manual-fields full" data-transaction-manual-fields>
   <label>Tipo
     <select name="kind" required>
       <option value="Expense">Uscita</option>
@@ -42,7 +63,8 @@
     <input type="text" autocomplete="off" disabled>
   </label>
   <label class="full">Note <input name="note" type="text" autocomplete="off"></label>
-  <button type="submit"{{if not .Accounts}} disabled{{end}}>Salva</button>
+  </fieldset>
+  <button type="submit" data-transaction-submit{{if not .Accounts}} disabled{{end}}>Salva</button>
 </form>
 {{end}}
 

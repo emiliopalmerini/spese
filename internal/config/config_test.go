@@ -65,6 +65,19 @@ func TestLoadDoesNotRequireRabbitWhenMirrorDisabled(t *testing.T) {
 	}
 }
 
+func TestLoadListenHost(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("SPESE_HOST", "127.0.0.1")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Host != "127.0.0.1" {
+		t.Fatalf("host = %q", cfg.Host)
+	}
+}
+
 func TestLoadRequiresRabbitWhenMirrorEnabled(t *testing.T) {
 	clearEnv(t)
 	t.Setenv("SPESE_SHEET_MIRROR_BACKEND", "local")
@@ -88,10 +101,37 @@ func TestLoadUsesCloudAMQPURLFallback(t *testing.T) {
 	}
 }
 
+func TestLoadDictationConfiguration(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("SPESE_DICTATION_ENABLED", "true")
+	t.Setenv("ELEVENLABS_API_KEY", "eleven-key")
+	t.Setenv("SPESE_OPENCODE_PASSWORD", "secret")
+	t.Setenv("SPESE_OPENCODE_PROVIDER", "ollama")
+	t.Setenv("SPESE_OPENCODE_MODEL", "qwen3")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.DictationEnabled || cfg.OpenCodeURL != "http://127.0.0.1:4096" || cfg.OpenCodeAgent != "dictation" {
+		t.Fatalf("dictation config = %#v", cfg)
+	}
+}
+
+func TestLoadRejectsIncompleteDictationConfiguration(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("SPESE_DICTATION_ENABLED", "true")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil")
+	}
+}
+
 func clearEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
 		"SPESE_PORT",
+		"SPESE_HOST",
 		"SPESE_DB_PATH",
 		"GOOGLE_SPREADSHEET_ID",
 		"GOOGLE_SERVICE_ACCOUNT_FILE",
@@ -102,6 +142,14 @@ func clearEnv(t *testing.T) {
 		"SPESE_RABBITMQ_QUEUE",
 		"CLOUDAMQP_URL",
 		"AMQP_URL",
+		"SPESE_DICTATION_ENABLED",
+		"ELEVENLABS_API_KEY",
+		"SPESE_OPENCODE_URL",
+		"SPESE_OPENCODE_USERNAME",
+		"SPESE_OPENCODE_PASSWORD",
+		"SPESE_OPENCODE_PROVIDER",
+		"SPESE_OPENCODE_MODEL",
+		"SPESE_OPENCODE_AGENT",
 	} {
 		t.Setenv(key, "")
 	}

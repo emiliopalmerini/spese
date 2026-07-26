@@ -19,9 +19,10 @@ type Renderer interface {
 
 // Handler serves HTMX fragments for the global create drawer.
 type Handler struct {
-	Store  *storage.Store
-	Logger *slog.Logger
-	Render Renderer
+	Store            *storage.Store
+	Logger           *slog.Logger
+	Render           Renderer
+	DictationEnabled bool
 }
 
 // Mount registers one GET endpoint per drawer action.
@@ -39,6 +40,7 @@ type AccountPickerView struct {
 	Today               kernel.Date
 	CategorySuggestions CategorySuggestions
 	PayeeSuggestions    []PayeeSuggestion
+	DictationEnabled    bool
 }
 
 func (h *Handler) transactionForm(w http.ResponseWriter, r *http.Request) {
@@ -86,6 +88,7 @@ func (h *Handler) accountPickerView(r *http.Request) (AccountPickerView, error) 
 		Today:               kernel.Today(),
 		CategorySuggestions: categories,
 		PayeeSuggestions:    payees,
+		DictationEnabled:    h.DictationEnabled,
 	}, nil
 }
 

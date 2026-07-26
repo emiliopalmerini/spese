@@ -223,6 +223,137 @@ body.has-open-drawer {
   min-width: 0;
 }
 
+.transaction-manual-fields {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  gap: var(--space-3);
+}
+
+.dictation-capture {
+  display: grid;
+  gap: var(--space-3);
+  border: 1px solid rgba(125, 207, 255, 0.35);
+  border-radius: var(--radius);
+  background: linear-gradient(145deg, rgba(125, 207, 255, 0.1), rgba(15, 17, 26, 0.08));
+  padding: var(--space-4);
+}
+
+.dictation-capture__intro,
+.dictation-capture__actions,
+.dictation-draft__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.dictation-capture h3,
+.dictation-capture p {
+  margin: 0;
+}
+
+.dictation-capture .eyebrow {
+  margin-bottom: var(--space-1);
+  color: var(--accent-strong);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dictation-wave {
+  display: flex;
+  height: 34px;
+  align-items: center;
+  gap: 4px;
+}
+
+.dictation-wave i {
+  display: block;
+  width: 3px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--accent-strong);
+}
+
+.dictation-capture.is-recording .dictation-wave i {
+  animation: dictation-wave 800ms ease-in-out infinite alternate;
+}
+
+.dictation-capture.is-recording .dictation-wave i:nth-child(2),
+.dictation-capture.is-recording .dictation-wave i:nth-child(4) {
+  animation-delay: -300ms;
+}
+
+.dictation-capture.is-recording .dictation-wave i:nth-child(3) {
+  animation-delay: -500ms;
+}
+
+.dictation-capture__actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.dictation-capture__actions button {
+  width: auto;
+  padding-inline: var(--space-4);
+}
+
+.dictation-status,
+.dictation-partial {
+  border-left: 3px solid var(--accent-strong);
+  padding-left: var(--space-3);
+}
+
+.dictation-partial {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.dictation-drafts {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.dictation-draft {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+}
+
+.dictation-draft__head,
+.dictation-draft__issue {
+  grid-column: 1 / -1;
+}
+
+.dictation-draft__head strong {
+  color: var(--ink);
+}
+
+.dictation-draft__remove {
+  min-height: 36px !important;
+  background: transparent !important;
+  color: var(--expense) !important;
+  padding-inline: var(--space-2) !important;
+  box-shadow: none !important;
+}
+
+.dictation-draft__issue {
+  margin: 0;
+  color: var(--expense);
+  font-size: 0.85rem;
+}
+
+@keyframes dictation-wave {
+  from { height: 8px; }
+  to { height: 30px; }
+}
+
 @media (min-width: 760px) {
   .global-action-drawer__panel {
     max-height: min(86vh, 780px);
@@ -236,6 +367,10 @@ body.has-open-drawer {
   .global-action-drawer .global-action-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .transaction-manual-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -244,5 +379,12 @@ body.has-open-drawer {
   .global-action-menu__item,
   .global-action-drawer__panel {
     transition: background-color 140ms ease, color 140ms ease, transform 180ms ease, box-shadow 140ms ease;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dictation-capture.is-recording .dictation-wave i {
+    animation: none;
+    height: 18px;
   }
 }
