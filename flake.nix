@@ -16,7 +16,7 @@
           src = ./.;
 
           # Recompute with `nix build` if go.mod changes.
-          vendorHash = "sha256-SN4cccqmNqvKOUMTiH1KGkpgkBroRVEsGMOv36gYx+A=";
+          vendorHash = "sha256-7zHyanDJ/AP6i2FrNNWuvCO7+FHRwoZEwu3Qpol1Rco=";
 
           ldflags = [ "-s" "-w" ];
           inherit subPackages;
