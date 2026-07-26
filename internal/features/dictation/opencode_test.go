@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -23,8 +24,9 @@ func TestOpenCodeClientSessionLifecycleAndExtraction(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "session-1"})
 		case r.Method == http.MethodPost && r.URL.Path == "/session/session-1/message":
 			var body struct {
-				Agent string `json:"agent"`
-				Model struct {
+				Agent  string `json:"agent"`
+				System string `json:"system"`
+				Model  struct {
 					ProviderID string `json:"providerID"`
 					ModelID    string `json:"modelID"`
 				} `json:"model"`
@@ -44,6 +46,10 @@ func TestOpenCodeClientSessionLifecycleAndExtraction(t *testing.T) {
 			}
 			if body.Format.Type != "json_schema" || body.Format.Schema["type"] != "object" {
 				t.Errorf("format = %#v", body.Format)
+			}
+			if !strings.Contains(body.System, "Valorizza sempre tutti i campi richiesti dallo schema") ||
+				!strings.Contains(body.System, "Non rispondere con testo libero") {
+				t.Errorf("system prompt does not enforce structured output: %q", body.System)
 			}
 			if len(body.Parts) != 1 || body.Parts[0].Text == "" {
 				t.Errorf("parts = %#v", body.Parts)

@@ -12,7 +12,11 @@ import (
 	"time"
 )
 
-const extractionSystemPrompt = `Sei un parser di movimenti finanziari personali in italiano. Aggiorna l'intero elenco dei draft usando il nuovo segmento parlato e lo stato precedente. Interpreta correzioni come "anzi", "intendevo" e "togli quello" modificando o rimuovendo il draft pertinente. Non inventare conti, importi o beneficiari. Usa solo Income o Expense. Mantieni gli ID esistenti e lascia vuoto l'ID dei nuovi draft. Se l'utente dice che ha finito, imposta finish_requested. Restituisci esclusivamente l'output strutturato richiesto.`
+const extractionSystemPrompt = `Sei un parser deterministico di movimenti finanziari personali dettati in italiano.
+Aggiorna e restituisci a ogni turno l'intero elenco dei movimenti, usando il nuovo segmento parlato e i draft correnti. Interpreta correzioni come "anzi", "intendevo" e "togli quello" modificando o rimuovendo il draft pertinente.
+Non inventare conti, importi, beneficiari o altri dettagli. Usa solo Income o Expense. Mantieni gli ID esistenti e usa una stringa vuota come ID dei nuovi draft. Imposta finish_requested a true solo quando l'utente dichiara esplicitamente di avere finito.
+Valorizza sempre tutti i campi richiesti dallo schema. Usa stringhe vuote per i valori sconosciuti e array vuoti quando non ci sono elementi. Segnala in issues le ambiguita che richiedono conferma.
+Produci obbligatoriamente l'output strutturato conforme allo schema. Non rispondere con testo libero, spiegazioni o Markdown.`
 
 // OpenCodeConfig identifies the local OpenCode server and extraction model.
 type OpenCodeConfig struct {
