@@ -1,0 +1,210 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 8px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: "Avenir Next", Avenir, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, ui-serif, Georgia, serif;
+}
+
+:root {
+  color-scheme: light;
+  --background: #f4f0e4;
+  --foreground: #1e1b1c;
+  --card: #fffdf7;
+  --card-foreground: #1e1b1c;
+  --popover: #fffdf7;
+  --popover-foreground: #1e1b1c;
+  --primary: #ffc43d;
+  --primary-foreground: #1e1b1c;
+  --secondary: #e8e1d1;
+  --secondary-foreground: #2a2624;
+  --muted: #ebe6da;
+  --muted-foreground: #68635b;
+  --accent: #ffc43d;
+  --accent-foreground: #1e1b1c;
+  --destructive: #a63232;
+  --border: rgb(30 27 28 / 15%);
+  --input: rgb(30 27 28 / 18%);
+  --ring: #7a5710;
+  --radius: 18px;
+  --chart-1: #2e6f95;
+  --chart-2: #6a7b35;
+  --chart-3: #9a4f66;
+  --chart-4: #865d36;
+  --chart-5: #725b86;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  background: var(--background);
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 88% 6%, rgb(255 196 61 / 13%), transparent 26rem),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+[role="button"] {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 100;
+  transform: translateY(-200%);
+  border-radius: 0.5rem;
+  background: var(--foreground);
+  color: var(--card);
+  padding: 0.75rem 1rem;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.display-number {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.045em;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-main {
+  min-width: 0;
+  padding: 1.25rem 1rem calc(6.75rem + env(safe-area-inset-bottom));
+}
+
+.page-wrap {
+  width: min(100%, 78rem);
+  margin-inline: auto;
+}
+
+.section-rule {
+  border-top: 1px solid var(--border);
+  padding-top: 1.5rem;
+}
+
+.surface {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.surface-strong {
+  border-radius: calc(var(--radius) + 2px);
+  background: var(--foreground);
+  color: var(--card);
+}
+
+.pressable {
+  min-height: 44px;
+  min-width: 44px;
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.pressable:active {
+  transform: translateY(1px);
+}
+
+.chart-focus:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.mobile-nav {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+.mobile-nav-add {
+  transform: translateY(-0.7rem);
+}
+
+.timeline-line::before {
+  position: absolute;
+  top: 0.75rem;
+  bottom: -1.25rem;
+  left: 0.32rem;
+  width: 1px;
+  background: var(--border);
+  content: "";
+}
+
+@media (min-width: 768px) {
+  .app-shell {
+    display: grid;
+    grid-template-columns: 16.5rem minmax(0, 1fr);
+  }
+
+  .app-main {
+    padding: 2.25rem 2.5rem 4rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"strings"
+	"time"
 )
 
 // SheetMirrorBackend selects where the sheet-mirror worker exports source tabs.
@@ -22,6 +23,7 @@ type Config struct {
 	Host               string
 	Port               string
 	DBPath             string
+	Timezone           string
 	SpreadsheetID      string
 	ServiceAccountFile string
 	SheetMirrorBackend SheetMirrorBackend
@@ -50,9 +52,10 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		Host:               strings.TrimSpace(os.Getenv("SPESE_HOST")),
+		Host:               envOr("SPESE_HOST", "127.0.0.1"),
 		Port:               envOr("SPESE_PORT", "8080"),
 		DBPath:             envOr("SPESE_DB_PATH", "spese.db"),
+		Timezone:           envOr("SPESE_TIMEZONE", "Europe/Rome"),
 		SpreadsheetID:      strings.TrimSpace(os.Getenv("GOOGLE_SPREADSHEET_ID")),
 		ServiceAccountFile: strings.TrimSpace(os.Getenv("GOOGLE_SERVICE_ACCOUNT_FILE")),
 		SheetMirrorBackend: backend,
@@ -80,6 +83,9 @@ func Load() (Config, error) {
 	}
 	if cfg.DictationEnabled && (cfg.ElevenLabsAPIKey == "" || cfg.OpenCodePassword == "" || cfg.OpenCodeProvider == "" || cfg.OpenCodeModel == "") {
 		return Config{}, errors.New("ELEVENLABS_API_KEY, SPESE_OPENCODE_PASSWORD, SPESE_OPENCODE_PROVIDER, and SPESE_OPENCODE_MODEL are required when dictation is enabled")
+	}
+	if _, err := time.LoadLocation(cfg.Timezone); err != nil {
+		return Config{}, errors.New("SPESE_TIMEZONE must be a valid IANA timezone")
 	}
 	return cfg, nil
 }

@@ -2,12 +2,7 @@ package web
 
 import "embed"
 
-// TemplatesFS embeds HTML templates for server-side rendering.
+// AppFS contains the hashed Vite build served by the Go runtime.
 //
-//go:embed all:templates
-var TemplatesFS embed.FS
-
-// StaticFS embeds static assets (css/js/images).
-//
-//go:embed static
-var StaticFS embed.FS
+//go:embed all:dist
+var AppFS embed.FS

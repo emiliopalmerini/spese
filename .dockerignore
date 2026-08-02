@@ -1,0 +1,11 @@
+.git
+.direnv
+.env
+bin
+frontend/node_modules
+frontend/playwright-report
+frontend/test-results
+result
+tmp
+*.db
+*.db-*

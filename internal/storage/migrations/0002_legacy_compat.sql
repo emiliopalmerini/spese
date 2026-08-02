@@ -1,0 +1,3 @@
+-- The second migration is the legacy data conversion boundary. The Go
+-- migrator converts preserved legacy_* tables after this migration is applied;
+-- fresh databases intentionally create no compatibility tables.

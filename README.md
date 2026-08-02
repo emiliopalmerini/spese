@@ -1,229 +1,192 @@
-# Spese (Go + HTMX)
+# Spese v2
 
-Simple expense and net-worth tracker backed by local SQLite, with Google Sheets as an external mirror.
-- Automatic date (day and month) pre-filled in the form
-- Description and expense amount input
-- **Hierarchical categories**: Primary categories with dynamic secondary category loading
-- Categories and subcategories suggested from local transaction history
+Spese è un’applicazione single-user per movimenti, saldi, riconciliazioni e analisi finanziarie. SQLite è l’unica fonte di verità; Google Sheets è un mirror/export asincrono derivato tramite outbox e RabbitMQ.
 
-Stack: Go, HTMX, SQLite, RabbitMQ, Google Sheets API, Docker, Docker Compose, Makefile, pre-commit.
+Il runtime HTTP è un singolo binario Go che incorpora la SPA React e serve UI, API e dettatura dalla stessa origine.
 
-## Requirements
+## Stack
 
-- Go 1.22+
-- Docker + Docker Compose (for containers)
-- RabbitMQ or AMQPCloud for the sheet-sync queue
-- Google Sheets API access via service account when Google sheet mirroring is enabled
+- Go 1.25, SQLite e migrazioni numerate transazionali
+- React 19, TypeScript strict, Vite 8 e Tailwind CSS 4
+- componenti shadcn/ui personalizzati, React Router, TanStack Query, React Hook Form e Zod
+- Recharts attraverso il wrapper chart shadcn
+- RabbitMQ e transactional outbox per il mirror Google Sheets
+- ElevenLabs e OpenCode opzionali per la dettatura
+- Node.js 24 LTS solo per sviluppo e build, mai nel runtime
 
-## Local Execution
-
-1) Configure environment variables (see below).
-   - Copy the example: `cp .env.example .env`
-   - Edit `.env` with your values. Docker Compose loads `.env` and injects it into containers.
-
-Example `.env` (base names without year; the app automatically prefixes the current year):
+## Avvio locale
 
 ```bash
-SPESE_PORT=8080
-SPESE_DB_PATH=tmp/spese-local.db
-SPESE_RABBITMQ_URL=amqp://guest:guest@localhost:5672/
-SPESE_RABBITMQ_QUEUE=spese.sheet-sync
-SPESE_WORKER_MODE=daemon
-SPESE_SHEETS_WRITE_RATE_PER_MINUTE=10
-SPESE_SHEET_MIRROR_BACKEND=local
-SPESE_LOCAL_SHEET_PATH=tmp/local-sheet.json
-
-# For Google mirroring instead:
-# SPESE_SHEET_MIRROR_BACKEND=google
-# SPESE_RABBITMQ_URL=amqps://...
-# GOOGLE_SPREADSHEET_ID=...
-# GOOGLE_SERVICE_ACCOUNT_FILE=/path/to/service-account.json
-```
-
-2) Start the app:
-
-- `make run` for local development (with graceful shutdown)
-- `make run-local` to run the web app with the Rabbit sheet-sync publisher
-- `make run-worker-local` in another shell to consume Rabbit messages and mirror into `tmp/local-sheet.json`
-- `make docker-up` for execution via Docker Compose
-
-App available at `http://localhost:8080` (`SPESE_PORT` variable).
-
-### Demo data
-
-To inspect the UI with representative data and no external services:
-
-```bash
+nix develop
+make frontend-install
+make build
 make run-demo
 ```
 
-This resets the disposable `tmp/spese-demo.db` database with five accounts,
-twelve rolling months of transactions, transfers, and balance snapshots, then
-starts the app with sheet mirroring disabled. Run `make demo-data` to regenerate
-the database without starting the server. The demo seeder refuses database
-filenames that do not contain `demo`.
+Aprire `http://127.0.0.1:8080`. `make run-demo` rigenera esclusivamente `tmp/spese-demo.db`; il seeder rifiuta percorsi che non contengono `demo`.
 
-To exercise the HTTP write path, SQLite outbox, Rabbit queue, worker, and local mirror output:
+Per lavorare con HMR:
 
 ```bash
-make run-local
-# in another shell
-make run-worker-local
-# in another shell
-make smoke-local
+make run-demo
+npm --prefix frontend run dev
 ```
 
-**Security and Performance:**
-- Rate limiting: 60 requests per minute per IP
-- Timeouts: 10s read/write, 60s idle
-- Security headers: CSP, XSS protection, CSRF mitigation
-- Input sanitization and comprehensive validation
+Vite inoltra `/api` a `127.0.0.1:8080` e riscrive l’Origin verso la stessa origine backend. Il deployment non richiede né espone un server Vite.
 
-## Supported Environment Variables
+## Comandi
 
-See `.env.example` for defaults. Main variables:
-- `SPESE_PORT`: HTTP port (default: 8080)
-- `SPESE_HOST`: optional listen address; use `127.0.0.1` behind a local reverse proxy
-- `SPESE_DB_PATH`: SQLite database path (default: `./spese.db`)
-- `SPESE_SHEET_MIRROR_BACKEND`: `auto`, `google`, `local`, or `none` (default: `auto`)
-- `SPESE_LOCAL_SHEET_PATH`: JSON output path for `local` mirror mode (default: `tmp/local-sheet.json`)
-- `SPESE_RABBITMQ_URL`: RabbitMQ/AMQPCloud URL required when sheet mirroring is enabled
-- `SPESE_RABBITMQ_QUEUE`: RabbitMQ queue name (default: `spese.sheet-sync`)
-- `SPESE_WORKER_MODE`: `daemon` to keep consuming, or `once` to drain currently queued messages and exit (default: `daemon`)
-- `SPESE_SHEETS_WRITE_RATE_PER_MINUTE`: Google Sheets write request limit in the worker; `10` spaces writes 6 seconds apart, `0` disables it (default: `10`)
-- `GOOGLE_SPREADSHEET_ID`: Google Sheets document ID
+```text
+make frontend-install  npm ci dal lockfile
+make frontend-build    typecheck e build Vite in web/dist
+make build             SPA + spese + worker + tool migrazione
+make test              race test Go + typecheck/test frontend
+make lint              go vet, golangci-lint se presente, ESLint
+make test-e2e          flussi Playwright desktop e mobile
+make run               server locale
+make run-demo          dati dimostrativi e server senza servizi esterni
+make run-local         server con outbox/RabbitMQ e mirror JSON locale
+make run-worker-local  worker del mirror JSON locale
+make smoke-local       verifica HTTP/outbox/worker locale
+make nix-build         artefatti Nix
+```
 
-Voice movement capture is optional and requires:
-- `SPESE_DICTATION_ENABLED=true`
-- `ELEVENLABS_API_KEY`: restricted to Speech to Text
-- `SPESE_OPENCODE_URL`: local OpenCode server URL
-- `SPESE_OPENCODE_USERNAME` and `SPESE_OPENCODE_PASSWORD`: OpenCode Basic Auth
-- `SPESE_OPENCODE_PROVIDER`, `SPESE_OPENCODE_MODEL`, and `SPESE_OPENCODE_AGENT`: extraction routing, for example `openai`, `gpt-5.5`, and `dictation`
+Build riproducibile da checkout pulita:
 
-The browser streams microphone audio to Spese, never the ElevenLabs API key.
-OpenCode must run with a tool-denied agent and should bind to loopback only.
-Remote browser microphone access requires HTTPS; the ThinkPad deployment uses
-Tailscale Serve for TLS termination.
+```bash
+npm --prefix frontend ci
+npm --prefix frontend run build
+go test -race ./...
+go build -o bin/spese ./cmd/spese
+```
 
-Google Service Account:
-- `GOOGLE_SERVICE_ACCOUNT_FILE`: Path to service account credentials file
+## Runtime
 
-## Useful Makefile Commands
+Il server espone:
 
-- `make setup`: setup dev tools (pre-commit, linters)
-- `make tidy`: manage Go modules
-- `make build`: compile binary
-- `make run`: run app locally
-- `make run-demo`: reset rolling demo data and run without external services
-- `make demo-data`: regenerate the disposable demo database
-- `make run-local`: run web app locally with Rabbit publisher enabled
-- `make run-worker-local`: run local Rabbit worker mirroring to `tmp/local-sheet.json`
-- `make smoke-local`: post smoke data and verify the local sheet mirror
-- `make test`: unit tests with race/coverage
-- `make lint`: lints and vet
-- `make fmt`: format code
-- `make docker-build`: build Docker image
-- `make docker-up`: start stack with Compose
-- `make docker-logs`: follow logs
+- `/`, `/movimenti`, `/analisi`, `/ricorrenti`, `/conti`, `/categorie`, `/impostazioni`: SPA
+- `/api/v1/*`: API JSON versionata
+- `/api/v1/openapi.yaml`: contratto OpenAPI 3.1
+- `/api/v1/dictation/*`: fallback audio, conferma batch e WebSocket quando abilitati
+- `/healthz`: liveness del processo
+- `/readyz`: readiness SQLite
+- `/assets/*`: asset Vite hashati con cache immutabile
 
-## Architecture
+Il documento HTML non è memorizzabile in cache. Route API, health e WebSocket non ricevono mai il fallback SPA.
 
-The application runs as two cooperating processes when mirroring is enabled:
+## Contabilità
 
-1. **HTTP Server**: Handles web requests with HTMX frontend
-2. **SQLite Outbox + Rabbit Publisher**: Records durable sheet-sync work in the same SQLite transaction as each write, then publishes confirmed RabbitMQ messages in the background
-3. **Sheet Mirror Worker**: Consumes RabbitMQ messages and rebuilds source tabs from SQLite, writing either Google Sheets or a local JSON sheet file. Google writes are rate-limited in the worker; production can run the worker in `once` mode from an hourly scheduler.
+Il ledger usa un movimento logico con posting firmati:
 
-Benefits:
-- **Simplicity**: Single codebase and container image
-- **Performance**: Immediate HTTP responses (SQLite only)
-- **Reliability**: SQLite outbox, persistent RabbitMQ messages, manual acknowledgements, and worker retries
-- **Resilience**: Continues working even if Google Sheets is unavailable
+- attività positive e passività negative;
+- spesa: posting negativo sul conto;
+- entrata e rimborso: posting positivo;
+- trasferimento: due posting su conti diversi con somma zero e nessuna categoria;
+- draft e void non incidono sui saldi;
+- le allocazioni coprono integralmente spese, entrate e rimborsi;
+- un rimborso riduce la spesa della categoria originale;
+- gli importi sono sempre centesimi `int64` nel backend.
+
+Il saldo a una data parte dall’ultima riconciliazione con `closed_through <= asOf`, oppure dal saldo iniziale, e applica i posting successivi. Un movimento retrodatato prima di un anchor cambia le analisi storiche ma non il saldo successivo all’anchor.
+
+## Migrazione legacy
+
+`spese-migrate` opera solo sul file indicato e non contatta servizi esterni. Il default è un dry-run su copia SQLite isolata:
+
+```bash
+go run ./cmd/spese-migrate -db /copia/spese.db
+```
+
+Il report JSON include versioni schema, tabelle legacy preservate, record convertiti, totali mensili e verifica dei trasferimenti zero-sum. Per applicare:
+
+```bash
+go run ./cmd/spese-migrate -db /copia/spese.db -dry-run=false
+```
+
+Prima dell’applicazione viene creato un backup consistente con `VACUUM INTO`. Anche l’avvio applicativo crea automaticamente un backup `*.pre-v2-*.bak` prima di trasformare un database non versionato. Le tabelle originali restano `legacy_*` durante la finestra di rollback.
+
+Ripristino testato:
+
+```bash
+go run ./cmd/spese-migrate -db /copia/spese.db -restore /copia/spese.db.backup-TIMESTAMP
+```
+
+Il comando preserva a sua volta il file corrente come `*.before-restore-*`. Fermare web e worker prima di migrare o ripristinare. Non eseguire questi comandi direttamente sul file di produzione senza copia e finestra operativa.
+
+La conversione:
+
+- assegna ID UUID deterministici a conti, categorie e record legacy;
+- deduplica categorie e sottocategorie senza distinzione maiuscole/minuscole;
+- converte entrate, spese e adjustment mantenendone la natura;
+- accoppia trasferimenti solo con data, importo opposto, conti distinti e nota coincidenti;
+- interrompe l’intera transazione in presenza di match mancanti o ambigui;
+- converte gli snapshot `YYYY-MM`, documentati come saldi di fine mese, nell’ultimo giorno reale del mese;
+- mantiene i dati sorgente nelle tabelle `legacy_*`.
+
+## Ricorrenze
+
+Il catch-up parte all’avvio e viene rieseguito ogni ora. `UNIQUE(rule_id, scheduled_for)` e la transazione che include occurrence, movimento, posting, allocazioni e avanzamento della regola impediscono duplicati anche con retry concorrenti. I giorni 29–31 vengono limitati all’ultimo giorno valido.
+
+Gli importi fissi usano `auto_post`; quelli variabili sono bozze `needs_confirmation` e restano stimati nel forecast. Le modifiche alle regole non riscrivono occurrence o movimenti passati.
+
+## Mirror Sheets
+
+Ogni mutation locale registra un evento nella stessa transazione SQLite. Il relay pubblica su RabbitMQ con conferma; `spese-worker` ricostruisce tab derivate (`accounts`, `categories`, `movements`, `postings`, `allocations`, `reconciliations`, `recurring_rules`). Le celle vengono scritte come `RAW` per evitare formula injection.
+
+Il mirror può essere `none`, `local` o `google`:
+
+```bash
+SPESE_SHEET_MIRROR_BACKEND=local
+SPESE_LOCAL_SHEET_PATH=tmp/local-sheet.json
+SPESE_RABBITMQ_URL=amqp://guest:guest@localhost:5672/
+```
+
+Per Google servono anche `GOOGLE_SPREADSHEET_ID` e `GOOGLE_SERVICE_ACCOUNT_FILE`. Il worker deve condividere lo stesso file SQLite persistente del web process.
+
+## Configurazione
+
+Variabili principali:
+
+```text
+SPESE_HOST=127.0.0.1
+SPESE_PORT=8080
+SPESE_DB_PATH=spese.db
+SPESE_TIMEZONE=Europe/Rome
+SPESE_SHEET_MIRROR_BACKEND=auto|none|local|google
+SPESE_RABBITMQ_URL=...
+SPESE_RABBITMQ_QUEUE=spese.sheet-sync
+SPESE_LOCAL_SHEET_PATH=tmp/local-sheet.json
+```
+
+Dettatura opzionale:
+
+```text
+SPESE_DICTATION_ENABLED=true
+ELEVENLABS_API_KEY=...
+SPESE_OPENCODE_URL=http://127.0.0.1:4096
+SPESE_OPENCODE_USERNAME=opencode
+SPESE_OPENCODE_PASSWORD=...
+SPESE_OPENCODE_PROVIDER=...
+SPESE_OPENCODE_MODEL=...
+SPESE_OPENCODE_AGENT=dictation
+```
+
+Le chiavi restano nel server. I test usano adapter e route mockate, non effettuano chiamate ElevenLabs/OpenCode reali.
+
+## Sicurezza
+
+Spese conserva intenzionalmente il modello single-user e non implementa login, multi-tenancy o ruoli. Il default ascolta solo su `127.0.0.1`. Per accesso remoto usare TLS e autenticazione nel reverse proxy; non pubblicare direttamente la porta applicativa.
+
+Il server applica Origin check e header CSRF same-origin alle mutation, Origin check ai WebSocket, request ID, body limit, validazione audio, timeout HTTP, CSP, frame denial, MIME sniffing denial e foreign key SQLite su ogni connessione usata. I log non includono body, audio o credenziali.
 
 ## Docker
 
-- Multistage Dockerfile for small images (builder + Alpine runner).
-- `docker compose up -d` for local execution; configuration reads `.env` and injects it into containers (`env_file`).
-
-## Google Sheets Setup (Quick)
-
-1) Create document and sheets:
-- Source tabs matching the app model: `accounts`, `transactions`, and `snapshots`.
-- Derived `v_*` tabs are optional now; the app reads reports from SQLite.
-
-2) Service Account setup:
-- Create a service account in Google Cloud Console
-- Enable Google Sheets API for your project
-- Generate JSON credentials for the service account
-- Share your spreadsheet with the service account email address
-- Set `GOOGLE_SERVICE_ACCOUNT_FILE=/path/to/service-account.json`
-- Start `spese` and `spese-worker` with `SPESE_SHEET_MIRROR_BACKEND=google`, `SPESE_DB_PATH`, `SPESE_RABBITMQ_URL`, and service account variables set.
-
-**Service Account Security:**
-- Credentials file should be stored securely with restricted permissions (e.g., 0600)
-- Service account should have minimum required permissions (Google Sheets API access)
-- No Service Account keys committed to repo
-
-Troubleshooting Service Account (Docker):
-- Place your service account file at `./configs/service-account.json` or set `GOOGLE_SERVICE_ACCOUNT_FILE` to a path inside the container and bind-mount it.
-- Ensure the service account email has been granted access to your Google Spreadsheet.
-
-## Health & Readiness
-
-- `GET /healthz`: quick health check (always 200 if process is alive)
-
-## Deploy
-
-- Container-first: build and push image to registry; run on container runtime (Fly.io, Render, k8s, ECS, etc.).
-- Environment variables provided by platform secret manager.
-
-## Commit Message Template (Conventional Commits)
-
-We use the Conventional Commits standard for clear and automatable messages.
-
-Basic format:
-
-```
-<type>(<scope>)<!>: <subject>
-
-<body>
-
-<footer>
+```bash
+docker compose up --build
 ```
 
-- type: type of change. Common examples: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`, `ci`.
-- scope: (optional) affected area, e.g. `templates`, `encounters`, `router`.
-- !: (optional) indicates breaking change.
-- subject: (required) present tense summary, lowercase, no final period.
-- body: (optional) context/motivation, technical details if useful.
-- footer: (optional) references to issues/PRs or `BREAKING CHANGE:` with explanation.
+Compose usa il mirror JSON locale per default, porta 8080 e un volume condiviso `/data`. Per Google aggiungere credenziali e bind mount tramite un override Compose, senza commetterle.
 
-Examples:
+## ADR
 
-```
-fix(templates): align HTMX routes to /encounters/*
-
-docs(readme): add Conventional Commits template
-```
-
-Notes:
-- Present imperative in subject (e.g. "add", "fix").
-- Keep subject within ~72 characters when possible.
-- One commit should do one thing well.
-
-## Pre-commit Hook
-
-Pre-commit to maintain quality and consistency:
-- gofmt/goimports
-- golangci-lint (if configured)
-- yamllint/hadolint (for YAML/Dockerfile)
-- prettier (only for static/ or templates optionally)
-
-Install and activate:
-- `pipx install pre-commit` (or `pip install pre-commit`)
-- `pre-commit install`
-
-## ADR (Architectural Decision Records)
-
-Architectural decision documentation is available in `docs/adrs`.
-ADR Index: [docs/adrs/README.md](./docs/adrs/README.md)
+Le decisioni storiche sono in `docs/adr`. ADR-0022 descrive il big-bang v2 e supersede le parti incompatibili degli ADR precedenti; ADR-0021 resta valido per outbox, RabbitMQ e mirror derivato.

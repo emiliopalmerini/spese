@@ -17,9 +17,7 @@ import (
 
 	"golang.org/x/net/websocket"
 
-	"spese/internal/features/accounts"
-	"spese/internal/features/transactions"
-	"spese/internal/kernel"
+	ledgerpkg "spese/internal/features/ledger"
 	"spese/internal/storage"
 )
 
@@ -32,6 +30,7 @@ const (
 // Handler owns realtime capture, batch fallback, and confirmed persistence.
 type Handler struct {
 	store       *storage.Store
+	ledger      *ledgerpkg.Service
 	extractor   extractor
 	transcriber transcriber
 	logger      *slog.Logger
@@ -39,7 +38,7 @@ type Handler struct {
 }
 
 func NewHandler(store *storage.Store, extractor *OpenCodeClient, transcriber *ElevenLabsTranscriber, logger *slog.Logger) *Handler {
-	return &Handler{store: store, extractor: extractor, transcriber: transcriber, logger: logger, now: time.Now}
+	return &Handler{store: store, ledger: ledgerpkg.New(store), extractor: extractor, transcriber: transcriber, logger: logger, now: time.Now}
 }
 
 func (h *Handler) Mount(mux *http.ServeMux, prefix string) {
@@ -179,6 +178,11 @@ func (h *Handler) fallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
+	contentType := strings.ToLower(strings.TrimSpace(header.Header.Get("Content-Type")))
+	if len(header.Filename) > 255 || !allowedAudioType(contentType) {
+		http.Error(w, "Formato audio non supportato.", http.StatusUnsupportedMediaType)
+		return
+	}
 	transcript, err := h.transcriber.Transcribe(r.Context(), header.Filename, file)
 	if err != nil {
 		h.logger.Warn("transcribe uploaded dictation", "err", err)
@@ -211,6 +215,18 @@ func (h *Handler) fallback(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(socketMessage{Type: "drafts", Text: transcript, Extraction: &state})
 }
 
+func allowedAudioType(value string) bool {
+	if value == "" || value == "application/octet-stream" {
+		return true
+	}
+	for _, allowed := range []string{"audio/webm", "audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp4", "audio/ogg"} {
+		if strings.HasPrefix(value, allowed) {
+			return true
+		}
+	}
+	return false
+}
+
 func (h *Handler) confirm(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxFormBody)
 	drafts, err := parseBatchForm(r)
@@ -218,14 +234,10 @@ func (h *Handler) confirm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
-	accountRows, err := accounts.List(r.Context(), h.store, false)
+	accountNames, err := h.accountNames(r.Context())
 	if err != nil {
 		http.Error(w, "Impossibile verificare i conti.", http.StatusBadGateway)
 		return
-	}
-	accountNames := make([]string, len(accountRows))
-	for i, account := range accountRows {
-		accountNames[i] = account.Name
 	}
 	batch, issues := ValidateDrafts(drafts, accountNames)
 	if len(issues) > 0 {
@@ -236,50 +248,99 @@ func (h *Handler) confirm(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	if err := transactions.Append(r.Context(), h.store, batch); err != nil {
+	inputs, err := h.ledgerInputs(r.Context(), batch)
+	if err != nil {
+		h.logger.Warn("validate dictated ledger movements", "err", err)
+		http.Error(w, "Verifica conti e categorie delle bozze.", http.StatusUnprocessableEntity)
+		return
+	}
+	created, err := h.ledger.CreateMovementBatch(r.Context(), inputs)
+	if err != nil {
 		h.logger.Error("append dictated transactions", "err", err)
 		http.Error(w, "Impossibile salvare i movimenti. Riprova.", http.StatusBadGateway)
 		return
 	}
-	w.Header().Set("X-Spese-Success", fmt.Sprintf("Salvati %d movimenti.", len(batch)))
-	if r.Header.Get("HX-Request") == "true" {
-		w.Header().Set("HX-Redirect", "/transactions")
-		w.WriteHeader(http.StatusNoContent)
-		return
+	w.Header().Set("X-Spese-Success", fmt.Sprintf("Salvati %d movimenti.", len(created)))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{"data": created})
+}
+
+func (h *Handler) ledgerInputs(ctx context.Context, batch []ValidatedDraft) ([]ledgerpkg.MovementInput, error) {
+	result := make([]ledgerpkg.MovementInput, 0, len(batch))
+	for _, transaction := range batch {
+		var accountID string
+		if err := h.store.DB().QueryRowContext(ctx, `SELECT id FROM accounts WHERE lower(name) = lower(?) AND archived_at = ''`, transaction.Account).Scan(&accountID); err != nil {
+			return nil, err
+		}
+		kind, categoryKind := ledgerpkg.MovementExpense, ledgerpkg.CategoryExpense
+		if transaction.Kind == incomeKind {
+			kind, categoryKind = ledgerpkg.MovementIncome, ledgerpkg.CategoryIncome
+		}
+		var categoryID string
+		if strings.TrimSpace(transaction.Subcategory) != "" {
+			if err := h.store.DB().QueryRowContext(ctx, `
+				SELECT child.id FROM categories child JOIN categories parent ON parent.id = child.parent_id
+				WHERE child.kind = ? AND lower(parent.name) = lower(?) AND lower(child.name) = lower(?)
+			`, categoryKind, transaction.Category, transaction.Subcategory).Scan(&categoryID); err != nil {
+				return nil, err
+			}
+		} else if err := h.store.DB().QueryRowContext(ctx, `
+			SELECT id FROM categories WHERE kind = ? AND parent_id IS NULL AND lower(name) = lower(?)
+		`, categoryKind, transaction.Category).Scan(&categoryID); err != nil {
+			return nil, err
+		}
+		amount := int64(transaction.Amount)
+		if amount < 0 {
+			amount = -amount
+		}
+		result = append(result, ledgerpkg.MovementInput{
+			Kind: kind, Status: ledgerpkg.MovementPosted, Date: transaction.Date.ISO(), AccountID: accountID,
+			AmountCents: amount, Merchant: transaction.Merchant, Description: transaction.Description, Note: transaction.Note, Origin: "dictation",
+			Allocations: []ledgerpkg.AllocationInput{{CategoryID: categoryID, AmountCents: amount}},
+		})
 	}
-	http.Redirect(w, r, "/transactions", http.StatusSeeOther)
+	return result, nil
 }
 
 func (h *Handler) captureContext(ctx context.Context) (CaptureContext, error) {
 	now := h.now()
-	accountRows, err := accounts.List(ctx, h.store, false)
+	accountNames, err := h.accountNames(ctx)
 	if err != nil {
 		return CaptureContext{}, err
 	}
-	history, err := transactions.List(ctx, h.store, transactions.Filter{
-		From: kernel.Date{Time: now.AddDate(0, 0, -90)},
-	}, false)
+	rows, err := h.store.DB().QueryContext(ctx, `
+		SELECT m.business_date, m.kind, account.name, m.amount_cents, m.merchant, m.description,
+			coalesce(parent.name, category.name, ''),
+			CASE WHEN category.parent_id IS NOT NULL THEN category.name ELSE '' END
+		FROM movements m
+		JOIN postings posting ON posting.movement_id = m.id
+		JOIN accounts account ON account.id = posting.account_id
+		LEFT JOIN movement_allocations allocation ON allocation.movement_id = m.id
+		LEFT JOIN categories category ON category.id = allocation.category_id
+		LEFT JOIN categories parent ON parent.id = category.parent_id
+		WHERE m.status = 'posted' AND m.kind IN ('expense', 'income') AND m.business_date >= ?
+		ORDER BY m.business_date DESC, m.id DESC
+	`, now.AddDate(0, 0, -90).Format("2006-01-02"))
 	if err != nil {
 		return CaptureContext{}, err
 	}
-	result := CaptureContext{Today: now, Accounts: make([]string, len(accountRows))}
-	for i, account := range accountRows {
-		result.Accounts[i] = account.Name
-	}
+	defer rows.Close()
+	result := CaptureContext{Today: now, Accounts: accountNames}
 	categories := make(map[string]bool)
-	result.History = make([]HistoryItem, 0, len(history))
-	for _, transaction := range history {
-		amount := transaction.Amount
-		if amount < 0 {
-			amount = -amount
+	for rows.Next() {
+		var date, kind, account, merchant, description, category, subcategory string
+		var amount int64
+		if err := rows.Scan(&date, &kind, &account, &amount, &merchant, &description, &category, &subcategory); err != nil {
+			return CaptureContext{}, err
 		}
 		result.History = append(result.History, HistoryItem{
-			Date: transaction.Date.ISO(), Kind: string(transaction.Kind), Account: transaction.Account,
-			Amount: fmt.Sprintf("%.2f", amount.Float()), Payee: transaction.Payee,
-			Category: transaction.Category, Subcategory: transaction.Subcategory,
+			Date: date, Kind: strings.ToUpper(kind[:1]) + kind[1:], Account: account,
+			Amount: fmt.Sprintf("%d,%02d", amount/100, amount%100), Payee: merchant, Description: description,
+			Category: category, Subcategory: subcategory,
 		})
-		if transaction.Category != "" {
-			categories[transaction.Category] = true
+		if category != "" {
+			categories[category] = true
 		}
 	}
 	for category := range categories {
@@ -289,11 +350,28 @@ func (h *Handler) captureContext(ctx context.Context) (CaptureContext, error) {
 	return result, nil
 }
 
+func (h *Handler) accountNames(ctx context.Context) ([]string, error) {
+	rows, err := h.store.DB().QueryContext(ctx, `SELECT name FROM accounts WHERE archived_at = '' ORDER BY lower(name)`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]string, 0)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		result = append(result, name)
+	}
+	return result, rows.Err()
+}
+
 func parseBatchForm(r *http.Request) ([]Draft, error) {
 	if err := r.ParseForm(); err != nil {
 		return nil, errors.New("Il modulo inviato non è valido.")
 	}
-	fields := []string{"id", "kind", "date", "account", "amount", "payee", "category", "subcategory", "note"}
+	fields := []string{"id", "kind", "date", "account", "amount", "payee", "description", "category", "subcategory", "note"}
 	count := len(r.Form["id"])
 	if count == 0 {
 		return nil, errors.New("Non ci sono movimenti da salvare.")
@@ -310,7 +388,7 @@ func parseBatchForm(r *http.Request) ([]Draft, error) {
 	for i := range drafts {
 		drafts[i] = Draft{
 			ID: r.Form["id"][i], Kind: r.Form["kind"][i], Date: r.Form["date"][i],
-			Account: r.Form["account"][i], Amount: r.Form["amount"][i], Payee: r.Form["payee"][i],
+			Account: r.Form["account"][i], Amount: r.Form["amount"][i], Payee: r.Form["payee"][i], Description: r.Form["description"][i],
 			Category: r.Form["category"][i], Subcategory: r.Form["subcategory"][i], Note: r.Form["note"][i],
 		}
 		trimDraft(&drafts[i])

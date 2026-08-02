@@ -4,9 +4,11 @@ package storage
 import (
 	"context"
 	"database/sql"
-	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -14,9 +16,6 @@ import (
 
 const SheetSyncOutboxName = "sheet-sync"
 const SheetSyncBootstrapScope = "bootstrap"
-
-//go:embed schema.sql
-var schemaFS embed.FS
 
 // Store wraps the SQLite handle so feature slices can share one local source
 // of truth and enqueue sheet-sync work transactionally.
@@ -49,6 +48,10 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite db: %w", err)
 	}
+	// SQLite pragmas are connection-local. A single pooled connection preserves
+	// foreign-key enforcement and serializes writers consistently.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	if _, err := db.ExecContext(ctx, `
 		PRAGMA journal_mode = WAL;
 		PRAGMA synchronous = NORMAL;
@@ -60,12 +63,46 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("sqlite pragmas: %w", err)
 	}
+	if _, err := backupBeforeLegacyMigration(ctx, db, dbPath); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	st := &Store{db: db}
 	if err := st.migrate(ctx); err != nil {
 		_ = st.Close()
 		return nil, err
 	}
 	return st, nil
+}
+
+func backupBeforeLegacyMigration(ctx context.Context, db *sql.DB, dbPath string) (string, error) {
+	if dbPath == ":memory:" || strings.HasPrefix(dbPath, "file:") {
+		return "", nil
+	}
+	info, err := os.Stat(dbPath)
+	if errors.Is(err, os.ErrNotExist) || err == nil && info.Size() == 0 {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("inspect database before migration: %w", err)
+	}
+	var legacyTables int
+	if err := db.QueryRowContext(ctx, `
+		SELECT count(*) FROM sqlite_master
+		WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> 'schema_migrations'
+			AND NOT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations')
+	`).Scan(&legacyTables); err != nil {
+		return "", fmt.Errorf("inspect legacy database: %w", err)
+	}
+	if legacyTables == 0 {
+		return "", nil
+	}
+	backupPath := dbPath + ".pre-v2-" + time.Now().UTC().Format("20060102T150405Z") + ".bak"
+	escaped := strings.ReplaceAll(backupPath, "'", "''")
+	if _, err := db.ExecContext(ctx, "VACUUM INTO '"+escaped+"'"); err != nil {
+		return "", fmt.Errorf("backup legacy database to %s: %w", backupPath, err)
+	}
+	return backupPath, nil
 }
 
 // DB returns the database/sql handle for read-side queries.
@@ -260,64 +297,7 @@ func (s *Store) migrate(ctx context.Context) error {
 	return MigrateSQLite(ctx, s.db)
 }
 
-// MigrateSQLite applies the app schema to a plain SQLite handle.
+// MigrateSQLite applies ordered, transactional migrations to a SQLite handle.
 func MigrateSQLite(ctx context.Context, db SQLRunner) error {
-	schema, err := schemaFS.ReadFile("schema.sql")
-	if err != nil {
-		return fmt.Errorf("read schema: %w", err)
-	}
-	if _, err := db.ExecContext(ctx, string(schema)); err != nil {
-		return fmt.Errorf("migrate db: %w", err)
-	}
-	if err := ensureAccountColumns(ctx, db); err != nil {
-		return fmt.Errorf("migrate accounts: %w", err)
-	}
-	return nil
-}
-
-func ensureAccountColumns(ctx context.Context, db SQLRunner) error {
-	rows, err := db.QueryContext(ctx, "PRAGMA table_info(accounts)")
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	columns := make(map[string]bool)
-	for rows.Next() {
-		var (
-			cid      int
-			name     string
-			typ      string
-			notNull  int
-			defaultV sql.NullString
-			primaryK int
-		)
-		if err := rows.Scan(&cid, &name, &typ, &notNull, &defaultV, &primaryK); err != nil {
-			return err
-		}
-		columns[name] = true
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-
-	for _, stmt := range []struct {
-		column string
-		sql    string
-	}{
-		{"class", "ALTER TABLE accounts ADD COLUMN class TEXT NOT NULL DEFAULT 'Other'"},
-		{"currency", "ALTER TABLE accounts ADD COLUMN currency TEXT NOT NULL DEFAULT 'EUR'"},
-		{"active_from", "ALTER TABLE accounts ADD COLUMN active_from TEXT NOT NULL DEFAULT ''"},
-		{"active_to", "ALTER TABLE accounts ADD COLUMN active_to TEXT NOT NULL DEFAULT ''"},
-		{"note", "ALTER TABLE accounts ADD COLUMN note TEXT NOT NULL DEFAULT ''"},
-		{"created_at", "ALTER TABLE accounts ADD COLUMN created_at TEXT NOT NULL DEFAULT ''"},
-	} {
-		if columns[stmt.column] {
-			continue
-		}
-		if _, err := db.ExecContext(ctx, stmt.sql); err != nil {
-			return fmt.Errorf("add column %s: %w", stmt.column, err)
-		}
-	}
-	return nil
+	return runMigrations(ctx, db)
 }
