@@ -1,0 +1,207 @@
+openapi: 3.1.0
+info:
+  title: Spese API
+  version: 1.0.0
+  description: API JSON same-origin per il ledger personale Spese v2.
+servers:
+  - url: /
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, maxLength: 200 }
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema: { type: string }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+  schemas:
+    Error:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        fieldErrors:
+          type: object
+          additionalProperties: { type: string }
+        requestId: { type: string, format: uuid }
+    AllocationInput:
+      type: object
+      required: [categoryId, amountCents]
+      properties:
+        categoryId: { type: string, format: uuid }
+        amountCents: { type: integer, format: int64, minimum: 1 }
+    MovementInput:
+      type: object
+      required: [kind, status, date, accountId, amountCents, allocations]
+      properties:
+        kind: { enum: [expense, income, refund, transfer, adjustment] }
+        status: { enum: [draft, posted] }
+        date: { type: string, format: date }
+        accountId: { type: string, format: uuid }
+        destinationAccountId: { type: string, format: uuid }
+        amountCents: { type: integer, format: int64, minimum: 1 }
+        merchant: { type: string, maxLength: 300 }
+        description: { type: string, maxLength: 500 }
+        note: { type: string, maxLength: 2000 }
+        origin: { enum: [manual, recurring, dictation, migration] }
+        allocations:
+          type: array
+          items: { $ref: '#/components/schemas/AllocationInput' }
+    AccountInput:
+      type: object
+      required: [name, type, class, initialBalanceCents, initialDate]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        type: { enum: [Asset, Liability] }
+        class: { enum: [Cash, Investment, Property, Tax, Credit, Other] }
+        initialBalanceCents: { type: integer, format: int64 }
+        initialDate: { type: string, format: date }
+        activeFrom: { type: string }
+        activeTo: { type: string }
+        note: { type: string, maxLength: 2000 }
+    CategoryInput:
+      type: object
+      required: [kind, name]
+      properties:
+        parentId: { type: string, format: uuid }
+        kind: { enum: [expense, income] }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        icon: { type: string }
+        color: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
+        sortOrder: { type: integer }
+paths:
+  /api/v1/movements:
+    get:
+      operationId: listMovements
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: kind, in: query, schema: { type: string } }
+        - { name: account, in: query, schema: { type: string } }
+        - { name: category, in: query, schema: { type: string } }
+        - { name: subcategory, in: query, schema: { type: string } }
+        - { name: merchant, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: origin, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Pagina di movimenti }
+    post:
+      operationId: createMovement
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MovementInput' }
+      responses:
+        '201': { description: Movimento creato e saldi coinvolti }
+        '422': { description: Invariante contabile non valida }
+  /api/v1/movements/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getMovement
+      responses: { '200': { description: Movimento } }
+    patch:
+      operationId: updateMovement
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MovementInput' }
+      responses: { '200': { description: Movimento aggiornato }, '412': { description: Version conflict } }
+    delete:
+      operationId: voidMovement
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      responses: { '200': { description: Movimento annullato con audit } }
+  /api/v1/accounts:
+    get:
+      operationId: listAccounts
+      responses: { '200': { description: Conti } }
+    post:
+      operationId: createAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccountInput' }
+      responses: { '201': { description: Conto creato } }
+  /api/v1/accounts/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get: { operationId: getAccount, responses: { '200': { description: Conto } } }
+    patch: { operationId: updateAccount, parameters: [{ $ref: '#/components/parameters/IfMatch' }], responses: { '200': { description: Conto aggiornato } } }
+    delete: { operationId: archiveAccount, parameters: [{ $ref: '#/components/parameters/IfMatch' }], responses: { '200': { description: Conto archiviato } } }
+  /api/v1/accounts/{id}/balance:
+    get:
+      operationId: getAccountBalance
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: asOf, in: query, schema: { type: string, format: date } }
+      responses: { '200': { description: Saldo calcolato dall'ultimo anchor } }
+  /api/v1/categories:
+    get: { operationId: listCategories, responses: { '200': { description: Gerarchia categorie } } }
+    post: { operationId: createCategory, responses: { '201': { description: Categoria creata } } }
+  /api/v1/categories/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get: { operationId: getCategory, responses: { '200': { description: Categoria } } }
+    patch: { operationId: updateCategory, parameters: [{ $ref: '#/components/parameters/IfMatch' }], responses: { '200': { description: Categoria aggiornata } } }
+    delete: { operationId: archiveCategory, parameters: [{ $ref: '#/components/parameters/IfMatch' }], responses: { '200': { description: Categoria archiviata } } }
+  /api/v1/categories/{id}/merge:
+    post: { operationId: mergeCategory, responses: { '200': { description: Merge atomico e storico riclassificato } } }
+  /api/v1/categories/{id}/reparent:
+    post: { operationId: reparentCategory, responses: { '200': { description: Categoria spostata } } }
+  /api/v1/categories/bulk-reclassify:
+    post: { operationId: bulkReclassify, responses: { '200': { description: Movimenti riclassificati atomicamente } } }
+  /api/v1/merchant-rules:
+    get: { operationId: listMerchantRules, responses: { '200': { description: Regole esercente } } }
+    post: { operationId: createMerchantRule, responses: { '201': { description: Regola creata } } }
+  /api/v1/merchant-rules/{id}:
+    patch: { operationId: updateMerchantRule, responses: { '200': { description: Regola aggiornata } } }
+    delete: { operationId: archiveMerchantRule, responses: { '200': { description: Regola archiviata } } }
+  /api/v1/suggestions/merchant:
+    get: { operationId: merchantSuggestions, responses: { '200': { description: Suggerimenti spiegabili da uso recente } } }
+  /api/v1/reconciliations/preview:
+    post: { operationId: previewReconciliation, responses: { '200': { description: Anteprima differenze } } }
+  /api/v1/reconciliations:
+    post: { operationId: commitReconciliation, responses: { '201': { description: Anchor mensili confermati } } }
+  /api/v1/recurring-rules:
+    get: { operationId: listRecurringRules, responses: { '200': { description: Regole ricorrenti } } }
+    post: { operationId: createRecurringRule, responses: { '201': { description: Regola creata } } }
+  /api/v1/recurring-rules/{id}:
+    get: { operationId: getRecurringRule, responses: { '200': { description: Regola } } }
+    patch: { operationId: updateRecurringRule, responses: { '200': { description: Modifica solo il futuro } } }
+    delete: { operationId: archiveRecurringRule, responses: { '200': { description: Regola terminata } } }
+  /api/v1/recurring-rules/{id}/occurrences:
+    get: { operationId: listOccurrences, responses: { '200': { description: Occorrenze } } }
+  /api/v1/occurrences/{id}/confirm:
+    post: { operationId: confirmOccurrence, responses: { '200': { description: Bozza confermata } } }
+  /api/v1/occurrences/{id}/skip:
+    post: { operationId: skipOccurrence, responses: { '200': { description: Occorrenza saltata e non rigenerabile } } }
+  /api/v1/occurrences/{id}/post:
+    post: { operationId: postOccurrenceNow, responses: { '200': { description: Occorrenza registrata oggi } } }
+  /api/v1/analytics/overview:
+    get: { operationId: overview, responses: { '200': { description: Brief finanziario mensile } } }
+  /api/v1/analytics/cash-flow:
+    get: { operationId: cashFlow, responses: { '200': { description: Entrate uscite e netto mensili } } }
+  /api/v1/analytics/categories:
+    get: { operationId: categoryAnalysis, responses: { '200': { description: Analisi categorie con drill-down } } }
+  /api/v1/analytics/net-worth:
+    get: { operationId: netWorth, responses: { '200': { description: Patrimonio e marker riconciliati } } }
+  /api/v1/analytics/recurring-forecast:
+    get: { operationId: recurringForecast, responses: { '200': { description: Forecast certo e stimato } } }
+  /api/v1/dictation/fallback:
+    post: { operationId: dictationFallback, responses: { '200': { description: Bozze modificabili da audio } } }
+  /api/v1/dictation/confirm:
+    post: { operationId: dictationConfirm, responses: { '201': { description: Salvataggio atomico delle bozze } } }

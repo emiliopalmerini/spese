@@ -1,7 +1,0 @@
-# One category per line
-Home
-Food
-Transport
-Entertainment
-Health
-

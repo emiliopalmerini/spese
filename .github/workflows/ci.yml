@@ -17,22 +17,78 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23.0"
+          go-version: "1.25.0"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.16.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
 
       - name: Check formatting
         run: |
-          if [ -n "$(gofmt -l .)" ]; then
+          if [ -n "$(gofmt -s -l .)" ]; then
             echo "Code is not formatted. Run 'gofmt -s -w .'"
-            gofmt -l .
+            gofmt -s -l .
             exit 1
           fi
+
+      - name: Lint and typecheck frontend
+        run: |
+          npm --prefix frontend run lint
+          npm --prefix frontend run typecheck
 
       - name: Run go vet
         run: go vet ./...
 
-      - name: Build all binaries
-        run: |
-          go build -o bin/spese ./cmd/spese
+      - name: Build frontend
+        run: npm --prefix frontend run build
 
-      - name: Run tests
+      - name: Build runtime and tools
+        run: |
+          mkdir -p bin
+          go build -o bin/spese ./cmd/spese
+          go build -o bin/spese-worker ./cmd/spese-worker
+          go build -o bin/spese-migrate ./cmd/spese-migrate
+
+      - name: Run frontend tests
+        run: npm --prefix frontend test
+
+      - name: Run Go tests with race detector
         run: go test -race ./...
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.0"
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.16.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies and browser
+        run: |
+          npm --prefix frontend ci
+          npm --prefix frontend exec playwright install --with-deps chromium
+      - name: Build frontend
+        run: npm --prefix frontend run build
+      - name: Run end-to-end tests
+        run: npm --prefix frontend run test:e2e
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 7

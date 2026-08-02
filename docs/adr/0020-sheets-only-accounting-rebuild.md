@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (supersedes ADR-0007).
+Superseded by ADR-0021 for SQLite/outbox authority and by ADR-0022 for the v2 ledger and UI.
 
 ## Context
 

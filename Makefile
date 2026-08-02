@@ -3,7 +3,7 @@ PKG := ./...
 BIN := bin/$(APP_NAME)
 WORKER_BIN := bin/$(APP_NAME)-worker
 
-.PHONY: all help setup tidy fmt vet lint test build run run-demo demo-data run-local run-worker run-worker-local smoke-local clean dev nix-build nix-docker
+.PHONY: all help setup tidy fmt vet lint test test-go test-frontend test-e2e frontend-install frontend-build build run run-demo demo-data run-local run-worker run-worker-local run-e2e smoke-local clean dev nix-build nix-docker
 
 all: help
 
@@ -19,6 +19,7 @@ help: ## Show this help message
 	@echo ""
 	@echo "Build:"
 	@echo "  build          Build main application (bin/spese)"
+	@echo "  frontend-build Build the embedded React SPA"
 	@echo "  clean          Remove build artifacts"
 	@echo ""
 	@echo "Run:"
@@ -35,6 +36,7 @@ help: ## Show this help message
 	@echo "  vet            Run go vet"
 	@echo "  lint           Run linter (golangci-lint)"
 	@echo "  test           Run tests with race detector"
+	@echo "  test-e2e       Run Playwright browser flows"
 	@echo "  tidy           Run go mod tidy"
 
 setup:
@@ -60,13 +62,31 @@ vet:
 
 lint: vet
 	@command -v golangci-lint >/dev/null 2>&1 && golangci-lint run || echo "golangci-lint not installed; skipping"
+	npm --prefix frontend run lint
 
-test: fmt
+test: test-go test-frontend
+
+test-go:
 	go test -race -cover $(PKG)
 
-build: fmt
+test-frontend:
+	npm --prefix frontend run typecheck
+	npm --prefix frontend test
+
+test-e2e:
+	npm --prefix frontend run test:e2e
+
+frontend-install:
+	npm --prefix frontend ci
+
+frontend-build:
+	npm --prefix frontend run build
+
+build: frontend-build
+	mkdir -p bin
 	go build -ldflags='-s -w' -o $(BIN) ./cmd/spese
 	go build -ldflags='-s -w' -o $(WORKER_BIN) ./cmd/spese-worker
+	go build -ldflags='-s -w' -o bin/spese-migrate ./cmd/spese-migrate
 
 run:
 	go run ./cmd/spese
@@ -76,6 +96,12 @@ demo-data:
 
 run-demo: demo-data
 	SPESE_DB_PATH=tmp/spese-demo.db SPESE_SHEET_MIRROR_BACKEND=none go run ./cmd/spese
+
+run-e2e:
+	mkdir -p tmp
+	rm -f tmp/spese-e2e-demo.db tmp/spese-e2e-demo.db-shm tmp/spese-e2e-demo.db-wal
+	go run ./cmd/spese-demo -db tmp/spese-e2e-demo.db
+	SPESE_HOST=127.0.0.1 SPESE_PORT=8085 SPESE_DB_PATH=tmp/spese-e2e-demo.db SPESE_SHEET_MIRROR_BACKEND=none go run ./cmd/spese
 
 run-local:
 	mkdir -p tmp

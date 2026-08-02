@@ -2,37 +2,34 @@ package main
 
 import (
 	"context"
-	"io/fs"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/emiliopalmerini/elevenlabs-go/elevenlabs"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 
+	"spese/internal/api"
 	"spese/internal/config"
-	"spese/internal/features/accounts"
-	"spese/internal/features/actions"
-	"spese/internal/features/dashboard"
 	"spese/internal/features/dictation"
-	"spese/internal/features/reports"
-	"spese/internal/features/snapshots"
-	"spese/internal/features/transactions"
-	"spese/internal/features/transfers"
+	"spese/internal/features/ledger"
 	"spese/internal/rabbitmq"
-	"spese/internal/render"
 	"spese/internal/sheetmirror"
+	"spese/internal/spa"
 	"spese/internal/storage"
 	"spese/web"
 )
 
 func main() {
 	_ = godotenv.Load()
-
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 
@@ -41,10 +38,8 @@ func main() {
 		logger.Error("config", "err", err)
 		os.Exit(1)
 	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
 	store, err := storage.Open(ctx, cfg.DBPath)
 	if err != nil {
 		logger.Error("storage", "err", err)
@@ -63,25 +58,35 @@ func main() {
 		logger.Info("sheet mirror disabled", "backend", cfg.ResolvedSheetMirrorBackend())
 	}
 
-	tmpl, err := render.Load(web.TemplatesFS)
-	if err != nil {
-		logger.Error("templates", "err", err)
+	ledgerService := ledger.New(store)
+	if _, err := ledgerService.ProcessRecurring(ctx, time.Now()); err != nil {
+		logger.Error("initial recurring catch-up", "err", err)
 		os.Exit(1)
 	}
+	startRecurringScheduler(ctx, ledgerService, logger)
 
+	spaHandler, err := spa.New(web.AppFS)
+	if err != nil {
+		logger.Error("embedded frontend", "err", err)
+		os.Exit(1)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("ok\n"))
 	})
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := store.DB().PingContext(ctx); err != nil {
+			http.Error(w, "not ready", http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write([]byte("ready\n"))
+	})
+	mux.Handle("/api/", api.New(store, ledgerService))
 
-	(&dashboard.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/")
-	(&actions.Handler{Store: store, Logger: logger, Render: tmpl, DictationEnabled: cfg.DictationEnabled}).Mount(mux, "/actions")
-	(&accounts.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/accounts")
-	(&transactions.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/transactions")
-	(&transfers.Handler{Store: store, Logger: logger}).Mount(mux, "/transfers")
-	(&snapshots.Handler{Store: store, Logger: logger}).Mount(mux, "/snapshots")
-	(&reports.Handler{Store: store, Logger: logger, Render: tmpl}).Mount(mux, "/reports")
 	if cfg.DictationEnabled {
 		elevenClient, err := elevenlabs.NewClient(
 			elevenlabs.WithAuthToken(cfg.ElevenLabsAPIKey),
@@ -95,41 +100,36 @@ func main() {
 			BaseURL: cfg.OpenCodeURL, Username: cfg.OpenCodeUsername, Password: cfg.OpenCodePassword,
 			ProviderID: cfg.OpenCodeProvider, ModelID: cfg.OpenCodeModel, Agent: cfg.OpenCodeAgent,
 		}, &http.Client{Timeout: 60 * time.Second})
-		dictation.NewHandler(store, openCodeClient, dictation.NewElevenLabsTranscriber(elevenClient), logger).Mount(mux, "/dictation")
-		logger.Info("movement dictation enabled", "opencode", cfg.OpenCodeURL, "model", cfg.OpenCodeProvider+"/"+cfg.OpenCodeModel)
+		dictation.NewHandler(store, openCodeClient, dictation.NewElevenLabsTranscriber(elevenClient), logger).Mount(mux, "/api/v1/dictation")
+		logger.Info("movement dictation enabled", "model", cfg.OpenCodeProvider+"/"+cfg.OpenCodeModel)
 	}
-
-	staticFS, err := fs.Sub(web.StaticFS, "static")
-	if err != nil {
-		logger.Error("static fs", "err", err)
-		os.Exit(1)
-	}
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	mux.Handle("/", spaHandler)
 
 	srv := &http.Server{
 		Addr:              net.JoinHostPort(cfg.Host, cfg.Port),
-		Handler:           mux,
+		Handler:           securityHeaders(mux),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
-
-	// HTTP server lifecycle.
+	serverErr := make(chan error, 1)
 	go func() {
 		logger.Info("listening", "address", srv.Addr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("listen", "err", err)
-			cancel()
-		}
+		serverErr <- srv.ListenAndServe()
 	}()
-
-	// Wait for signal.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	<-sigCh
-	logger.Info("shutting down")
-
+	select {
+	case signal := <-sigCh:
+		logger.Info("shutting down", "signal", signal.String())
+	case err := <-serverErr:
+		if !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("listen", "err", err)
+			os.Exit(1)
+		}
+	}
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
@@ -138,14 +138,60 @@ func main() {
 	cancel()
 }
 
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
+		if requestID == "" || len(requestID) > 100 {
+			requestID = uuid.NewString()
+		}
+		w.Header().Set("X-Request-ID", requestID)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Referrer-Policy", "same-origin")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Permissions-Policy", "camera=(), geolocation=(), microphone=(self)")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+		if isMutation(r.Method) && strings.HasPrefix(r.URL.Path, "/api/v1/dictation/") && !sameOrigin(r) {
+			http.Error(w, "forbidden origin", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isMutation(method string) bool {
+	return method == http.MethodPost || method == http.MethodPut || method == http.MethodPatch || method == http.MethodDelete
+}
+
+func sameOrigin(r *http.Request) bool {
+	if r.Header.Get("X-Spese-CSRF") != "1" {
+		return false
+	}
+	origin, err := url.Parse(r.Header.Get("Origin"))
+	return err == nil && origin.Host != "" && strings.EqualFold(origin.Host, r.Host) && (origin.Scheme == "http" || origin.Scheme == "https")
+}
+
+func startRecurringScheduler(ctx context.Context, service *ledger.Service, logger *slog.Logger) {
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case now := <-ticker.C:
+				created, err := service.ProcessRecurring(ctx, now)
+				if err != nil {
+					logger.Error("process recurring", "err", err)
+				} else if created > 0 {
+					logger.Info("recurring generated", "occurrences", created)
+				}
+			}
+		}
+	}()
+}
+
 func startSheetSyncRelay(ctx context.Context, cfg config.Config, store *storage.Store, logger *slog.Logger) {
-	logger.Info(
-		"sheet sync publisher enabled",
-		"backend",
-		cfg.ResolvedSheetMirrorBackend(),
-		"queue",
-		cfg.RabbitMQQueue,
-	)
+	logger.Info("sheet sync publisher enabled", "backend", cfg.ResolvedSheetMirrorBackend(), "queue", cfg.RabbitMQQueue)
 	publisher := rabbitmq.NewPublisher(cfg.RabbitMQURL, cfg.RabbitMQQueue, logger)
 	relay := &sheetmirror.Relay{Store: store, Publisher: publisher, Logger: logger}
 	go func() {

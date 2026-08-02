@@ -1,0 +1,1 @@
+import{c as e,n as t,s as n}from"./button--adROWfK.js";var r=n(`arrow-up-right`,[[`path`,{d:`M7 7h10v10`,key:`1tivn9`}],[`path`,{d:`M7 17 17 7`,key:`1vkiza`}]]),i=e();function a({className:e,...n}){return(0,i.jsx)(`div`,{className:t(`animate-pulse rounded-xl bg-muted motion-reduce:animate-none`,e),...n})}export{r as n,a as t};

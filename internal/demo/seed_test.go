@@ -22,12 +22,12 @@ func TestSeedCreatesCurrentRepresentativeDataset(t *testing.T) {
 	}
 
 	assertCount(t, store, "accounts", 5)
-	assertCount(t, store, "snapshot_batches", 12)
-	assertCountAtLeast(t, store, "transactions", 80)
+	assertCount(t, store, "reconciliation_batches", 12)
+	assertCountAtLeast(t, store, "movements", 80)
 
 	var currentMonthTransactions int
 	if err := store.DB().QueryRowContext(ctx, `
-		SELECT count(*) FROM transactions WHERE substr(date, 1, 7) = ?
+		SELECT count(*) FROM movements WHERE substr(business_date, 1, 7) = ?
 	`, kernel.Today().Month()).Scan(&currentMonthTransactions); err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestSeedCreatesCurrentRepresentativeDataset(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertCount(t, store, "accounts", 5)
-	assertCount(t, store, "snapshot_batches", 12)
+	assertCount(t, store, "reconciliation_batches", 12)
 }
 
 func assertCount(t *testing.T, store *storage.Store, table string, want int) {

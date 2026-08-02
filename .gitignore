@@ -11,6 +11,8 @@
 # Build Artifacts
 bin/
 dist/
+!web/dist/
+!web/dist/**
 out/
 coverage/
 tmp/
@@ -29,6 +31,8 @@ tmp/
 
 # Node (if ever used for static tooling)
 node_modules/
+frontend/playwright-report/
+frontend/test-results/
 
 # Docker
 .docker/
@@ -38,6 +42,12 @@ configs/
 
 # Local development data
 data/*.db
+/*.db
+/*.db-shm
+/*.db-wal
+*.db.pre-v2-*.bak
+*.db.backup-*
+*.db.before-restore-*
 
 # Claude Code
 .claude/

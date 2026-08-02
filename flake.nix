@@ -1,5 +1,5 @@
 {
-  description = "Spese — sheets-only net worth + expense tracker (ADR-0020)";
+  description = "Spese v2 — local SQLite ledger with an embedded React SPA";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -22,7 +22,7 @@
           inherit subPackages;
 
           meta = with pkgs.lib; {
-            description = "Personal net worth + expense tracker backed by Google Sheets";
+            description = "Single-user personal finance ledger with a derived Google Sheets mirror";
             homepage = "https://github.com/emiliopalmerini/spese";
             license = licenses.mit;
             inherit mainProgram;
@@ -31,8 +31,8 @@
       in
       {
         packages = {
-          default = spesePackage [ "cmd/spese" "cmd/spese-worker" ] "spese";
-          import-sheets = spesePackage [ "cmd/spese-import-sheets" ] "spese-import-sheets";
+          default = spesePackage [ "cmd/spese" "cmd/spese-worker" "cmd/spese-migrate" ] "spese";
+          migrate = spesePackage [ "cmd/spese-migrate" ] "spese-migrate";
 
           docker = pkgs.dockerTools.buildLayeredImage {
             name = "spese";
@@ -49,6 +49,7 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             go_1_25
+            nodejs_24
             gopls
             golangci-lint
             air
@@ -58,9 +59,10 @@
             echo "spese v2 development shell"
             echo ""
             echo "Available commands:"
-            echo "  make run    — Start the server"
-            echo "  make test   — Run tests"
-            echo "  make build  — Build binary"
+            echo "  make run             — Start the server"
+            echo "  make test            — Run Go and frontend tests"
+            echo "  make frontend-build  — Rebuild embedded SPA"
+            echo "  make build           — Build runtime and tools"
             echo "  air         — Hot reload"
           '';
         };
@@ -132,6 +134,12 @@
           };
 
           config = mkIf cfg.enable {
+            users.groups.spese = { };
+            users.users.spese = {
+              isSystemUser = true;
+              group = "spese";
+            };
+
             systemd.services.spese = {
               description = "Spese net worth tracker";
               wantedBy = [ "multi-user.target" ];
@@ -144,7 +152,10 @@
                 RestartSec = 5;
 
                 # Hardening
-                DynamicUser = true;
+                User = "spese";
+                Group = "spese";
+                StateDirectory = "spese";
+                UMask = "0077";
                 ProtectSystem = "strict";
                 ProtectHome = true;
                 PrivateTmp = true;
@@ -177,7 +188,10 @@
                 RestartSec = 5;
 
                 # Hardening
-                DynamicUser = true;
+                User = "spese";
+                Group = "spese";
+                StateDirectory = "spese";
+                UMask = "0077";
                 ProtectSystem = "strict";
                 ProtectHome = true;
                 PrivateTmp = true;

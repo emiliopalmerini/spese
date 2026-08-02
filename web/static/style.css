@@ -1,3 +1,0 @@
-/* Canonical app stylesheet. Keep imports explicit so legacy component CSS does not leak into the live UI. */
-@import 'css/base.css';
-@import 'css/global-actions.css';

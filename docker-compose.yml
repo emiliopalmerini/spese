@@ -13,26 +13,20 @@ services:
     build: .
     image: spese:dev
     container_name: spese
-    env_file:
-      - .env
     depends_on:
       - rabbitmq
     ports:
-      - "${SPESE_PORT:-8081}:${SPESE_PORT:-8081}"
+      - "${SPESE_PORT:-8080}:${SPESE_PORT:-8080}"
     environment:
-      - SPESE_PORT=${SPESE_PORT:-8081}
+      - SPESE_PORT=${SPESE_PORT:-8080}
       - SPESE_DB_PATH=/data/spese.db
       - SPESE_RABBITMQ_URL=${SPESE_RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
       - SPESE_RABBITMQ_QUEUE=${SPESE_RABBITMQ_QUEUE:-spese.sheet-sync}
       - SPESE_WORKER_MODE=${SPESE_WORKER_MODE:-daemon}
       - SPESE_SHEETS_WRITE_RATE_PER_MINUTE=${SPESE_SHEETS_WRITE_RATE_PER_MINUTE:-10}
       - SPESE_LOCAL_SHEET_PATH=${SPESE_LOCAL_SHEET_PATH:-/data/local-sheet.json}
-      # Google Sheets configuration
-      - GOOGLE_SPREADSHEET_ID=${GOOGLE_SPREADSHEET_ID}
-      # Service Account credentials for Google Sheets access
-      - GOOGLE_SERVICE_ACCOUNT_FILE=/service-account.json
+      - SPESE_SHEET_MIRROR_BACKEND=${SPESE_SHEET_MIRROR_BACKEND:-local}
     volumes:
-      - ./configs/service-account.json:${GOOGLE_SERVICE_ACCOUNT_FILE:-/service-account.json}:ro
       - spese_data:/data
     restart: unless-stopped
 
@@ -41,8 +35,6 @@ services:
     image: spese:dev
     container_name: spese-worker
     command: ["/app/spese-worker"]
-    env_file:
-      - .env
     depends_on:
       - rabbitmq
       - spese
@@ -51,10 +43,8 @@ services:
       - SPESE_RABBITMQ_URL=${SPESE_RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
       - SPESE_RABBITMQ_QUEUE=${SPESE_RABBITMQ_QUEUE:-spese.sheet-sync}
       - SPESE_LOCAL_SHEET_PATH=${SPESE_LOCAL_SHEET_PATH:-/data/local-sheet.json}
-      - GOOGLE_SPREADSHEET_ID=${GOOGLE_SPREADSHEET_ID}
-      - GOOGLE_SERVICE_ACCOUNT_FILE=/service-account.json
+      - SPESE_SHEET_MIRROR_BACKEND=${SPESE_SHEET_MIRROR_BACKEND:-local}
     volumes:
-      - ./configs/service-account.json:${GOOGLE_SERVICE_ACCOUNT_FILE:-/service-account.json}:ro
       - spese_data:/data
     restart: unless-stopped
 

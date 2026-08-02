@@ -2,14 +2,16 @@
 
 ## Project Structure & Module Organization
 
-Spese is a Go single-binary HTMX application backed by Google Sheets. The entry point is `cmd/spese/main.go`. Feature code lives in vertical slices under `internal/features/<feature>/`, where handlers, sheet access, and types stay together. Shared packages live in `internal/config`, `internal/kernel`, `internal/render`, and `internal/sheets`. Templates and browser assets are embedded from `web/templates` and `web/static`. Seed data is in `data/`, operational scripts are in `scripts/`, and architectural decisions are recorded in `docs/adr/`.
+Spese is a Go single-binary React application backed by a canonical SQLite ledger. The entry point is `cmd/spese/main.go`; the versioned JSON API is in `internal/api`, ledger behavior is in `internal/features/ledger`, and the SPA source is in `frontend/`. The Vite build is embedded from `web/dist`. Google Sheets is only a derived mirror through the SQLite outbox, RabbitMQ, and `spese-worker`. Operational scripts are in `scripts/`, and architectural decisions are recorded in `docs/adr/`.
 
 ## Build, Test, and Development Commands
 
 - `nix develop` or `make dev`: enter the recommended development shell.
 - `make run`: run the app locally with `go run ./cmd/spese`.
-- `make build`: format and build `bin/spese`.
-- `make test`: run `gofmt` and `go test -race -cover ./...`.
+- `make frontend-install`: install the pinned npm dependency graph.
+- `make build`: build the SPA, runtime, worker, and migration tool.
+- `make test`: run Go race tests plus frontend typecheck and unit/component tests.
+- `make test-e2e`: run Playwright against the embedded SPA and API.
 - `make vet`: run `go vet ./...`.
 - `make lint`: run `go vet`, then `golangci-lint run` when installed.
 - `make nix-build`: build through Nix, producing `result/bin/spese`.
@@ -17,11 +19,11 @@ Spese is a Go single-binary HTMX application backed by Google Sheets. The entry 
 
 ## Coding Style & Naming Conventions
 
-Use `gofmt -s` for all Go code; `make fmt` applies it repository-wide. Keep packages small and domain-oriented. Prefer existing vertical-slice boundaries over technical-layer directories. Name feature packages by domain nouns such as `accounts`, `transactions`, and `snapshots`. Keep sheet writes append-only unless the architecture decision records say otherwise. Add comments only for non-obvious intent, invariants, or external constraints.
+Use `gofmt -s` for Go and TypeScript strict mode for the SPA. Keep packages small and domain-oriented. Preserve ledger transaction boundaries and use stable IDs rather than names as foreign keys. Sheet writes are complete derived exports and must never become a read dependency. Add comments only for non-obvious intent, invariants, or external constraints.
 
 ## Testing Guidelines
 
-Use Go's standard `testing` package. Place tests beside implementation files with `_test.go` names and prefer table-driven tests for parsing, validation, and value types. New behavior should include a failing test first when practical. Run `make test` before opening a PR; use `scripts/smoke.sh` after changes that affect routes, templates, or Google Sheets writes.
+Use Go's standard `testing` package and Vitest/Testing Library in `frontend`. Place tests beside implementation and prefer table-driven tests for parsing, validation, and value types. New behavior should include a failing test first when practical. Run `make test` before opening a PR, `make test-e2e` for UI/API changes, and `scripts/smoke.sh` after outbox or mirror changes.
 
 ## Commit & Pull Request Guidelines
 

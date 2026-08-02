@@ -2,64 +2,61 @@
 set -euo pipefail
 
 PORT="${PORT:-${SPESE_PORT:-8080}}"
-BASE_URL="${BASE_URL:-http://localhost:${PORT}}"
+BASE_URL="${BASE_URL:-http://127.0.0.1:${PORT}}"
 SHEET_FILE="${SPESE_LOCAL_SHEET_PATH:-tmp/local-sheet.json}"
+ORIGIN="${BASE_URL}"
 
-echo "[smoke] Base URL: ${BASE_URL}"
-
-echo "[smoke] Checking /healthz ..."
+echo "[smoke] Checking liveness and readiness at ${BASE_URL} ..."
 curl -fsS "${BASE_URL}/healthz" >/dev/null
-echo "[smoke] /healthz OK"
+curl -fsS "${BASE_URL}/readyz" >/dev/null
 
 suffix="${SMOKE_SUFFIX:-$(date +%s)-$$}"
 ACCOUNT="${ACCOUNT:-Smoke Cash ${suffix}}"
 PAYEE="${PAYEE:-Smoke Test ${suffix}}"
 TODAY="${TODAY:-$(date +%F)}"
-CATEGORY="${CATEGORY:-Smoke}"
-SUBCATEGORY="${SUBCATEGORY:-Local}"
 
-post_form() {
+post_json() {
   local path="$1"
-  shift
-
-  local resp body code
-  resp=$(curl -sS -w "\n%{http_code}" -X POST \
-    -H 'Content-Type: application/x-www-form-urlencoded' \
-    "$@" \
+  local body="$2"
+  local expected="$3"
+  local key="smoke-${suffix}-${RANDOM}"
+  local response code payload
+  response=$(curl -sS -w "\n%{http_code}" -X POST \
+    -H 'Content-Type: application/json' \
+    -H 'X-Spese-CSRF: 1' \
+    -H "Origin: ${ORIGIN}" \
+    -H "Idempotency-Key: ${key}" \
+    --data "$body" \
     "${BASE_URL}${path}")
-  body=$(printf '%s' "$resp" | sed '$d')
-  code=$(printf '%s' "$resp" | tail -n1)
-
-  if [[ "$code" != "200" ]]; then
-    echo "[smoke] Unexpected status from ${path}: ${code}"
-    echo "[smoke] Response body:" && echo "$body"
+  code=$(printf '%s' "$response" | tail -n1)
+  payload=$(printf '%s' "$response" | sed '$d')
+  if [[ "$code" != "$expected" ]]; then
+    echo "[smoke] ${path}: expected ${expected}, got ${code}"
+    printf '%s\n' "$payload"
     exit 1
   fi
-  echo "[smoke] ${path} OK: ${code}"
+  printf '%s' "$payload"
 }
 
 echo "[smoke] Creating account '${ACCOUNT}' ..."
-post_form "/accounts" \
-  --data-urlencode "name=${ACCOUNT}" \
-  --data-urlencode "type=Asset" \
-  --data-urlencode "class=Cash" \
-  --data-urlencode "currency=EUR" \
-  --data-urlencode "note=smoke"
+account_json=$(post_json "/api/v1/accounts" "{\"name\":\"${ACCOUNT}\",\"type\":\"Asset\",\"class\":\"Cash\",\"initialBalanceCents\":0,\"initialDate\":\"${TODAY}\",\"activeFrom\":\"\",\"activeTo\":\"\",\"note\":\"smoke\"}" 201)
+account_id=$(printf '%s' "$account_json" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
 
-echo "[smoke] Creating transaction '${PAYEE}' ..."
-post_form "/transactions" \
-  --data-urlencode "kind=Expense" \
-  --data-urlencode "date=${TODAY}" \
-  --data-urlencode "account=${ACCOUNT}" \
-  --data-urlencode "amount=1.23" \
-  --data-urlencode "payee=${PAYEE}" \
-  --data-urlencode "category=${CATEGORY}" \
-  --data-urlencode "subcategory=${SUBCATEGORY}" \
-  --data-urlencode "note=smoke"
+echo "[smoke] Creating category ..."
+category_json=$(post_json "/api/v1/categories" "{\"kind\":\"expense\",\"name\":\"Smoke ${suffix}\",\"icon\":\"flame\",\"color\":\"#725B86\",\"sortOrder\":0}" 201)
+category_id=$(printf '%s' "$category_json" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+
+if [[ -z "$account_id" || -z "$category_id" ]]; then
+  echo "[smoke] Could not parse created IDs"
+  exit 1
+fi
+
+echo "[smoke] Creating movement '${PAYEE}' ..."
+post_json "/api/v1/movements" "{\"kind\":\"expense\",\"status\":\"posted\",\"date\":\"${TODAY}\",\"accountId\":\"${account_id}\",\"amountCents\":123,\"merchant\":\"${PAYEE}\",\"note\":\"smoke\",\"origin\":\"manual\",\"allocations\":[{\"categoryId\":\"${category_id}\",\"amountCents\":123}]}" 201 >/dev/null
 
 if [[ "${SPESE_SHEET_MIRROR_BACKEND:-}" == "local" || "${VERIFY_LOCAL_SHEET:-}" == "1" ]]; then
   echo "[smoke] Waiting for Rabbit worker to write ${SHEET_FILE} ..."
-  for _ in {1..50}; do
+  for _ in {1..100}; do
     if [[ -f "$SHEET_FILE" ]] && grep -Fq "$ACCOUNT" "$SHEET_FILE" && grep -Fq "$PAYEE" "$SHEET_FILE"; then
       echo "[smoke] Local sheet mirror OK"
       exit 0
@@ -67,7 +64,6 @@ if [[ "${SPESE_SHEET_MIRROR_BACKEND:-}" == "local" || "${VERIFY_LOCAL_SHEET:-}" 
     sleep 0.1
   done
   echo "[smoke] Local sheet mirror did not contain smoke rows"
-  [[ -f "$SHEET_FILE" ]] && cat "$SHEET_FILE"
   exit 1
 fi
 

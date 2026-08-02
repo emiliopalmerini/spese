@@ -11,7 +11,7 @@ func TestParseBatchForm(t *testing.T) {
 
 	request := httptest.NewRequest("POST", "/dictation/confirm", strings.NewReader(
 		"id=draft-1&id=draft-2&kind=Expense&kind=Income&date=2026-07-26&date=2026-07-25"+
-			"&account=Fineco&account=Fineco&amount=12%2C50&amount=1000&payee=Conad&payee=Stipendio"+
+			"&account=Fineco&account=Fineco&amount=12%2C50&amount=1000&payee=Conad&payee=Stipendio&description=Spesa&description=Mensilit%C3%A0"+
 			"&category=Spesa&category=Entrate&subcategory=&subcategory=&note=&note=luglio",
 	))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")

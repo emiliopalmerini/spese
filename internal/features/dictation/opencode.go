@@ -35,6 +35,7 @@ type HistoryItem struct {
 	Account     string `json:"account"`
 	Amount      string `json:"amount"`
 	Payee       string `json:"payee"`
+	Description string `json:"description"`
 	Category    string `json:"category"`
 	Subcategory string `json:"subcategory"`
 }
@@ -206,14 +207,15 @@ func extractionSchema() map[string]any {
 				"items": map[string]any{
 					"type":                 "object",
 					"additionalProperties": false,
-					"required":             []string{"id", "kind", "date", "account", "amount", "payee", "category", "subcategory", "note", "issues"},
+					"required":             []string{"id", "kind", "date", "account", "amount", "payee", "description", "category", "subcategory", "note", "issues"},
 					"properties": map[string]any{
 						"id":          stringField("ID esistente oppure stringa vuota per un nuovo movimento"),
 						"kind":        map[string]any{"type": "string", "enum": []string{"Income", "Expense"}},
 						"date":        stringField("Data ISO YYYY-MM-DD"),
 						"account":     stringField("Nome esatto di un conto ammesso"),
 						"amount":      stringField("Importo positivo in formato decimale, senza valuta"),
-						"payee":       stringField("Beneficiario o descrizione"),
+						"payee":       stringField("Esercente per un'uscita o provenienza del denaro per un'entrata"),
+						"description": stringField("Descrizione o causale distinta dalla controparte"),
 						"category":    stringField("Categoria, se nota"),
 						"subcategory": stringField("Sottocategoria, se nota"),
 						"note":        stringField("Nota facoltativa"),

@@ -1,0 +1,1 @@
+import{c as e,n as t}from"./button--adROWfK.js";var n=e();function r({className:e,...r}){return(0,n.jsx)(`label`,{className:t(`text-sm font-semibold leading-none`,e),...r})}export{r as t};

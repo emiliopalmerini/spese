@@ -1,0 +1,1 @@
+import{c as e,n as t}from"./button--adROWfK.js";var n=e();function r({className:e,type:r,...i}){return(0,n.jsx)(`input`,{type:r,className:t(`flex h-12 w-full rounded-xl border border-input bg-card px-3 py-2 text-base shadow-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 md:text-sm`,e),...i})}export{r as t};

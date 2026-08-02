@@ -1,8 +1,0 @@
-# One subcategory per line
-General
-Grocery store
-Restaurant
-Subscriptions
-Fuel
-Pharmacy
-

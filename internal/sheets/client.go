@@ -129,7 +129,7 @@ func (c *Client) AppendRows(ctx context.Context, tab string, rows [][]any) error
 	}
 	vr := &sheets.ValueRange{Values: rows}
 	_, err := c.svc.Spreadsheets.Values.Append(c.spreadsheetID, tab, vr).
-		ValueInputOption("USER_ENTERED").
+		ValueInputOption("RAW").
 		InsertDataOption("INSERT_ROWS").
 		Context(ctx).Do()
 	if err != nil {
@@ -156,7 +156,7 @@ func (c *Client) ReplaceRows(ctx context.Context, tab string, rows [][]any) erro
 		}
 		vr := &sheets.ValueRange{Values: rows}
 		_, err = c.svc.Spreadsheets.Values.Update(c.spreadsheetID, tab+"!A1", vr).
-			ValueInputOption("USER_ENTERED").
+			ValueInputOption("RAW").
 			Context(ctx).Do()
 		if err != nil {
 			return fmt.Errorf("sheets update %s: %w", tab, err)

@@ -1,10 +1,6 @@
 package dictation
 
-import (
-	"testing"
-
-	"spese/internal/features/transactions"
-)
+import "testing"
 
 func TestNormalizeExtractionPreservesKnownIDsAndAssignsNewOnes(t *testing.T) {
 	t.Parallel()
@@ -46,14 +42,14 @@ func TestValidateDraftsBuildsTransactions(t *testing.T) {
 
 	drafts := []Draft{{
 		ID: "draft-1", Kind: "Expense", Date: "2026-07-26", Account: "Fineco",
-		Amount: "12,50", Payee: "Conad", Category: "Spesa",
+		Amount: "12,50", Payee: "Conad", Description: "Spesa settimanale", Category: "Spesa",
 	}}
 
 	got, issues := ValidateDrafts(drafts, []string{"Fineco"})
 	if len(issues) != 0 {
 		t.Fatalf("issues = %#v, want none", issues)
 	}
-	if len(got) != 1 || got[0].Kind != transactions.Expense || int64(got[0].Amount) != -1250 {
+	if len(got) != 1 || got[0].Kind != expenseKind || int64(got[0].Amount) != -1250 || got[0].Merchant != "Conad" || got[0].Description != "Spesa settimanale" {
 		t.Fatalf("transactions = %#v, want normalized expense", got)
 	}
 }
