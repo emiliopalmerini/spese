@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -49,6 +51,67 @@ func TestMigrateAddsAccountColumnsToLegacyDatabase(t *testing.T) {
 	}
 	if activeFrom != "" || activeTo != "" || note != "" {
 		t.Fatalf("expected empty legacy metadata, got active_from=%q active_to=%q note=%q", activeFrom, activeTo, note)
+	}
+}
+
+func TestOpenConcurrentLegacyDatabase(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "spese.db")
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE accounts (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			type TEXT NOT NULL CHECK (type IN ('Asset', 'Liability'))
+		);
+		INSERT INTO accounts (name, type) VALUES ('Wallet', 'Asset');
+	`); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var stores [2]*Store
+	var wg sync.WaitGroup
+	for i := range stores {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			store, err := Open(context.Background(), dbPath)
+			stores[i] = store
+			errs <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for _, store := range stores {
+		if store != nil {
+			defer store.Close()
+		}
+	}
+	for err := range errs {
+		if err != nil {
+			t.Errorf("Open() error = %v", err)
+		}
+	}
+	if t.Failed() {
+		return
+	}
+
+	var count int
+	if err := stores[0].DB().QueryRow("SELECT count(*) FROM accounts WHERE name = 'Wallet'").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("migrated Wallet accounts = %d, want 1", count)
 	}
 }
 

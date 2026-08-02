@@ -8,10 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 )
 
 const SheetSyncOutboxName = "sheet-sync"
@@ -44,7 +45,12 @@ type SheetSyncPayload struct {
 
 // Open opens the local SQLite database and applies schema.
 func Open(ctx context.Context, dbPath string) (*Store, error) {
-	db, err := sql.Open("sqlite3", dbPath)
+	separator := "?"
+	if strings.Contains(dbPath, "?") {
+		separator = "&"
+	}
+	dsn := dbPath + separator + "_busy_timeout=5000&_txlock=immediate"
+	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite db: %w", err)
 	}
@@ -52,16 +58,34 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 	// foreign-key enforcement and serializes writers consistently.
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
-	if _, err := db.ExecContext(ctx, `
-		PRAGMA journal_mode = WAL;
-		PRAGMA synchronous = NORMAL;
-		PRAGMA busy_timeout = 5000;
-		PRAGMA foreign_keys = ON;
-		PRAGMA cache_size = -32000;
-		PRAGMA temp_store = MEMORY;
-	`); err != nil {
+	var pragmaErr error
+pragmaLoop:
+	for attempt := 0; attempt < 100; attempt++ {
+		_, pragmaErr = db.ExecContext(ctx, `
+			PRAGMA busy_timeout = 5000;
+			PRAGMA journal_mode = WAL;
+			PRAGMA synchronous = NORMAL;
+			PRAGMA foreign_keys = ON;
+			PRAGMA cache_size = -32000;
+			PRAGMA temp_store = MEMORY;
+		`)
+		if pragmaErr == nil {
+			break
+		}
+		var sqliteErr sqlite3.Error
+		if !errors.As(pragmaErr, &sqliteErr) || (sqliteErr.Code != sqlite3.ErrBusy && sqliteErr.Code != sqlite3.ErrLocked) {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			pragmaErr = ctx.Err()
+			break pragmaLoop
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+	if pragmaErr != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("sqlite pragmas: %w", err)
+		return nil, fmt.Errorf("sqlite pragmas: %w", pragmaErr)
 	}
 	if _, err := backupBeforeLegacyMigration(ctx, db, dbPath); err != nil {
 		_ = db.Close()
@@ -97,7 +121,18 @@ func backupBeforeLegacyMigration(ctx context.Context, db *sql.DB, dbPath string)
 	if legacyTables == 0 {
 		return "", nil
 	}
-	backupPath := dbPath + ".pre-v2-" + time.Now().UTC().Format("20060102T150405Z") + ".bak"
+	backupPattern := filepath.Base(dbPath) + ".pre-v2-" + time.Now().UTC().Format("20060102T150405Z") + "-*.bak"
+	backupFile, err := os.CreateTemp(filepath.Dir(dbPath), backupPattern)
+	if err != nil {
+		return "", fmt.Errorf("allocate legacy database backup: %w", err)
+	}
+	backupPath := backupFile.Name()
+	if err := backupFile.Close(); err != nil {
+		return "", fmt.Errorf("close legacy database backup placeholder: %w", err)
+	}
+	if err := os.Remove(backupPath); err != nil {
+		return "", fmt.Errorf("prepare legacy database backup: %w", err)
+	}
 	escaped := strings.ReplaceAll(backupPath, "'", "''")
 	if _, err := db.ExecContext(ctx, "VACUUM INTO '"+escaped+"'"); err != nil {
 		return "", fmt.Errorf("backup legacy database to %s: %w", backupPath, err)
